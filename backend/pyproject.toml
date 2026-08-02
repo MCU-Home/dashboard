@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcuhome-dashboard"
+version = "0.1.0.dev0"
+description = "Web interface for MCUHome: create, build, flash and manage Zephyr-based smart home devices."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "The MCUHome Contributors" }]
+keywords = ["mcuhome", "zephyr", "matter", "thread", "home-assistant", "dashboard"]
+classifiers = [
+  "Development Status :: 1 - Planning",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Home Automation",
+]
+
+[project.urls]
+Homepage = "https://github.com/mcu-home/dashboard"
+Issues = "https://github.com/mcu-home/dashboard/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcuhome_dashboard"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

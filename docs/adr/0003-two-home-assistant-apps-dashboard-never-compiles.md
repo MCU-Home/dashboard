@@ -114,12 +114,13 @@ a self-hosted amd64 machine is the supported path.
   left over after running Home Assistant.
 - "App", never "Add-on", in every user-facing string, screenshot and
   document.
-- One implementation question stays open for the build server's own
-  design: whether the multi-GB west workspace is baked into the image
-  (~6 GB) or provisioned by `west update` into `/data` on first run
-  (ESPHome's pattern). Both work; the trade is image size against
-  first-run time, and it is decided with real numbers when the build
-  server is built.
+- The multi-GB west workspace is **baked into the build-server image**
+  (PO decision, 2026-08-07): a container without internet access must
+  still be able to build — offline capability outranks image size. A
+  second, *minimal* build-server variant that provisions the workspace
+  on first run (ESPHome's pattern) may be offered later as an
+  alternative for users who prefer a small download; both variants
+  would share the same protocol and app surface.
 - **Out of MVP, stated so nobody looks for it:** the dashboard does not
   know which Home Assistant entity a device it built became. v0.1 is
   Matter-only with no custom HA integration (firmware ADR 0010), so

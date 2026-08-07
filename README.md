@@ -8,23 +8,29 @@ create, build, flash and manage Zephyr-based smart home devices from your
 browser.**
 
 The dashboard is a standalone product with its own release cycle. It will
-be distributed as a Home Assistant add-on (packaged in a separate,
-yet-to-be-created `home-assistant-addon` repository), as a Docker image,
-and as a plain Python application.
+be distributed as a Home Assistant App (packaged in a separate,
+yet-to-be-created packaging repository), as a Docker image, and as a
+plain Python application.
+
+**The dashboard never compiles.** Firmware builds always run on a
+separate build server — a second Home Assistant App, or a container on
+any machine you point it at. See
+[ADR 0003](docs/adr/0003-two-home-assistant-apps-dashboard-never-compiles.md).
 
 ## Project status
 
-**Pre-alpha.** This repository is a scaffold; the architecture is being
-designed in the open (see [docs/adr/](docs/adr/)). Nothing is functional
-yet. Firmware framework and YAML builder live in
+**Pre-alpha.** This repository is a scaffold; the architecture is designed
+in the open and the design phase is complete (see
+[docs/adr/](docs/adr/)). Nothing is functional yet. Firmware framework and
+YAML builder live in
 [mcu-home/mcuhome](https://github.com/mcu-home/mcuhome).
 
 ## Architecture (planned)
 
 | Path | Purpose |
 |---|---|
-| `backend/` | Python backend: build orchestration, device management, API for the frontend |
-| `frontend/` | TypeScript single-page application (framework selection pending, see ADR 0002) |
+| `backend/` | Python backend (aiohttp, WebSocket-first API): build orchestration, device management |
+| `frontend/` | TypeScript single-page application: Lit 3, `@home-assistant/webawesome`, CodeMirror 6, Vite |
 | `docs/adr/` | Architecture decision records (dashboard-specific) |
 
 The backend drives the MCUHome builder (`mcuhome` Python package) and

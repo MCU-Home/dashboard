@@ -7,7 +7,7 @@ of the [architecture decision records](docs/adr/) and participation in
 
 ## Development environment
 
-Backend (Python ≥ 3.11):
+Backend (Python ≥ 3.13):
 
 ```sh
 cd backend
@@ -15,9 +15,10 @@ python3 -m venv .venv && . .venv/bin/activate
 pip install -e .
 ```
 
-Frontend: TypeScript SPA — the framework and build tooling are selected in
-the design phase (see [ADR 0002](docs/adr/0002-python-backend-typescript-frontend.md));
-`frontend/` is a placeholder until then.
+Frontend: TypeScript SPA — Lit 3, `@home-assistant/webawesome`,
+CodeMirror 6 and Vite (see
+[ADR 0005](docs/adr/0005-lit-webawesome-codemirror-frontend.md));
+`frontend/` is a placeholder until the scaffolding lands.
 
 Install the lint hooks once per clone:
 
@@ -29,7 +30,8 @@ pre-commit install --hook-type commit-msg
 ## Coding standards
 
 - **Python:** `ruff` (lint + format), settings in `backend/pyproject.toml`.
-- **TypeScript:** tooling to be defined with the framework decision.
+- **TypeScript:** eslint/prettier, configured with the frontend
+  scaffolding (ADR 0005).
 - **Licensing:** every new file needs SPDX headers (a
   `SPDX-FileCopyrightText` line and an `Apache-2.0` license identifier —
   copy them from any existing file).

@@ -10,7 +10,7 @@ name = "mcuhome-dashboard"
 version = "0.1.0.dev0"
 description = "Web interface for MCUHome: create, build, flash and manage Zephyr-based smart home devices."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 license = "Apache-2.0"
 authors = [{ name = "The MCUHome Contributors" }]
 keywords = ["mcuhome", "zephyr", "matter", "thread", "home-assistant", "dashboard"]
@@ -30,7 +30,7 @@ packages = ["mcuhome_dashboard"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

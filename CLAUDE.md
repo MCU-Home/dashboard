@@ -8,5 +8,6 @@
   `dashboard-test-runner`).
 - Shared project settings: `.claude/settings.json`. Personal overrides go
   to `.claude/settings.local.json` (gitignored — never commit).
-- Formatting hooks are added together with the frontend framework decision
-  (ADR 0002); until then run `ruff format` via pre-commit.
+- Frontend formatting hooks (prettier/eslint) are added together with the
+  frontend scaffolding (stack fixed in ADR 0005); until then run
+  `ruff format` via pre-commit.

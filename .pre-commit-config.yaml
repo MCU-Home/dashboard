@@ -3,8 +3,9 @@
 #
 # Install: pre-commit install --install-hooks
 #          pre-commit install --hook-type commit-msg
-# Frontend hooks (prettier/eslint) are added with the framework decision
-# (see docs/adr/0002). Update pins periodically with: pre-commit autoupdate
+# Frontend hooks (prettier/eslint) are added with the frontend
+# scaffolding (stack fixed in docs/adr/0005).
+# Update pins periodically with: pre-commit autoupdate
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

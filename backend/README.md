@@ -68,7 +68,7 @@ successful `device/validate` whose result says `ok: false` and carries
 the diagnostics.
 
 Error codes: `bad_request`, `unknown_command`, `not_found`,
-`unauthorized`, `unavailable`, `internal_error`.
+`unauthorized`, `unavailable`, `conflict`, `internal_error`.
 
 ### Commands
 
@@ -78,7 +78,9 @@ Error codes: `bad_request`, `unknown_command`, `not_found`,
 | `ping` | — | `{"pong": true, "time": …}` |
 | `device/list` | — | every device in the tree, with a content hash and an unresolved summary |
 | `device/get` | `{"name"}` | the raw YAML as it is on disk, plus the summary |
+| `device/save` | `{"name", "content", "expected_hash"?}` | `{"name", "device": entry, "content_hash"}` |
 | `device/validate` | `{"name"}` | `{"ok", "errors": [...], "device": summary\|null}` |
+| `device/commissioning` | `{"name"}` | `{"ok", "errors": [...], "commissioning": codes\|null}` |
 | `config/subscribe` | — | the `device/list` snapshot, and every later change as an event |
 | `subscribe_events` | `{"topics": ["devices"]}` | the topics this socket now receives |
 | `unsubscribe_events` | `{"topics": [...]}` | the topics that remain |
@@ -91,6 +93,36 @@ Events on the `devices` topic: `device_added`, `device_changed`,
 `device_removed`, `tree_state`, plus `events_dropped` when a connection
 fell so far behind that the server discarded events for it — the cue to
 re-subscribe rather than trust what is held.
+
+### Writing: `device/save` and the `conflict` code
+
+The dashboard is not the only writer of the configuration tree, so the
+same content hash that `device/get` hands out is what a save presents
+back as `expected_hash`: "I edited *that* version". If the file changed
+since, the write is refused with `conflict` and the client re-reads with
+`device/get` instead of silently discarding somebody else's work.
+Omitting `expected_hash` is a deliberate force-overwrite — how a client
+that has resolved the conflict retries.
+
+The file is replaced with a sibling-plus-rename, so neither the tree poll
+nor another editor ever sees a half-written configuration. Saving does
+**not** validate: half-finished YAML is the normal state of an open
+editor, and `device/validate` is the separate command that says whether
+what was saved is good. Creating a device is not this command's job —
+that is `mcuhome new` (ADR 0011).
+
+### Commissioning codes
+
+`device/commissioning` returns `qr_payload`, `manual_code`,
+`discriminator` and `test_credentials` — the same data
+`mcuhome validate` prints on a terminal.
+
+It is a command of its own rather than a field of the device summary
+because **the QR payload contains the passcode**. That is why a
+commissioning view is worth having and why the codes may not ride along
+on `device/list` or `device/validate`, which every open tab receives
+without asking. They cross the wire only when a user pressed a button
+(ADR 0007). `null` means the device has no Matter pairing tuple.
 
 ### Validation diagnostics
 

@@ -10,6 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Frontend (`frontend/`): the single-page application of ADR 0005 — Lit 3,
+  `@home-assistant/webawesome`, CodeMirror 6, TypeScript, Vite, vitest,
+  eslint and prettier.
+  - Device list, live from `config/subscribe` — no polling and no
+    re-fetch — with a validity badge per device, filled in one
+    `device/validate` at a time.
+  - Device editor: CodeMirror 6 with YAML syntax, the builder's
+    diagnostics as gutter markers with their fix hints, and a problem
+    panel that moves the cursor to the line it names.
+  - Saving, with content-hash conflict detection: a file that changed on
+    disk since it was opened offers reload or overwrite rather than
+    silently discarding somebody's work.
+  - Commissioning view: the QR code and manual pairing code, rendered in
+    the browser and only after an explicit "show commissioning codes" —
+    the payload contains the device's passcode.
+  - One WebSocket for everything, with request/response correlation,
+    reconnect-and-resubscribe, request timeouts, and a `/health` probe
+    that tells a refused connection apart from an unreachable server.
+  - Base-path aware throughout (ingress, reverse-proxy sub-path, bare
+    root from one build), light/dark by `prefers-color-scheme` with a
+    remembered override, and a login form for the public site.
+  - Frontend test suite (117 vitest tests).
+- Backend `device/save`: writes one device's configuration file, replaced
+  in one step, with `expected_hash` conflict detection and a new
+  `conflict` error code. It does not validate — `device/validate` is the
+  separate command for that.
+- Backend `device/commissioning`: `qr_payload`, `manual_code`,
+  `discriminator` and `test_credentials` for one device, the same data
+  `mcuhome validate` prints. A command of its own rather than a field of
+  the device summary, because the QR payload contains the passcode and
+  must not ride along on every list response (ADR 0007).
 - Backend skeleton (`backend/mcuhome_dashboard/`): aiohttp application
   with the two sites of ADR 0009 (an ingress site that trusts the
   Supervisor gateway, a public site that authenticates itself), the
@@ -27,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     handling; a placeholder frontend shell that proves the plumbing.
   - REST is limited to `GET /health` and the public site's login and
     logout, the latter CSRF-protected.
-- Backend test suite (111 tests) on aiohttp's test client — no
+- Backend test suite (137 tests) on aiohttp's test client — no
   subprocesses, no containers.
 - Initial project scaffold: backend package skeleton, frontend placeholder,
   community health files and architecture decision records.
@@ -52,3 +83,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AGENTS.md reflects the design decisions: "App" instead of "Add-on",
   two-App packaging, always-remote builds, and the in-process builder
   import with a declared version range.
+- The backend's default static root now serves a diagnostic page rather
+  than a placeholder shell: the built frontend is pointed at with
+  `--static-root ../frontend/dist` until packaging copies it into the
+  wheel.
+- `pre-commit` runs prettier and eslint over `frontend/`, discharging
+  ADR 0005's "the frontend hooks land with the first frontend commit".

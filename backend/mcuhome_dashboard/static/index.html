@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+SPDX-License-Identifier: Apache-2.0
+
+Placeholder shell. The real frontend (Lit 3 + @home-assistant/webawesome +
+CodeMirror 6, built with Vite — ADR 0005) replaces this file with its build
+output in Block 3. Until then it exists to prove the plumbing this backend
+is responsible for: that ingress rewrites nothing, that the base path from
+X-Ingress-Path arrives, and that a WebSocket opens and answers.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MCUHome Dashboard</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #16181d;
+        --bg: #f5f6f8;
+        --muted: #5b6472;
+        --line: #d7dbe2;
+        --ok: #1f7a3d;
+        --bad: #b3261e;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #e6e8ec;
+          --bg: #14161a;
+          --muted: #9aa4b2;
+          --line: #2b3038;
+          --ok: #6bd08c;
+          --bad: #ff8a80;
+        }
+      }
+      body {
+        margin: 0;
+        padding: 2rem 1.5rem;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      main { max-width: 46rem; margin: 0 auto; }
+      h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+      p.lead { color: var(--muted); margin: 0 0 1.5rem; }
+      section {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+        background: color-mix(in srgb, var(--bg) 85%, var(--fg) 4%);
+      }
+      h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em;
+           color: var(--muted); margin: 0 0 0.6rem; }
+      pre {
+        margin: 0;
+        overflow-x: auto;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      .state { font-weight: 600; }
+      .state[data-ok="true"] { color: var(--ok); }
+      .state[data-ok="false"] { color: var(--bad); }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>MCUHome Dashboard</h1>
+      <p class="lead">
+        Backend skeleton. The interface itself is not built yet — this page
+        checks that the server, the WebSocket and the ingress base path work.
+      </p>
+
+      <section>
+        <h2>Connection</h2>
+        <p>
+          <span class="state" id="state" data-ok="false">connecting…</span><br />
+          <code id="url"></code>
+        </p>
+      </section>
+
+      <section>
+        <h2>server/info</h2>
+        <pre id="info">waiting for the first frame…</pre>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        var base = window.MCUHOME_BASE_PATH || "";
+        var scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+        var url = scheme + "//" + window.location.host + base + "/ws";
+        var state = document.getElementById("state");
+        var info = document.getElementById("info");
+        document.getElementById("url").textContent = url;
+
+        function show(text, ok) {
+          state.textContent = text;
+          state.dataset.ok = ok ? "true" : "false";
+        }
+
+        var socket = new WebSocket(url);
+        socket.addEventListener("open", function () {
+          show("connected", true);
+          socket.send(JSON.stringify({ id: "1", type: "server/info", payload: {} }));
+        });
+        socket.addEventListener("message", function (event) {
+          var frame = JSON.parse(event.data);
+          info.textContent = JSON.stringify(frame, null, 2);
+        });
+        socket.addEventListener("close", function () {
+          show("disconnected", false);
+        });
+        socket.addEventListener("error", function () {
+          show("connection failed", false);
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Development install:
+#
+#     python3 -m venv .venv && . .venv/bin/activate
+#     pip install -r requirements-dev.txt
+#
+# The `mcuhome` builder package is imported in-process (ADR 0011) but is
+# not published yet, so it is installed from the sibling checkout of the
+# west workspace:
+#
+#     <workspace>/mcuhome/            the builder (this line)
+#     <workspace>/dashboard/backend/  this package
+#
+# Point the path elsewhere if your checkout is laid out differently. The
+# supported version range is asserted at startup from
+# mcuhome_dashboard/versions.py, not from this file.
+-e ../../mcuhome
+-e .[dev]

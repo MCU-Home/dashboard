@@ -10,11 +10,18 @@ standalone product to create, build, flash and manage Zephyr-based smart
 home devices. Distribution targets: **Home Assistant App** (packaged in a
 separate future packaging repo), Docker image, plain Python app.
 
-**Current phase: pre-alpha scaffold.** The design phase is complete —
-ADRs 0003–0011 fix the deployment topology, the backend and frontend
-stacks, the build-service protocol, state layout, auth, flash flow and
-the builder coupling. There is no functional code yet. Check `docs/adr/`
-before assuming any design decision.
+**Current phase: pre-alpha.** The design phase is complete — ADRs
+0003–0011 fix the deployment topology, the backend and frontend stacks,
+the build-service protocol, state layout, auth, flash flow and the
+builder coupling. Check `docs/adr/` before assuming any design decision.
+
+The **backend skeleton** is implemented: the two sites of ADR 0009, the
+`/ws` command and event vocabulary of ADR 0004, configuration-tree
+watching, in-process validation through the builder, and static serving
+with ingress base paths. `backend/README.md` documents the frame
+vocabulary — it is the hand-written substitute for the OpenAPI document
+a WebSocket API does not produce. Still missing: the build-server client
+(ADR 0006), the real frontend (ADR 0005), and app packaging.
 
 The architecture in one line: **two Home Assistant Apps** — the thin
 `mcuhome-dashboard` (this repo) and the fat `mcuhome-build-server` —
@@ -63,8 +70,17 @@ the firmware repo:
 ## Commands
 
 ```sh
-# Backend setup
-cd backend && python3 -m venv .venv && . .venv/bin/activate && pip install -e .
+# Backend setup. requirements-dev.txt also installs the mcuhome builder
+# package from the sibling checkout (../../mcuhome) — it is imported
+# in-process (ADR 0011) and is not published yet.
+cd backend && python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements-dev.txt
+
+# Backend tests (in-process, no subprocess, no container, ~3 s)
+pytest
+
+# Run it
+mcuhome-dashboard --config-root ~/mcuhome-config
 
 # Python lint/format
 ruff check --fix . && ruff format .
@@ -74,8 +90,7 @@ pre-commit run --all-files
 ```
 
 Frontend commands land with the first frontend commit (stack fixed in
-ADR 0005). There is no CI yet — it is added together with the first
-testable code.
+ADR 0005). There is no CI yet.
 
 ## Coding standards
 

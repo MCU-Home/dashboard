@@ -19,13 +19,15 @@ any machine you point it at. See
 
 ## Project status
 
-**Pre-alpha.** This repository is a scaffold; the architecture is designed
-in the open and the design phase is complete (see
-[docs/adr/](docs/adr/)). Nothing is functional yet. Firmware framework and
-YAML builder live in
+**Pre-alpha.** The architecture is designed in the open and the design
+phase is complete (see [docs/adr/](docs/adr/)). The backend skeleton
+runs — it serves the API, watches the configuration tree and validates
+device configurations — but there is no user interface yet and no build
+path: the frontend, the build-server client and the Home Assistant App
+packaging are still to come. Firmware framework and YAML builder live in
 [mcu-home/mcuhome](https://github.com/mcu-home/mcuhome).
 
-## Architecture (planned)
+## Architecture
 
 | Path | Purpose |
 |---|---|

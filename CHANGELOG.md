@@ -10,6 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Backend skeleton (`backend/mcuhome_dashboard/`): aiohttp application
+  with the two sites of ADR 0009 (an ingress site that trusts the
+  Supervisor gateway, a public site that authenticates itself), the
+  WebSocket-first API of ADR 0004 on a single `/ws` endpoint, and an
+  in-process event bus.
+  - Commands: `server/info`, `ping`, `device/list`, `device/get`,
+    `device/validate`, `config/subscribe`, `subscribe_events`,
+    `unsubscribe_events`. Lists follow snapshot-then-events.
+  - The configuration tree is watched by an mtime poll with content
+    hashing, so a touch or an identical rewrite produces no event.
+  - `device/validate` runs the builder in-process (ADR 0011) and returns
+    its errors as structured diagnostics with file, line, column, dotted
+    key and fix hint.
+  - Static assets with SPA fallback and per-request `X-Ingress-Path`
+    handling; a placeholder frontend shell that proves the plumbing.
+  - REST is limited to `GET /health` and the public site's login and
+    logout, the latter CSRF-protected.
+- Backend test suite (111 tests) on aiohttp's test client — no
+  subprocesses, no containers.
 - Initial project scaffold: backend package skeleton, frontend placeholder,
   community health files and architecture decision records.
 - Design phase: ADRs 0003–0011 — two Home Assistant Apps with the
@@ -24,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Backend requires Python ≥ 3.13 (was ≥ 3.11) — ADR 0004.
+- Backend depends on `aiohttp` and gains a `dev` extra, a
+  `mcuhome-dashboard` entry point and pytest wiring. The `mcuhome`
+  builder package is installed from the sibling checkout via
+  `requirements-dev.txt` until it is published; the supported version
+  range is declared in `mcuhome_dashboard/versions.py` and asserted at
+  startup.
 - AGENTS.md reflects the design decisions: "App" instead of "Add-on",
   two-App packaging, always-remote builds, and the in-process builder
   import with a declared version range.

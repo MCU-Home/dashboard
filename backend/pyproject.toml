@@ -21,6 +21,30 @@ classifiers = [
   "Topic :: Home Automation",
 ]
 
+dependencies = ["aiohttp>=3.10,<4"]
+
+# The `mcuhome` builder package is a real runtime dependency (ADR 0011
+# decision 1: it is imported in-process, never spawned). It is NOT
+# declared here yet, because it is not published: pip would resolve the
+# name against PyPI and fail. Until then:
+#
+#   * the supported range lives in `mcuhome_dashboard/versions.py` as
+#     MCUHOME_VERSION_SPEC, and the server refuses to start outside it,
+#     naming both versions (ADR 0011 decision 2);
+#   * `requirements-dev.txt` installs it from the sibling checkout in
+#     the west workspace;
+#   * moving that range into `dependencies` is part of release tooling,
+#     together with the first published builder release.
+#
+# The direction of the dependency is the invariant either way: the
+# builder never learns that the dashboard exists.
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-aiohttp>=1.1", "ruff==0.16.1"]
+
+[project.scripts]
+mcuhome-dashboard = "mcuhome_dashboard.server:main"
+
 [project.urls]
 Homepage = "https://github.com/mcu-home/dashboard"
 Issues = "https://github.com/mcu-home/dashboard/issues"
@@ -28,9 +52,24 @@ Issues = "https://github.com/mcu-home/dashboard/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["mcuhome_dashboard"]
 
+# Kept byte-identical to the builder repository's configuration except
+# for the Python floor, which ADR 0004 decision 2 sets higher here: the
+# dashboard's floor may sit above the builder's and never below it.
 [tool.ruff]
 line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+# `tests` is a package in this directory, not a third-party import.
+known-first-party = ["mcuhome_dashboard", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.codespell]
+# Domain vocabulary codespell would "correct" into errors.
+ignore-words-list = "requestor,pase,ot,rsource"

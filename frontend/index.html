@@ -1,0 +1,68 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 The MCUHome Contributors -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+  <head>
+    <!--
+      The backend injects a base element and window.MCUHOME_BASE_PATH per
+      request, immediately after the opening tag of this element (ADR 0005
+      decision 4). It finds the place with a regular expression, which is
+      why this comment sits *inside* the element rather than above it:
+      anything before it that spelled the element's name — even inside a
+      comment — would be matched first, and the injection would land in a
+      comment and do nothing.
+
+      The consequence for everything below: no absolute paths. Vite is
+      configured with `base: './'` so that the injected base decides what
+      the asset URLs resolve against, and the same build serves ingress, a
+      reverse-proxy sub-path and a bare root.
+    -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>MCUHome</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      /* Before the bundle runs there is no theme class on the root
+         element yet. `light dark` keeps that first frame from being a
+         white flash on a dark desktop. */
+      html {
+        color-scheme: light dark;
+      }
+
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+
+      .noscript {
+        max-width: 40rem;
+        margin: 4rem auto;
+        padding: 0 1.5rem;
+        line-height: 1.55;
+      }
+    </style>
+  </head>
+  <body>
+    <mh-app></mh-app>
+    <noscript>
+      <div class="noscript">
+        <h1>MCUHome</h1>
+        <p>
+          This dashboard is a single-page application and needs JavaScript. The
+          <code>mcuhome</code> command-line tool does everything it does, without a browser.
+        </p>
+      </div>
+    </noscript>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

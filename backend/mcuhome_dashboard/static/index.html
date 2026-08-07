@@ -2,15 +2,24 @@
 <!--
 SPDX-FileCopyrightText: 2026 The MCUHome Contributors
 SPDX-License-Identifier: Apache-2.0
-
-Placeholder shell. The real frontend (Lit 3 + @home-assistant/webawesome +
-CodeMirror 6, built with Vite — ADR 0005) replaces this file with its build
-output in Block 3. Until then it exists to prove the plumbing this backend
-is responsible for: that ingress rewrites nothing, that the base path from
-X-Ingress-Path arrives, and that a WebSocket opens and answers.
 -->
 <html lang="en">
   <head>
+    <!--
+      This is NOT the dashboard. It is the page the backend serves when no
+      built frontend has been pointed at it, and it exists to answer the
+      only question worth asking at that moment: is the server itself
+      working? It opens a WebSocket and prints what `server/info` says.
+
+      The real interface is `frontend/` (Lit 3 + @home-assistant/webawesome
+      + CodeMirror 6, built with Vite — ADR 0005). Build it and point
+      `--static-root` at its `dist/`; packaging copies the same directory
+      over this one.
+
+      The backend injects a base element and window.MCUHOME_BASE_PATH
+      immediately after the opening tag of this element, which is why
+      nothing before it may spell that tag's name — see frontend/README.md.
+    -->
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MCUHome Dashboard</title>
@@ -68,9 +77,15 @@ X-Ingress-Path arrives, and that a WebSocket opens and answers.
     <main>
       <h1>MCUHome Dashboard</h1>
       <p class="lead">
-        Backend skeleton. The interface itself is not built yet — this page
+        The backend is running, and no built frontend is installed. This page
         checks that the server, the WebSocket and the ingress base path work.
       </p>
+
+      <section>
+        <h2>Install the interface</h2>
+        <pre>cd frontend &amp;&amp; pnpm install &amp;&amp; pnpm build
+mcuhome-dashboard --config-root … --static-root ../frontend/dist</pre>
+      </section>
 
       <section>
         <h2>Connection</h2>

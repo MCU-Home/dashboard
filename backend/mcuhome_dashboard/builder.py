@@ -49,6 +49,7 @@ from mcuhome.cli import load_device_model as _load_device_model
 from mcuhome.errors import ConfigError, ConfigErrorGroup, MCUHomeError
 from mcuhome.loader import load_yaml_file
 from mcuhome.model import DeviceModel
+from mcuhome.pairing import Pairing
 from mcuhome.tree import DEVICE_ENTRY, DEVICES_DIR, ConfigTree, is_config_root, open_tree
 
 __all__ = [
@@ -56,6 +57,7 @@ __all__ = [
     "DEVICE_ENTRY",
     "MCUHOME_VERSION",
     "ConfigTree",
+    "commissioning_codes",
     "device_summary",
     "error_to_dict",
     "errors_from_exception",
@@ -188,6 +190,45 @@ def device_summary(model: DeviceModel) -> dict[str, Any]:
             for peripheral in model.hardware.peripherals
         ],
         "endpoints": endpoints,
+    }
+
+
+def commissioning_codes(model: DeviceModel) -> dict[str, Any] | None:
+    """The codes a human needs to add this device to a controller.
+
+    ``None`` when the configuration has no Matter pairing tuple — a
+    device with Matter switched off has nothing to commission.
+
+    This is the "commissioning view built for the purpose" that
+    :func:`device_summary` refers to when it explains why the pairing
+    tuple is not in the summary. The distinction is not that these
+    strings are less sensitive: **the QR payload contains the passcode**,
+    and so does the manual code. It is that they only travel when a user
+    asked for them by hand, instead of riding along on every list
+    response that any open browser tab happens to hold.
+
+    What is returned is exactly what ``mcuhome validate`` already prints
+    (``mcuhome.cli.format_commissioning``) — the same two codes and the
+    same discriminator, so the dashboard and the CLI never disagree about
+    what a device's commissioning data is. The SPAKE2+ salt and iteration
+    count are inputs to the verifier and are deliberately *not* here:
+    nothing a human does with a controller needs them.
+    """
+    credentials = model.network.pairing
+    if credentials is None:
+        return None
+    codes = Pairing(
+        discriminator=credentials.discriminator,
+        passcode=credentials.passcode,
+        salt=credentials.salt,
+        iterations=credentials.iterations,
+        test_credentials=credentials.test_credentials,
+    )
+    return {
+        "qr_payload": codes.qr_payload,
+        "manual_code": codes.manual_code,
+        "discriminator": credentials.discriminator,
+        "test_credentials": credentials.test_credentials,
     }
 
 

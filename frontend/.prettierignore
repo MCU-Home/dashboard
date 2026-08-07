@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+dist/
+coverage/
+node_modules/
+pnpm-lock.yaml
+
+# Prose in this repository is hand-wrapped to match every other Markdown
+# file here; prettier would reflow it into a different style than the
+# rest of the repository uses.
+*.md

@@ -26,8 +26,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mcuhome.errors import MCUHomeError
@@ -35,6 +37,7 @@ from mcuhome.errors import MCUHomeError
 from mcuhome_dashboard import builder, versions
 from mcuhome_dashboard.events import TOPIC_DEVICES
 from mcuhome_dashboard.protocol import (
+    ERROR_CONFLICT,
     ERROR_NOT_FOUND,
     ERROR_UNAVAILABLE,
     Command,
@@ -56,6 +59,12 @@ logger = logging.getLogger(__name__)
 #: Topics a client may subscribe to. Named explicitly so a typo is a
 #: refusal instead of a subscription that never fires.
 KNOWN_TOPICS = frozenset({TOPIC_DEVICES})
+
+#: The largest configuration ``device/save`` accepts, in bytes of UTF-8.
+#: A device configuration is a page of YAML; a megabyte of it is a
+#: mistake or an attack, and either way this side has to hold it in
+#: memory to write it.
+MAX_CONFIG_BYTES = 1 << 20
 
 Handler = Callable[["CommandContext", Command], Awaitable[dict[str, Any]]]
 
@@ -221,6 +230,166 @@ async def device_validate(context: CommandContext, command: Command) -> dict[str
     return {"name": name, **result}
 
 
+def _write_atomically(path: Path, content: str) -> None:
+    """Replace *path*'s contents in one step, or not at all.
+
+    The device store polls this tree and hashes what it finds, and a
+    text editor on a mounted share may be reading the same file. A
+    truncate-then-write would show both of them a half-written
+    configuration; a write to a sibling followed by :func:`os.replace`
+    shows them either the old file or the new one.
+
+    The temporary file is a sibling because ``rename`` is only atomic
+    within a filesystem, and its name ends in ``.tmp`` because the
+    scanner only looks at ``.yaml``/``.yml`` — so a crash between the two
+    steps leaves litter, never a device.
+    """
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(content, encoding="utf-8")
+        os.replace(temporary, path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+async def device_save(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``device/save`` — write one device's configuration file.
+
+    Payload: ``{"name", "content", "expected_hash"?}``. Result:
+    ``{"name", "device": entry, "content_hash"}`` — the entry as it is
+    after the write, so the editor holds the hash its next save must
+    present.
+
+    **The mirror of** ``device/get``: same device, same file, the other
+    direction. It does not validate. Saving a configuration that does not
+    resolve yet is the normal state of editing one, and a save that
+    refused broken YAML would make the editor unusable exactly when its
+    diagnostics are most useful — ``device/validate`` is the separate
+    command that says whether what was saved is good.
+
+    **Conflict detection is the snapshot-then-events pattern applied to
+    writing.** ``device/get`` handed the client a ``content_hash``;
+    passing it back as ``expected_hash`` says "I edited *that* version".
+    If the file changed since — Studio Code Server, a git checkout,
+    another browser tab — the write is refused with ``conflict`` and the
+    client re-reads with ``device/get`` rather than silently discarding
+    somebody's work. Omitting ``expected_hash`` is a deliberate
+    force-overwrite and is how a client that has just resolved the
+    conflict retries.
+
+    TODO(block-0): this writes an existing device's entry file only.
+    Creating a device is ``mcuhome new`` (ADR 0011 decision 4), and
+    editing a device's *other* YAML files needs a ``file`` field once
+    something offers a way to open them.
+    """
+    name = command.require_str("name")
+    content = command.require_text("content")
+    expected_hash = command.optional_str("expected_hash")
+
+    if len(content.encode("utf-8")) > MAX_CONFIG_BYTES:
+        raise ProtocolError(
+            f'The configuration for "{name}" is larger than '
+            f"{MAX_CONFIG_BYTES // 1024} KiB, which no device configuration is.",
+            frame_id=command.id,
+        )
+
+    _tree_required(context)
+    await context.devices.refresh()
+    entry = context.devices.get(name)
+    path = context.devices.entry_path(name)
+    if entry is None or path is None:
+        raise ProtocolError(
+            f'There is no device called "{name}" in this configuration tree.',
+            code=ERROR_NOT_FOUND,
+            frame_id=command.id,
+        )
+    if expected_hash is not None and expected_hash != entry.content_hash:
+        raise ProtocolError(
+            f'"{name}" changed on disk since it was opened. Reload it to see the '
+            "current version, or save again without a hash to overwrite it.",
+            code=ERROR_CONFLICT,
+            frame_id=command.id,
+        )
+
+    # A file whose last line has no newline is a file every other tool in
+    # the chain has to special-case. The editor does not send one.
+    if content and not content.endswith("\n"):
+        content += "\n"
+
+    try:
+        await asyncio.to_thread(_write_atomically, path, content)
+    except OSError as exc:
+        raise ProtocolError(
+            f'The configuration file for "{name}" could not be written: {exc.strerror}.',
+            code=ERROR_UNAVAILABLE,
+            frame_id=command.id,
+        ) from exc
+
+    # Re-scan before answering, so the hash handed back is the one the
+    # next save has to present and the `device_changed` event this write
+    # caused has already gone out.
+    await context.devices.refresh()
+    saved = context.devices.get(name)
+    if saved is None:  # pragma: no cover - only if the tree vanished mid-write
+        raise ProtocolError(
+            f'"{name}" disappeared from the configuration tree while it was being saved.',
+            code=ERROR_UNAVAILABLE,
+            frame_id=command.id,
+        )
+    return {"name": name, "device": saved.to_dict(), "content_hash": saved.content_hash}
+
+
+def _commissioning_blocking(root, entry) -> dict[str, Any]:
+    """Resolve the device, then take only its commissioning codes."""
+    try:
+        tree = builder.open_config_tree(root)
+        model = builder.load_model(entry, tree=tree)
+    except MCUHomeError as exc:
+        return {
+            "ok": False,
+            "errors": builder.errors_from_exception(exc, root=root),
+            "commissioning": None,
+        }
+    return {"ok": True, "errors": [], "commissioning": builder.commissioning_codes(model)}
+
+
+async def device_commissioning(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``device/commissioning`` — the codes that add this device to a controller.
+
+    Payload: ``{"name"}``. Result:
+    ``{"name", "ok", "errors", "commissioning": {...} | null}``, where
+    the object carries ``qr_payload``, ``manual_code``, ``discriminator``
+    and ``test_credentials``. ``null`` means the device has no Matter
+    pairing tuple — nothing to commission, not a failure. A configuration
+    that does not resolve answers like ``device/validate`` does: a
+    successful command carrying diagnostics.
+
+    **A command of its own, and not a field of the summary, on purpose.**
+    The QR payload contains the passcode. That is precisely why it is
+    worth showing — a commissioning view that hides the commissioning
+    code is useless — and precisely why it may not be attached to
+    ``device/list`` or ``device/validate``, which every open tab receives
+    without asking. Here it crosses the wire only when a user pressed a
+    button, which is what ADR 0007's exposure discipline asks for and
+    what ``builder.device_summary`` says it is leaving room for.
+
+    It is the same data ``mcuhome validate`` prints on a terminal today.
+    """
+    name = command.require_str("name")
+    root = _tree_required(context)
+    await context.devices.refresh()
+    entry = context.devices.entry_path(name)
+    if entry is None:
+        raise ProtocolError(
+            f'There is no device called "{name}" in this configuration tree.',
+            code=ERROR_NOT_FOUND,
+            frame_id=command.id,
+        )
+    result = await asyncio.to_thread(_commissioning_blocking, root, entry)
+    return {"name": name, **result}
+
+
 async def config_subscribe(context: CommandContext, command: Command) -> dict[str, Any]:
     """``config/subscribe`` — the device list, and every change to it.
 
@@ -269,7 +438,9 @@ COMMANDS: dict[str, Handler] = {
     "ping": ping,
     "device/list": device_list,
     "device/get": device_get,
+    "device/save": device_save,
     "device/validate": device_validate,
+    "device/commissioning": device_commissioning,
     "config/subscribe": config_subscribe,
     "subscribe_events": subscribe_events,
     "unsubscribe_events": unsubscribe_events,

@@ -36,6 +36,7 @@ from typing import Any
 
 __all__ = [
     "ERROR_BAD_REQUEST",
+    "ERROR_CONFLICT",
     "ERROR_INTERNAL",
     "ERROR_NOT_FOUND",
     "ERROR_UNAUTHORIZED",
@@ -69,6 +70,11 @@ ERROR_UNAUTHORIZED = "unauthorized"
 #: A precondition outside the client's control is missing — most often
 #: "no configuration tree is configured yet".
 ERROR_UNAVAILABLE = "unavailable"
+#: The client is writing against a version of the file that is no longer
+#: on disk. Distinct from ``bad_request`` because nothing about the frame
+#: is wrong and the fix is a human decision — reload or overwrite — not a
+#: retry.
+ERROR_CONFLICT = "conflict"
 #: A bug on this side. Carries no traceback; the log has it.
 ERROR_INTERNAL = "internal_error"
 
@@ -99,6 +105,34 @@ class Command:
         if not isinstance(value, str) or not value:
             raise ProtocolError(
                 f'"{self.type}" needs a non-empty string "{key}" in its payload.',
+                frame_id=self.id,
+            )
+        return value
+
+    def require_text(self, key: str) -> str:
+        """Fetch a mandatory string field that is allowed to be empty.
+
+        The counterpart to :meth:`require_str` for document bodies: a
+        name may not be empty, a file's contents may — emptying an
+        editor and saving is a legitimate edit, and refusing it here
+        would report it as a malformed frame.
+        """
+        value = self.payload.get(key)
+        if not isinstance(value, str):
+            raise ProtocolError(
+                f'"{self.type}" needs a string "{key}" in its payload.',
+                frame_id=self.id,
+            )
+        return value
+
+    def optional_str(self, key: str) -> str | None:
+        """Fetch an optional string field, or refuse the command."""
+        value = self.payload.get(key)
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ProtocolError(
+                f'"{self.type}" wants "{key}" as a string.',
                 frame_id=self.id,
             )
         return value

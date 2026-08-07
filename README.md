@@ -20,12 +20,14 @@ any machine you point it at. See
 ## Project status
 
 **Pre-alpha.** The architecture is designed in the open and the design
-phase is complete (see [docs/adr/](docs/adr/)). The backend skeleton
-runs — it serves the API, watches the configuration tree and validates
-device configurations — but there is no user interface yet and no build
-path: the frontend, the build-server client and the Home Assistant App
-packaging are still to come. Firmware framework and YAML builder live in
-[mcu-home/mcuhome](https://github.com/mcu-home/mcuhome).
+phase is complete (see [docs/adr/](docs/adr/)). The backend serves the
+API, watches the configuration tree and validates device configurations;
+the frontend lists devices, edits their YAML with the builder's
+diagnostics on the editor's gutter, and shows a device's Matter
+commissioning codes. There is **no build path yet** — the build-server
+client and the Home Assistant App packaging are still to come, and so is
+creating a device from the browser. Firmware framework and YAML builder
+live in [mcu-home/mcuhome](https://github.com/mcu-home/mcuhome).
 
 ## Architecture
 

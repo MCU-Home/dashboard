@@ -1,0 +1,9 @@
+{
+  // Two programs, because they run in two places. `src/` and `test/`
+  // are browser code and must not be able to reach for a Node API by
+  // accident; the build and lint configuration is Node code and needs
+  // to. Splitting the `types` is what enforces that, and `tsc -b`
+  // checks both in one command.
+  "files": [],
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+}

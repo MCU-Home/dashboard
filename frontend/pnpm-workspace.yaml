@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# pnpm settings for this package. Not a workspace in the multi-package
+# sense — pnpm reads its non-npmrc configuration from this file.
+
+# Post-install scripts are denied by default; every entry here is a
+# package we decided to let run code on install. esbuild's script only
+# links the platform binary Vite needs to transform TypeScript.
+allowBuilds:
+  esbuild: true

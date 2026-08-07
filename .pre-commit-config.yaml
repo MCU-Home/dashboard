@@ -3,9 +3,14 @@
 #
 # Install: pre-commit install --install-hooks
 #          pre-commit install --hook-type commit-msg
-# Frontend hooks (prettier/eslint) are added with the frontend
-# scaffolding (stack fixed in docs/adr/0005).
 # Update pins periodically with: pre-commit autoupdate
+#
+# The frontend hooks run the repository's own eslint and prettier through
+# `pnpm exec` rather than a mirrored copy: the configuration, the plugin
+# set and the TypeScript version are all in frontend/package.json, and a
+# second pinned copy of them here would drift. They need
+# `pnpm install` to have run, which `pass_filenames: false` plus a
+# `files:` filter keeps to commits that actually touch the frontend.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -40,3 +45,24 @@ repos:
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
+
+  - repo: local
+    hooks:
+      # Both run over the whole package rather than over the staged
+      # files: eslint is type-aware here, so it needs the program and not
+      # a list of paths, and prettier costs milliseconds either way.
+      - id: frontend-prettier
+        name: prettier (frontend)
+        language: system
+        entry: pnpm --dir frontend exec prettier --write .
+        pass_filenames: false
+        files: ^frontend/
+        exclude: ^frontend/(dist|coverage|node_modules)/
+
+      - id: frontend-eslint
+        name: eslint (frontend)
+        language: system
+        entry: pnpm --dir frontend exec eslint --fix .
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|js)$
+        exclude: ^frontend/(dist|coverage|node_modules)/

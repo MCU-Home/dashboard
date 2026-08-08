@@ -28,12 +28,11 @@ list, YAML editor with the builder's diagnostics on the gutter, saving
 with conflict detection, and the commissioning view.
 `frontend/README.md` is its guide.
 
-The **build server** is implemented (`buildserver/`): the ADR 0006
-protocol, a queue with compile lane 1, per-job log sidecars with
-resumable follow, chunked and hashed artifacts, `GET /capabilities`, and
-retention. So is the dashboard's client for it, including the detached
+The **build server** lives in its own repository since ADR 0012:
+[mcu-home/build-server](https://github.com/mcu-home/build-server). What
+lives here is the dashboard's **client** for it, including the detached
 signing hand-off of ADR 0007/0008. **No build runs yet**, for one reason
-recorded at the top of `buildserver/README.md`: `mcuhome build` cannot
+recorded at the top of the build server's README: `mcuhome build` cannot
 take the resolved `device-model.json` that ADR 0007 makes the wire
 format. The server probes for that and refuses jobs with the reason
 until the builder grows the option.
@@ -44,23 +43,25 @@ packaging.
 
 The architecture in one line: **two Home Assistant Apps** — the thin
 `mcuhome-dashboard` and the fat `mcuhome-build-server` — because the
-dashboard never compiles (ADR 0003). Both live in this repository, and
-**neither Python package depends on the other**: they are separate
-products with separate version numbers, joined by one protocol.
+dashboard never compiles (ADR 0003). The fat half has its own
+repository (ADR 0012), and **neither Python package depends on the
+other**: they are separate products with separate version numbers,
+joined by one protocol.
 
 ## Repository map
 
 | Path | Role |
 |---|---|
 | `backend/` | Python ≥ 3.13 backend (`mcuhome_dashboard` package), aiohttp, WebSocket-first API (ADR 0004) |
-| `buildserver/` | Python ≥ 3.13 build service (`mcuhome_buildserver` package), aiohttp, the ADR 0006 protocol |
 | `frontend/` | TypeScript SPA: Lit 3 + `@home-assistant/webawesome` + CodeMirror 6, built with Vite (ADR 0005) |
 | `docs/adr/` | Dashboard-specific architecture decision records |
 
-The three READMEs are the contracts: `backend/README.md` is the `/ws`
-frame vocabulary, `buildserver/README.md` the build protocol and how the
-server is deployed, `frontend/README.md` the application that consumes
-the first.
+The two READMEs here are the contracts: `backend/README.md` is the
+`/ws` frame vocabulary, `frontend/README.md` the application that
+consumes it. The build protocol and the build server's deployment are
+documented in the
+[build-server repository](https://github.com/mcu-home/build-server)'s
+README.
 
 Project-wide decisions (license, repo split, versioning) are recorded in
 the firmware repo:
@@ -83,15 +84,13 @@ the firmware repo:
   releases; the builder never depends on the dashboard, and using the
   builder CLI must never require the dashboard or any dashboard version.
 - **App packaging does not live here** — no `config.yaml`/Dockerfile App
-  files in this repo, for either App; they go to the future packaging
-  repo. The build server's own source wraps the `mcuhome` builder package
-  and versions in lockstep with the builder image.
-- **The two Python packages do not import each other.** `buildserver/`
-  must be installable on a machine that has no dashboard, and the
-  dashboard must be installable without the toolchain half. They keep
-  separate copies of the frame codec on purpose; the *vocabulary* is kept
-  from drifting by a test (`buildserver/tests/test_protocol.py`) that
-  compares the two whenever both are importable, not by an import.
+  files in this repo; they go to the future packaging repo.
+- **The dashboard and the build server do not import each other** —
+  since ADR 0012 a repository boundary, not just a rule. The dashboard
+  keeps its own copy of the frame codec on purpose; the build-server
+  repository carries the cross-check (its `tests/test_protocol.py`)
+  that compares the two vocabularies whenever both packages are
+  importable.
 - **The build server never signs, and the dashboard never compiles.**
   Each half is missing what the other has, by construction: the private
   signing key is only ever on the dashboard side (ADR 0007 decision 3,
@@ -130,13 +129,8 @@ pip install -r requirements-dev.txt
 # Backend tests (in-process, no subprocess, no container, ~4 s)
 pytest
 
-# Build-server setup and tests (a fake builder subprocess, never a real
-# build, ~5 s)
-cd ../buildserver && pip install -r requirements-dev.txt
-pytest
-
-# Python lint/format — one run over both packages, one configuration
-ruff check --fix backend buildserver && ruff format backend buildserver
+# Python lint/format
+ruff check --fix backend && ruff format backend
 
 # Frontend (Node >= 22.12; `corepack enable` picks up the pinned pnpm)
 cd frontend && pnpm install

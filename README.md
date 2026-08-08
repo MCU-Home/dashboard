@@ -16,10 +16,11 @@ plain Python application.
 separate build server — a second Home Assistant App, or a container on
 any machine you point it at. See
 [ADR 0003](docs/adr/0003-two-home-assistant-apps-dashboard-never-compiles.md).
-That build server lives in this repository too, in
-[`buildserver/`](buildserver/README.md), because the protocol between the
-two ([ADR 0006](docs/adr/0006-build-service-protocol.md)) is the thing
-that has to stay coherent.
+That build server lives in its own repository,
+[mcu-home/build-server](https://github.com/mcu-home/build-server)
+([ADR 0012](docs/adr/0012-build-server-extraction.md)); the protocol
+between the two ([ADR 0006](docs/adr/0006-build-service-protocol.md))
+is the contract that keeps them coherent.
 
 ## Project status
 
@@ -32,7 +33,8 @@ commissioning codes. The build server and the dashboard's client for it
 are implemented — queue, resumable logs, chunked artifacts, detached
 signing — but **no build can run yet**: the builder's CLI has no way to
 consume the resolved device model that ADR 0007 makes the wire format,
-and `buildserver/README.md` says exactly what is missing. Still to come:
+and the [build server's README](https://github.com/mcu-home/build-server)
+says exactly what is missing. Still to come:
 the build views in the browser, creating a device from the browser, and
 the Home Assistant App packaging. Firmware framework and YAML builder
 live in [mcu-home/mcuhome](https://github.com/mcu-home/mcuhome).
@@ -42,14 +44,15 @@ live in [mcu-home/mcuhome](https://github.com/mcu-home/mcuhome).
 | Path | Purpose |
 |---|---|
 | `backend/` | Python backend (aiohttp, WebSocket-first API): device management, build orchestration |
-| `buildserver/` | The headless build service (ADR 0003's second App): the queue, the compiler, the artifacts |
 | `frontend/` | TypeScript single-page application: Lit 3, `@home-assistant/webawesome`, CodeMirror 6, Vite |
 | `docs/adr/` | Architecture decision records (dashboard-specific) |
 
-Two products, two version numbers, one protocol. Neither package depends
-on the other: a build server is installable where the dashboard is not,
-and the dashboard talks to one over the network even when both run on the
-same host.
+Two products, two version numbers, one protocol — and since ADR 0012 two
+repositories: the headless build service lives in
+[mcu-home/build-server](https://github.com/mcu-home/build-server).
+Neither package depends on the other: a build server is installable
+where the dashboard is not, and the dashboard talks to one over the
+network even when both run on the same host.
 
 The backend drives the MCUHome builder (`mcuhome` Python package) and
 serves the frontend. The YAML configuration schema and device metadata are

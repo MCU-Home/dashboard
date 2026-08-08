@@ -20,3 +20,4 @@ versioning) live in the firmware repository:
 | [0009](0009-authentication-per-deployment.md) | Authentication per deployment | accepted |
 | [0010](0010-flash-flow-ladder.md) | The flash-flow ladder; v0.1 stops at rung 1 | accepted |
 | [0011](0011-builder-coupling-and-interface-contract.md) | Builder coupling and the firmware-side interface contract | accepted |
+| [0012](0012-build-server-extraction.md) | Build-server extraction into its own repository | accepted |

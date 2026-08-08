@@ -67,6 +67,38 @@ def test_the_injection_goes_inside_head_wherever_head_is() -> None:
     assert render_index("<p>hi</p>", "").startswith("<base")
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        # A banner comment naming <head> — a licence header or a bundler
+        # note is an ordinary place for those five characters to appear.
+        "<!-- injected after <head> --><html><head><title>x</title></head></html>",
+        # Several comments before the real thing.
+        "<!-- a --><!-- <head> --><html><head><title>x</title></head></html>",
+        # <header> is not <head>, and a prefix match would say it is.
+        "<html><header>nav</header><head><title>x</title></head></html>",
+    ],
+)
+def test_the_injection_is_not_fooled_by_a_head_that_is_not_one(source: str) -> None:
+    # Injecting into a comment yields a page that renders fine and loads
+    # every asset from the wrong prefix — the failure is silent, which is
+    # why it is worth a test rather than a glance.
+    rendered = render_index(source, "/pre/fix")
+
+    assert "<head><base href=" in rendered
+    assert rendered.count("<base") == 1
+    assert rendered.index("<base") < rendered.index("<title>")
+    # Whatever was in front of the real head is passed through untouched.
+    assert rendered.startswith(source[: source.index("<head>")])
+
+
+def test_an_unterminated_comment_swallows_the_document() -> None:
+    # A browser treats everything after an unclosed <!-- as comment text,
+    # so there is no head to inject into and the fallback is the honest
+    # answer rather than a <base> nobody will ever parse.
+    assert render_index("<!-- <html><head>", "/pre/fix").startswith("<base")
+
+
 async def test_unknown_routes_fall_back_to_the_shell(client) -> None:
     response = await client.get("/devices/bench-node/edit")
     assert response.status == 200

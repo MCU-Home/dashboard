@@ -93,14 +93,19 @@ def tree(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def config(tree: Path) -> Config:
+def config(tree: Path, tmp_path: Path) -> Config:
     """A loopback, password-free configuration with the poll switched off.
 
     ``poll_interval=0`` keeps the background task out of the tests:
     every command refreshes the store before answering, so the tests
     drive the scanner deterministically instead of waiting for a timer.
+
+    ``data_dir`` is under ``tmp_path`` so that nothing in the suite can
+    reach the developer's real ``/data`` or state directory — that is
+    where ADR 0008 puts the firmware signing key, and a test that wrote
+    one there would be writing into somebody's trust anchor.
     """
-    return Config(config_root=tree, poll_interval=0.0)
+    return Config(config_root=tree, poll_interval=0.0, data_dir=tmp_path / "data")
 
 
 @pytest.fixture

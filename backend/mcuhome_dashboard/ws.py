@@ -132,7 +132,7 @@ async def _run_command(
     try:
         payload = await handler(context, command)
     except ProtocolError as exc:
-        await connection.send(protocol.error_frame(command.id, exc.code, exc.message))
+        await connection.send(protocol.error_frame(command.id, exc.code, exc.message, **exc.detail))
     except asyncio.CancelledError:
         raise
     except Exception:

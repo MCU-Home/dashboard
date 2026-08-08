@@ -195,8 +195,8 @@ async def test_an_absurdly_large_configuration_is_refused(client) -> None:
 
 
 async def test_creating_a_device_is_not_this_command_s_job(client) -> None:
-    # TODO(block-0): `mcuhome new <device>` is what creates one (ADR 0011
-    # decision 4). Until it exists, save is edit-only and says so.
+    # TODO(new-device): `mcuhome new <device>` is what creates one. Until
+    # the dashboard has a command for it, save is edit-only and says so.
     async with client.ws_connect("/ws") as ws:
         frame = await call(ws, "device/save", {"name": "brand-new", "content": VALID_CONFIG})
 

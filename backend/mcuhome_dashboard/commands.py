@@ -35,7 +35,8 @@ from typing import TYPE_CHECKING, Any
 from mcuhome.errors import MCUHomeError
 
 from mcuhome_dashboard import builder, versions
-from mcuhome_dashboard.events import TOPIC_DEVICES
+from mcuhome_dashboard.buildclient import BuildServerError, NotConfiguredError
+from mcuhome_dashboard.events import TOPIC_BUILDS, TOPIC_DEVICES
 from mcuhome_dashboard.protocol import (
     ERROR_CONFLICT,
     ERROR_NOT_FOUND,
@@ -44,6 +45,7 @@ from mcuhome_dashboard.protocol import (
     ProtocolError,
 )
 from mcuhome_dashboard.security import Identity, trust_mode_of
+from mcuhome_dashboard.signing import manifest_is_signed
 from mcuhome_dashboard.web import base_path
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -58,7 +60,7 @@ logger = logging.getLogger(__name__)
 
 #: Topics a client may subscribe to. Named explicitly so a typo is a
 #: refusal instead of a subscription that never fires.
-KNOWN_TOPICS = frozenset({TOPIC_DEVICES})
+KNOWN_TOPICS = frozenset({TOPIC_DEVICES, TOPIC_BUILDS})
 
 #: The largest configuration ``device/save`` accepts, in bytes of UTF-8.
 #: A device configuration is a page of YAML; a megabyte of it is a
@@ -138,6 +140,10 @@ async def server_info(context: CommandContext, command: Command) -> dict[str, An
         },
         "identity": context.identity.to_dict() if context.identity else None,
         "tree": state.devices.tree_state(),
+        # ADR 0003 decision 2: the dashboard never compiles, so "is there
+        # a build server" is a property of the deployment that a client
+        # needs before it offers a build button.
+        "build_server": state.builds.describe(),
     }
 
 
@@ -278,10 +284,12 @@ async def device_save(context: CommandContext, command: Command) -> dict[str, An
     force-overwrite and is how a client that has just resolved the
     conflict retries.
 
-    TODO(block-0): this writes an existing device's entry file only.
-    Creating a device is ``mcuhome new`` (ADR 0011 decision 4), and
-    editing a device's *other* YAML files needs a ``file`` field once
-    something offers a way to open them.
+    TODO(new-device): this writes an existing device's entry file only.
+    Creating one is ``mcuhome new``, which Block 0 implemented as a CLI
+    command but not (yet) as a ``mcuhome.api`` entry point — a
+    new-device command here needs one or the other. Editing a device's
+    *other* YAML files needs a ``file`` field once something offers a
+    way to open them.
     """
     name = command.require_str("name")
     content = command.require_text("content")
@@ -390,6 +398,206 @@ async def device_commissioning(context: CommandContext, command: Command) -> dic
     return {"name": name, **result}
 
 
+# --------------------------------------------------------------------------
+# Builds (ADR 0003: always remote; ADR 0006: the protocol; ADR 0007: the wire)
+# --------------------------------------------------------------------------
+
+
+def _build_error(exc: BuildServerError, command: Command) -> ProtocolError:
+    """Carry a build server's refusal through unchanged.
+
+    The build server already phrased it for a person — a version
+    mismatch names both numbers, a missing builder feature names the
+    feature. Re-wording it here would only make it vaguer.
+    """
+    return ProtocolError(exc.message, code=exc.code, frame_id=command.id, **exc.detail)
+
+
+def _resolve_for_build(root, entry) -> dict[str, Any]:
+    """Stages 1-3, off the event loop, returning the wire payload.
+
+    ADR 0007 decision 1: the resolved model is what crosses, and it is
+    resolved *here*. The build server gets no schema, no ``secrets.yaml``
+    and no file names — only the one device.
+    """
+    tree = builder.open_config_tree(root)
+    model = builder.load_model(entry, tree=tree)
+    return model.to_dict()
+
+
+async def build_submit(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``build/submit`` — compile one device on the build server.
+
+    Payload: ``{"name", "options"?}`` where ``options`` may carry
+    ``native``, ``image``, ``snippets`` and ``jobs``. Result:
+    ``{"name", "job_id", "job", "created_signing_key"}``.
+
+    What happens, in order, and why each step is on the side it is on:
+
+    1. The configuration is loaded, validated and resolved **here**
+       (ADR 0011 decision 1), so a broken configuration is a refusal in
+       a second with a line number, not a failed compile in ten minutes.
+    2. ``/capabilities`` is checked (ADR 0006 decision 4) before
+       anything is sent.
+    3. The resolved model and the signing **public** key go over the
+       wire; the private key does not (ADR 0007 decision 3).
+    4. The job's log is followed from byte 0, so the browser sees output
+       from the first line.
+
+    A configuration that does not resolve is a **successful** command
+    whose result says ``ok: false`` and carries the diagnostics — the
+    same contract ``device/validate`` follows.
+    """
+    name = command.require_str("name")
+    root = _tree_required(context)
+    await context.devices.refresh()
+    entry = context.devices.entry_path(name)
+    if entry is None:
+        raise ProtocolError(
+            f'There is no device called "{name}" in this configuration tree.',
+            code=ERROR_NOT_FOUND,
+            frame_id=command.id,
+        )
+    if not context.state.builds.configured:
+        raise ProtocolError(
+            NotConfiguredError().message, code=ERROR_UNAVAILABLE, frame_id=command.id
+        )
+
+    try:
+        model = await asyncio.to_thread(_resolve_for_build, root, entry)
+    except MCUHomeError as exc:
+        return {
+            "name": name,
+            "ok": False,
+            "errors": builder.errors_from_exception(exc, root=root),
+            "job_id": None,
+        }
+
+    context.connection.subscribe(TOPIC_BUILDS)
+    try:
+        result = await context.state.builds.submit(
+            model=model, options=command.optional_dict("options")
+        )
+    except BuildServerError as exc:
+        raise _build_error(exc, command) from exc
+    return {"name": name, "ok": True, "errors": [], **result}
+
+
+async def build_cancel(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``build/cancel`` — stop one build. Payload: ``{"job_id"}``."""
+    job_id = command.require_str("job_id")
+    try:
+        return await context.state.builds.cancel(job_id)
+    except BuildServerError as exc:
+        raise _build_error(exc, command) from exc
+
+
+async def build_status(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``build/status`` — the build server's queue, and what this side is.
+
+    Payload: ``{"limit"?}``. Result: ``{"server": {...}, "queue": {...}}``
+    — the client's own view of the build side (configured, connected,
+    where the key is, and the trust statement of ADR 0007 decision 2)
+    plus the build server's ``queue_status``.
+
+    Subscribes this socket to build events, because a client asking what
+    the queue is doing wants to keep knowing.
+    """
+    context.connection.subscribe(TOPIC_BUILDS)
+    describe = context.state.builds.describe()
+    if not context.state.builds.configured:
+        return {"server": describe, "queue": None, "message": NotConfiguredError().message}
+    limit = command.payload.get("limit")
+    try:
+        capabilities = await context.state.builds.capabilities()
+        queue = await context.state.builds.status(
+            limit=limit if isinstance(limit, int) and 0 < limit <= 500 else 50
+        )
+    except BuildServerError as exc:
+        # Not an error frame: "the build server is down" is an answer to
+        # "what is the build server doing", and a UI that showed a red
+        # command failure instead of a red server badge would be lying
+        # about which thing is broken.
+        return {"server": {**describe, "error": exc.message, "code": exc.code}, "queue": None}
+    return {"server": {**describe, "capabilities": capabilities}, "queue": queue}
+
+
+async def build_log(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``build/log`` — history-then-live output for one job.
+
+    Payload: ``{"job_id", "offset"?}``. Result: the build server's
+    ``follow_job`` answer, passed through unchanged. Afterwards
+    ``build_job_output`` events for that job arrive on this socket.
+
+    A client that sees the offsets of those events skip calls this again
+    with its own last offset. That is the whole gap-repair mechanism
+    (ADR 0006 decision 6), and it is why the offsets are on the wire.
+    """
+    job_id = command.require_str("job_id")
+    offset = command.payload.get("offset", 0)
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise ProtocolError(
+            '"offset" is a byte position and must be a whole number.', frame_id=command.id
+        )
+    context.connection.subscribe(TOPIC_BUILDS)
+    try:
+        return await context.state.builds.follow(job_id, offset=offset)
+    except BuildServerError as exc:
+        raise _build_error(exc, command) from exc
+
+
+async def build_artifacts(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``build/artifacts`` — what a finished build left on this dashboard.
+
+    Payload: ``{"job_id", "fetch"?}``. Result: the local artifact set,
+    each file with its size, its hash and the URL that serves it.
+
+    Fetching normally happens by itself: the client watches for the
+    job to succeed and immediately downloads, verifies and signs
+    (ADR 0007 decision 3), because an unsigned image is not a product.
+    ``fetch: true`` re-runs that for a job whose download failed.
+    """
+    job_id = command.require_str("job_id")
+    if not context.state.builds.configured:
+        raise ProtocolError(
+            NotConfiguredError().message, code=ERROR_UNAVAILABLE, frame_id=command.id
+        )
+    if command.payload.get("fetch"):
+        try:
+            local = await context.state.builds.fetch_artifacts(job_id)
+        except BuildServerError as exc:
+            raise _build_error(exc, command) from exc
+        files = local.files
+        signed = local.signed
+    else:
+        directory = context.state.builds.local_directory(job_id)
+        if not directory.is_dir():
+            raise ProtocolError(
+                f'No artifacts of build "{job_id}" are on this dashboard yet.',
+                code=ERROR_NOT_FOUND,
+                frame_id=command.id,
+            )
+        files = tuple(
+            {
+                "path": str(path.relative_to(directory)),
+                "size": path.stat().st_size,
+            }
+            for path in sorted(directory.rglob("*"))
+            if path.is_file()
+        )
+        signed = await asyncio.to_thread(manifest_is_signed, directory)
+
+    prefix = base_path(context.request)
+    return {
+        "job_id": job_id,
+        "signed": signed,
+        "files": [
+            {**item, "url": f"{prefix}/api/builds/{job_id}/artifacts/{item['path']}"}
+            for item in files
+        ],
+    }
+
+
 async def config_subscribe(context: CommandContext, command: Command) -> dict[str, Any]:
     """``config/subscribe`` — the device list, and every change to it.
 
@@ -441,6 +649,11 @@ COMMANDS: dict[str, Handler] = {
     "device/save": device_save,
     "device/validate": device_validate,
     "device/commissioning": device_commissioning,
+    "build/submit": build_submit,
+    "build/cancel": build_cancel,
+    "build/status": build_status,
+    "build/log": build_log,
+    "build/artifacts": build_artifacts,
     "config/subscribe": config_subscribe,
     "subscribe_events": subscribe_events,
     "unsubscribe_events": unsubscribe_events,

@@ -42,6 +42,7 @@ __all__ = [
     "ERROR_UNAUTHORIZED",
     "ERROR_UNAVAILABLE",
     "ERROR_UNKNOWN_COMMAND",
+    "ERROR_UNSUPPORTED",
     "TYPE_ERROR",
     "TYPE_EVENT",
     "TYPE_RESULT",
@@ -75,6 +76,13 @@ ERROR_UNAVAILABLE = "unavailable"
 #: is wrong and the fix is a human decision — reload or overwrite — not a
 #: retry.
 ERROR_CONFLICT = "conflict"
+#: The request is well-formed and cannot be honoured: a build server
+#: whose ``model_version`` range does not include ours, or whose builder
+#: is missing something every job needs. Distinct from ``bad_request``
+#: because nothing about the frame is wrong, and from ``unavailable``
+#: because retrying will not help — one of the two sides has to change
+#: version (ADR 0006 decision 4, ADR 0007 decision 4).
+ERROR_UNSUPPORTED = "unsupported"
 #: A bug on this side. Carries no traceback; the log has it.
 ERROR_INTERNAL = "internal_error"
 
@@ -83,12 +91,22 @@ class ProtocolError(Exception):
     """A frame that :func:`decode` refuses, with the code to answer with."""
 
     def __init__(
-        self, message: str, *, code: str = ERROR_BAD_REQUEST, frame_id: Any = None
+        self,
+        message: str,
+        *,
+        code: str = ERROR_BAD_REQUEST,
+        frame_id: Any = None,
+        **detail: Any,
     ) -> None:
         super().__init__(message)
         self.message = message
         self.code = code
         self.frame_id = frame_id
+        #: Extra fields for the error frame. A refusal that has numbers
+        #: in it — the two `model_version`s of ADR 0006 decision 4, say —
+        #: should carry them as data as well as in its sentence, so a UI
+        #: can act on them without parsing English.
+        self.detail = detail
 
 
 @dataclass(frozen=True)
@@ -133,6 +151,23 @@ class Command:
         if not isinstance(value, str):
             raise ProtocolError(
                 f'"{self.type}" wants "{key}" as a string.',
+                frame_id=self.id,
+            )
+        return value
+
+    def optional_dict(self, key: str) -> dict[str, Any]:
+        """Fetch an optional object field, or refuse the command.
+
+        Missing and empty are the same thing here: a command with an
+        options bag that nobody filled in is the ordinary case, not a
+        malformed frame.
+        """
+        value = self.payload.get(key)
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise ProtocolError(
+                f'"{self.type}" wants "{key}" as a JSON object.',
                 frame_id=self.id,
             )
         return value

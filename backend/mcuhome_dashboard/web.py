@@ -42,7 +42,9 @@ INGRESS_PATH_HEADER = "X-Ingress-Path"
 #: scheme, a host, a query, a fragment or a ``..`` is not one.
 _BASE_PATH_RE = re.compile(r"^/(?:[A-Za-z0-9._~!$&'()*+,;=:@%-]+/?)*$")
 
-_HEAD_RE = re.compile(r"<head[^>]*>", re.IGNORECASE)
+#: The opening ``<head>`` tag. ``\b`` is load-bearing: without it
+#: ``<header class="…">`` matches, because ``head`` is a prefix of it.
+_HEAD_RE = re.compile(r"<head\b[^>]*>", re.IGNORECASE)
 
 #: Extensionless paths are SPA routes; anything with a suffix that is
 #: not on disk is a genuine 404, so a mistyped asset URL fails loudly
@@ -85,18 +87,47 @@ def _injection(prefix: str) -> str:
     return f'<base href="{href}"><script>window.MCUHOME_BASE_PATH={literal};</script>'
 
 
+def _head_end(source: str) -> int | None:
+    """Offset just past the document's real ``<head …>`` tag, or ``None``.
+
+    "Real" is the whole point: a ``<head>`` written inside an HTML
+    comment is text, not an element, and injecting after it would put a
+    ``<base>`` and a ``<script>`` into the comment — where the browser
+    never sees them and the page silently loads its assets from the
+    wrong prefix. A banner comment mentioning ``<head>`` is an ordinary
+    thing for a bundler or a licence header to emit, so the scan steps
+    over comments instead of trusting the first match.
+    """
+    position = 0
+    while True:
+        comment = source.find("<!--", position)
+        match = _HEAD_RE.search(source, position)
+        if match is not None and (comment == -1 or match.start() < comment):
+            return match.end()
+        if comment == -1:
+            return None
+        closed = source.find("-->", comment + 4)
+        if closed == -1:
+            # An unterminated comment: a browser treats the rest of the
+            # document as comment text, so there is no head element in
+            # it either, whatever the characters spell.
+            return None
+        position = closed + 3
+
+
 def render_index(source: str, prefix: str) -> str:
     """Insert the base path into an ``index.html``.
 
-    Works on the placeholder shell and on whatever Vite emits later,
-    because it keys off ``<head>`` rather than a marker only our own
-    file would carry.
+    Works on the diagnostic page and on whatever Vite emits, because it
+    keys off the document's ``<head>`` element rather than a marker only
+    our own file would carry. A document without one gets the injection
+    in front of everything — a fallback for a fragment, not a shape the
+    frontend build produces.
     """
     injection = _injection(prefix)
-    match = _HEAD_RE.search(source)
-    if match is None:
+    end = _head_end(source)
+    if end is None:
         return injection + source
-    end = match.end()
     return source[:end] + injection + source[end:]
 
 

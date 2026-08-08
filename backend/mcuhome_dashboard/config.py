@@ -33,17 +33,28 @@ from pathlib import Path
 
 __all__ = [
     "DEFAULT_HOST",
+    "DEFAULT_PAIR_FILE",
     "DEFAULT_POLL_INTERVAL",
     "DEFAULT_PORT",
     "ENV_PREFIX",
     "Config",
     "build_parser",
+    "default_data_dir",
     "is_loopback_host",
     "load_config",
+    "resolve_build_server_token",
     "resolve_password",
 ]
 
 ENV_PREFIX = "MCUHOME_DASHBOARD_"
+
+#: Where a same-host build server publishes its token (ADR 0006 decision
+#: 8). Both Apps share ``/share`` on one Home Assistant instance, so the
+#: common installation has no protocol configuration at all.
+DEFAULT_PAIR_FILE = Path("/share/mcuhome/build-server.token")
+
+#: The build server's port, so that auto-pairing needs no URL either.
+DEFAULT_BUILD_SERVER_URL = "http://127.0.0.1:8100"
 
 #: Home Assistant apps conventionally serve their ingress site here, and
 #: a standalone dashboard has no reason to pick a different number.
@@ -57,6 +68,22 @@ DEFAULT_POLL_INTERVAL = 2.0
 #: Shipped with the wheel. The Vite build of the frontend (ADR 0005)
 #: writes its output here; until Block 3 it holds a placeholder shell.
 DEFAULT_STATIC_ROOT = Path(__file__).resolve().parent / "static"
+
+
+def default_data_dir(env: Mapping[str, str] | None = None) -> Path:
+    """The App's private volume, or its equivalent outside one.
+
+    ADR 0008 puts two things here and only here: the firmware signing
+    key and the artifacts downloaded from a build server. ``/data`` is
+    what a Home Assistant App gets; a developer install gets a state
+    directory under their home rather than something in the current
+    working directory, because a signing key is not a build artefact.
+    """
+    env = os.environ if env is None else env
+    if Path("/data").is_dir():
+        return Path("/data")
+    base = env.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
+    return Path(base) / "mcuhome-dashboard"
 
 
 def is_loopback_host(host: str) -> bool:
@@ -91,6 +118,17 @@ class Config:
     #: this; a standalone deployment never does.
     ingress_port: int | None = None
 
+    # --- the build server (ADR 0003, ADR 0006) ---
+    #: ``None`` means no build server is configured. Build commands then
+    #: refuse in plain language naming these options; nothing about the
+    #: rest of the dashboard changes, because the dashboard never
+    #: compiled anything in the first place.
+    build_server_url: str | None = None
+    build_server_token: str | None = None
+    #: ADR 0008: the App's private volume. Holds the signing key and the
+    #: artifacts fetched from a build server.
+    data_dir: Path = field(default_factory=default_data_dir)
+
     # --- HTTP surface ---
     static_root: Path = DEFAULT_STATIC_ROOT
     allowed_origins: tuple[str, ...] = ()
@@ -105,6 +143,20 @@ class Config:
     def auth_required(self) -> bool:
         """Whether the public site demands a password."""
         return self.password is not None
+
+    @property
+    def artifact_root(self) -> Path:
+        """Where artifacts fetched from a build server are kept.
+
+        Under ``/data`` and therefore inside the App's backup volume —
+        but ADR 0008 decision 5 excludes it from the backup set, because
+        artifacts are large, reproducible and worthless in a restore.
+        """
+        return self.data_dir / "builds"
+
+    @property
+    def build_server_configured(self) -> bool:
+        return bool(self.build_server_url and self.build_server_token)
 
     def site_summary(self) -> str:
         parts = []
@@ -135,6 +187,51 @@ def resolve_password(
     if is_loopback_host(host):
         return None, False
     return secrets.token_urlsafe(18), True
+
+
+def resolve_build_server_token(
+    configured: str | None,
+    token_file: Path | None,
+    *,
+    env: Mapping[str, str] | None = None,
+    pair_file: Path = DEFAULT_PAIR_FILE,
+) -> tuple[str | None, bool]:
+    """Find the build server's token. Returns ``(token, auto_paired)``.
+
+    ADR 0006 decision 8: when both Apps run on one Home Assistant
+    instance they share ``/share``, the build server writes its token
+    there, and the dashboard finds the pair without the user configuring
+    anything. That is what makes ADR 0003's always-remote decision
+    invisible to the people it would otherwise annoy — so the pairing
+    file is consulted *last*, after everything explicit, and never
+    overrides a token somebody typed.
+    """
+    environment = os.environ if env is None else env
+    if configured:
+        return configured, False
+    from_env = environment.get(ENV_PREFIX + "BUILD_SERVER_TOKEN")
+    if from_env and from_env.strip():
+        return from_env.strip(), False
+
+    candidates: list[Path] = []
+    if token_file is not None:
+        candidates.append(token_file)
+    env_file = environment.get(ENV_PREFIX + "BUILD_SERVER_TOKEN_FILE")
+    if env_file:
+        candidates.append(Path(env_file))
+    for path in candidates:
+        try:
+            token = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if token:
+            return token, False
+
+    try:
+        paired = pair_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None, False
+    return (paired, True) if paired else (None, False)
 
 
 def _env_flag(raw: str | None) -> bool | None:
@@ -189,6 +286,42 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PASSWORD",
         help="password for the public site; prefer the environment variable, since a "
         "command line is visible to every process on the machine",
+    )
+    parser.add_argument(
+        "--build-server-url",
+        metavar="URL",
+        help=(
+            "address of the build server that compiles firmware for this dashboard "
+            f"(for example {DEFAULT_BUILD_SERVER_URL}); the dashboard never compiles "
+            "anything itself"
+        ),
+    )
+    parser.add_argument(
+        "--build-server-token",
+        metavar="TOKEN",
+        help=(
+            "bearer token for the build server; prefer the environment variable or "
+            "--build-server-token-file, since a command line is visible to every "
+            "process on the machine"
+        ),
+    )
+    parser.add_argument(
+        "--build-server-token-file",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "read the build server's token from this file (two Apps on one Home "
+            f"Assistant instance pair automatically through {DEFAULT_PAIR_FILE})"
+        ),
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "private state directory: the firmware signing key and downloaded build "
+            "artifacts (default /data inside a Home Assistant App)"
+        ),
     )
     parser.add_argument(
         "--static-root", type=Path, metavar="PATH", help="directory of built frontend assets"
@@ -248,12 +381,29 @@ def load_config(
     if poll is None and env.get(ENV_PREFIX + "POLL_INTERVAL"):
         poll = float(env[ENV_PREFIX + "POLL_INTERVAL"])
 
+    data_dir = args.data_dir
+    if data_dir is None and env.get(ENV_PREFIX + "DATA_DIR"):
+        data_dir = Path(env[ENV_PREFIX + "DATA_DIR"])
+
+    build_token, auto_paired = resolve_build_server_token(
+        args.build_server_token, args.build_server_token_file, env=env
+    )
+    build_url = args.build_server_url or env.get(ENV_PREFIX + "BUILD_SERVER_URL")
+    if build_url is None and auto_paired:
+        # A token found in the shared pairing file means the build
+        # server App is on this host; its port is not a thing the user
+        # should have to know (ADR 0006 decision 8).
+        build_url = DEFAULT_BUILD_SERVER_URL
+
     config = Config(
         config_root=root.expanduser().resolve() if root is not None else None,
         host=args.host or env.get(ENV_PREFIX + "HOST") or DEFAULT_HOST,
         port=args.port or _env_int(env, "PORT") or DEFAULT_PORT,
         public_site=public_site,
         ingress_port=args.ingress_port or _env_int(env, "INGRESS_PORT"),
+        build_server_url=build_url or None,
+        build_server_token=build_token,
+        data_dir=(data_dir.expanduser() if data_dir is not None else default_data_dir(env)),
         static_root=static_root or DEFAULT_STATIC_ROOT,
         allowed_origins=tuple(dict.fromkeys(origins)),
         poll_interval=poll if poll is not None else DEFAULT_POLL_INTERVAL,

@@ -10,41 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Build server** (`buildserver/`, package `mcuhome_buildserver`): the
-  fat half of ADR 0003's two-App topology, as a headless aiohttp service
-  speaking the protocol of ADR 0006.
-  - Frames `submit_job`, `cancel_job`, `follow_job`,
-    `download_artifacts` and `queue_status` on one `/ws` endpoint, with
-    `job_state_changed` and `job_output` events.
-  - `GET /capabilities` for negotiation before a job exists: builder
-    version, `model_version` range, architecture, job slots, image tag,
-    workspace, and what the installed builder can actually do.
-  - Bearer-token authentication with a constant-time comparison, from
-    the command line, the environment or a file; one is generated and
-    logged when none is configured, and published to
-    `/share/mcuhome/build-server.token` for a same-host App pair
-    (ADR 0006 decision 8).
-  - A job queue with **compile lane 1** as a hard default (ADR 0006
-    decision 5), raised only by `--slots` and never silently.
-  - Builds run as a subprocess of `mcuhome build --json` in their own
-    process group, so `cancel_job` stops exactly one job's whole process
-    tree — the property that cannot be had in-process.
-  - A job is a directory: the record, the submitted model, the log
-    sidecar and the build tree. Records survive a restart; a job that
-    was queued or running when the process stopped comes back as
-    `interrupted` rather than `failed`. Retention is a per-server cap
-    plus a time-to-live (ADR 0008 decision 4).
-  - Log sidecars with the resumable follow of ADR 0006 decision 6:
-    history-then-live from a byte offset the client states, with the
-    subscription registered before the history is read so the join
-    cannot lose a chunk.
-  - Artifacts in chunks, each with its own SHA-256, indexed by the build
-    manifest's file list — which is also the whitelist, so path
-    traversal is unreachable rather than defended against.
-  - The submitted `device-model.json` is written mode 0600 into a 0700
-    job directory and deleted when the build process exits: it carries
-    the device's Matter passcode (ADR 0007 decision 2), and the job
-    record and the log never do.
 - Backend build-server client (`buildclient.py`) and the commands
   `build/submit`, `build/cancel`, `build/status`, `build/log` and
   `build/artifacts`, plus a `builds` event topic carrying
@@ -65,9 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - With no build server configured, every build command refuses with a
     message naming the two environment variables; two Apps on one Home
     Assistant instance pair themselves through the shared token file.
-- Build-server test suite (105 tests) driving a fake builder subprocess:
-  no real build, no container, no west.
-
 - Frontend (`frontend/`): the single-page application of ADR 0005 — Lit 3,
   `@home-assistant/webawesome`, CodeMirror 6, TypeScript, Vite, vitest,
   eslint and prettier.
@@ -131,6 +93,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The build server moved to its own repository** ([mcu-home/build-server](https://github.com/mcu-home/build-server),
+  ADR 0012): `buildserver/` and its test suite leave this repository;
+  the dashboard keeps its client (`buildclient.py`, the `build/*`
+  commands and the detached signing hand-off). The frame-vocabulary
+  cross-check now lives in the build-server repository and runs
+  whenever both packages are importable.
 - `mcuhome_dashboard/builder.py` consumes `mcuhome.api` — the builder's
   supported programmatic surface since its Block 0 — instead of reaching
   into the package: `load_model`, `open_config_tree`, `error_dicts` and

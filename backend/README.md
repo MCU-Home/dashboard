@@ -11,7 +11,8 @@ resolves a device in-process, sends the model to a build server (ADR
 0006), streams its events to the browser, downloads and verifies the
 artifacts and applies the firmware signature locally (ADR 0007/0008).
 What it cannot do yet is get a build to actually run — see the "Status"
-section of [`../buildserver/README.md`](../buildserver/README.md) for
+section of the
+[build server's README](https://github.com/mcu-home/build-server) for
 the one builder flag that is missing.
 
 ## Running it

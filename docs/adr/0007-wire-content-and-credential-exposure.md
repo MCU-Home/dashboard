@@ -74,9 +74,11 @@ server compiles it into MCUboot. The build server returns the
 the dashboard signs locally. The signing key never leaves the dashboard's
 own state (ADR 0008).
 
-Detached signing is designed but not yet implemented in the builder —
-today `imgtool` runs inside the build with the key mounted. The
-amendment to firmware ADR 0015 §8 is a Block 0 work item (ADR 0011).
+Detached signing is **implemented** (Block 0, firmware ADR 0015 §8
+amendment): `mcuhome build --no-sign --public-key <file>` compiles the
+public half into MCUboot and leaves the application unsigned, the build
+manifest carries the `imgtool` parameters, and `mcuhome sign <build dir>`
+applies the signature wherever the private key is.
 
 ### 4. `model_version` is fixed at 1 now
 
@@ -117,7 +119,7 @@ What it unlocks, all of it out of reach for v0.1:
   still produce the same bytes anywhere (`builder-pipeline.md` §1.4).
 - `MODEL_VERSION` and `tests_py/test_model_golden.py` change role — from
   an internal regression guard to the test of a published contract. The
-  provisional note in `mcuhome/model.py` is removed as part of Block 0.
+  provisional note in `mcuhome/model.py` was removed in Block 0.
 - The dashboard gains a signing step of its own. Firmware ADR 0015 §8
   already sketches the two options (`imgtool`, which pulls
   `cryptography`, or our own signer over the existing `p256.py`); the

@@ -26,6 +26,7 @@ from typing import Any
 from aiohttp import web
 
 from mcuhome_dashboard import versions, ws
+from mcuhome_dashboard.buildclient import BuildServerClient
 from mcuhome_dashboard.builder import MCUHOME_VERSION
 from mcuhome_dashboard.config import Config
 from mcuhome_dashboard.devices import DeviceStore
@@ -42,6 +43,7 @@ from mcuhome_dashboard.security import (
     identity_of,
     require_csrf,
 )
+from mcuhome_dashboard.signing import key_path
 from mcuhome_dashboard.web import base_path, static_handler
 
 __all__ = ["AppState", "create_app"]
@@ -57,6 +59,7 @@ class AppState:
     bus: EventBus = field(default_factory=EventBus)
     sessions: SessionStore = field(default_factory=SessionStore)
     devices: DeviceStore = field(init=False)
+    builds: BuildServerClient = field(init=False)
     started_at: float = field(default_factory=time.monotonic)
 
     def __post_init__(self) -> None:
@@ -65,12 +68,24 @@ class AppState:
             self.bus,
             poll_interval=self.config.poll_interval,
         )
+        # Always constructed, even with nothing configured: ADR 0003
+        # decision 2 has exactly one build path, and "no build server
+        # yet" is a state of that path rather than the absence of it.
+        self.builds = BuildServerClient(
+            url=self.config.build_server_url,
+            token=self.config.build_server_token,
+            artifact_root=self.config.artifact_root,
+            signing_key=key_path(self.config.data_dir),
+            bus=self.bus,
+        )
 
     async def start(self) -> None:
         versions.check_mcuhome_version(MCUHOME_VERSION)
         await self.devices.start()
+        await self.builds.start()
 
     async def stop(self) -> None:
+        await self.builds.stop()
         await self.devices.stop()
 
 
@@ -151,6 +166,44 @@ async def logout(request: web.Request) -> web.Response:
     return response
 
 
+async def artifact(request: web.Request) -> web.StreamResponse:
+    """``GET /api/builds/{job}/artifacts/{path}`` — download a built image.
+
+    REST rather than a WebSocket command for the reason ADR 0004
+    decision 4 gives: a browser primitive needs a URL. ``<a download>``,
+    the flasher hand-off of ADR 0010 and ``curl`` all take a URL and
+    none of them can take a frame.
+
+    It serves the **local** copy — the one this dashboard downloaded,
+    verified against the manifest's hashes and signed (ADR 0007 decision
+    3). Streaming the build server's bytes straight through would hand
+    out an unsigned image, which is a file that looks flashable and
+    bricks the boot.
+    """
+    state = request.app[STATE_KEY]
+    job_id = request.match_info["job"]
+    relative = request.match_info["path"]
+
+    directory = state.builds.local_directory(job_id).resolve()
+    candidate = (directory / relative).resolve()
+    if not candidate.is_relative_to(directory) or not candidate.is_file():
+        # Not a 403: telling the caller which of its guesses escaped the
+        # directory is free reconnaissance.
+        raise web.HTTPNotFound(
+            text=(
+                f'No artifact "{relative}" of build {job_id} is on this dashboard. '
+                "Artifacts arrive when a build succeeds and are removed with it."
+            )
+        )
+    return web.FileResponse(
+        candidate,
+        headers={
+            "Content-Disposition": f'attachment; filename="{candidate.name}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 def _matches(presented: str, expected: str) -> bool:
     return secrets.compare_digest(presented, expected)
 
@@ -168,6 +221,7 @@ def create_app(state: AppState, trust: TrustMode) -> web.Application:
 
     app.router.add_get("/health", health)
     app.router.add_get("/ws", ws.websocket_handler)
+    app.router.add_get("/api/builds/{job}/artifacts/{path:.*}", artifact)
     if trust is TrustMode.PUBLIC:
         # Ingress has no password to exchange and no session to drop.
         app.router.add_post("/auth/login", login)

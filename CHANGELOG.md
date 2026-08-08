@@ -10,6 +10,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Build server** (`buildserver/`, package `mcuhome_buildserver`): the
+  fat half of ADR 0003's two-App topology, as a headless aiohttp service
+  speaking the protocol of ADR 0006.
+  - Frames `submit_job`, `cancel_job`, `follow_job`,
+    `download_artifacts` and `queue_status` on one `/ws` endpoint, with
+    `job_state_changed` and `job_output` events.
+  - `GET /capabilities` for negotiation before a job exists: builder
+    version, `model_version` range, architecture, job slots, image tag,
+    workspace, and what the installed builder can actually do.
+  - Bearer-token authentication with a constant-time comparison, from
+    the command line, the environment or a file; one is generated and
+    logged when none is configured, and published to
+    `/share/mcuhome/build-server.token` for a same-host App pair
+    (ADR 0006 decision 8).
+  - A job queue with **compile lane 1** as a hard default (ADR 0006
+    decision 5), raised only by `--slots` and never silently.
+  - Builds run as a subprocess of `mcuhome build --json` in their own
+    process group, so `cancel_job` stops exactly one job's whole process
+    tree — the property that cannot be had in-process.
+  - A job is a directory: the record, the submitted model, the log
+    sidecar and the build tree. Records survive a restart; a job that
+    was queued or running when the process stopped comes back as
+    `interrupted` rather than `failed`. Retention is a per-server cap
+    plus a time-to-live (ADR 0008 decision 4).
+  - Log sidecars with the resumable follow of ADR 0006 decision 6:
+    history-then-live from a byte offset the client states, with the
+    subscription registered before the history is read so the join
+    cannot lose a chunk.
+  - Artifacts in chunks, each with its own SHA-256, indexed by the build
+    manifest's file list — which is also the whitelist, so path
+    traversal is unreachable rather than defended against.
+  - The submitted `device-model.json` is written mode 0600 into a 0700
+    job directory and deleted when the build process exits: it carries
+    the device's Matter passcode (ADR 0007 decision 2), and the job
+    record and the log never do.
+- Backend build-server client (`buildclient.py`) and the commands
+  `build/submit`, `build/cancel`, `build/status`, `build/log` and
+  `build/artifacts`, plus a `builds` event topic carrying
+  `build_job_changed` and `build_job_output`.
+  - `build/submit` resolves the device in-process and sends only the
+    resolved model and the signing **public** key (ADR 0007); a
+    configuration that does not resolve is a successful command carrying
+    diagnostics, and nothing crosses the wire.
+  - `GET /capabilities` is checked before every submission; a
+    `model_version` or builder mismatch is refused with the new
+    `unsupported` error code, naming both sides' numbers.
+  - Artifacts are downloaded, verified against both the per-chunk and
+    the per-file hash, and **signed locally** with `mcuhome sign`
+    (`signing.py`, ADR 0007 decision 3 / ADR 0008 decision 2) as soon as
+    a build succeeds.
+  - `GET /api/builds/{job}/artifacts/{path}` serves the local, signed
+    copy — REST because a browser download needs a URL.
+  - With no build server configured, every build command refuses with a
+    message naming the two environment variables; two Apps on one Home
+    Assistant instance pair themselves through the shared token file.
+- Build-server test suite (105 tests) driving a fake builder subprocess:
+  no real build, no container, no west.
+
 - Frontend (`frontend/`): the single-page application of ADR 0005 — Lit 3,
   `@home-assistant/webawesome`, CodeMirror 6, TypeScript, Vite, vitest,
   eslint and prettier.
@@ -73,6 +131,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `mcuhome_dashboard/builder.py` consumes `mcuhome.api` — the builder's
+  supported programmatic surface since its Block 0 — instead of reaching
+  into the package: `load_model`, `open_config_tree`, `error_dicts` and
+  `ConfigError.to_dict` are the builder's own now, and the local
+  `_relative`/`error_to_dict` workarounds are gone. Two helpers still
+  import past `api` (commissioning codes, unresolved YAML summaries) and
+  say so in the module docstring.
+- The frame vocabulary gained an `unsupported` error code and
+  `ProtocolError` gained structured detail fields, so a refusal carries
+  its numbers as data and not only in its sentence.
+- Configuration: `--build-server-url`, `--build-server-token`,
+  `--build-server-token-file` and `--data-dir`, each with a
+  `MCUHOME_DASHBOARD_`-prefixed environment form.
+- ADR 0007 records detached signing as implemented rather than pending.
 - Backend requires Python ≥ 3.13 (was ≥ 3.11) — ADR 0004.
 - Backend depends on `aiohttp` and gains a `dev` extra, a
   `mcuhome-dashboard` entry point and pytest wiring. The `mcuhome`
@@ -89,3 +161,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wheel.
 - `pre-commit` runs prettier and eslint over `frontend/`, discharging
   ADR 0005's "the frontend hooks land with the first frontend commit".
+
+### Fixed
+
+- The ingress base-path injection no longer keys off a `<head>` inside
+  an HTML comment, and no longer mistakes `<header>` for `<head>`. Both
+  would have injected `<base>` where the browser never parses it, and
+  the page would have loaded every asset from the wrong prefix without
+  any visible error.
+

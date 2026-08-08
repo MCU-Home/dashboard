@@ -1,13 +1,18 @@
 # mcuhome-dashboard (backend)
 
 Python backend of the [MCUHome Dashboard](https://github.com/mcu-home/dashboard):
-device management, the API the frontend consumes, and — later — build
+device management, the API the frontend consumes, and build
 orchestration against a build server. It **never compiles firmware**
 itself (ADR 0003).
 
-Current state: **backend skeleton**. The device list, the configuration
-tree watcher and validation work end to end; the build-server client,
-the real frontend and the app packaging are separate work blocks.
+Current state: the device list, the configuration tree watcher,
+validation and the **build-server client** work end to end. The client
+resolves a device in-process, sends the model to a build server (ADR
+0006), streams its events to the browser, downloads and verifies the
+artifacts and applies the firmware signature locally (ADR 0007/0008).
+What it cannot do yet is get a build to actually run — see the "Status"
+section of [`../buildserver/README.md`](../buildserver/README.md) for
+the one builder flag that is missing.
 
 ## Running it
 
@@ -68,7 +73,11 @@ successful `device/validate` whose result says `ok: false` and carries
 the diagnostics.
 
 Error codes: `bad_request`, `unknown_command`, `not_found`,
-`unauthorized`, `unavailable`, `conflict`, `internal_error`.
+`unauthorized`, `unavailable`, `conflict`, `unsupported`,
+`internal_error`. `unsupported` is the negotiation failure of ADR 0006
+decision 4 — nothing about the frame is wrong and retrying will not
+help, because one of the two sides has to change version; the error
+object carries the numbers as fields as well as in its sentence.
 
 ### Commands
 
@@ -81,6 +90,11 @@ Error codes: `bad_request`, `unknown_command`, `not_found`,
 | `device/save` | `{"name", "content", "expected_hash"?}` | `{"name", "device": entry, "content_hash"}` |
 | `device/validate` | `{"name"}` | `{"ok", "errors": [...], "device": summary\|null}` |
 | `device/commissioning` | `{"name"}` | `{"ok", "errors": [...], "commissioning": codes\|null}` |
+| `build/submit` | `{"name", "options"?}` | `{"name", "ok", "errors", "job_id", "job"}` |
+| `build/cancel` | `{"job_id"}` | the build server's job record |
+| `build/status` | `{"limit"?}` | `{"server": {...}, "queue": {...}\|null}` |
+| `build/log` | `{"job_id", "offset"?}` | history from `offset`, then live events |
+| `build/artifacts` | `{"job_id", "fetch"?}` | the local artifact set, each file with a download URL |
 | `config/subscribe` | — | the `device/list` snapshot, and every later change as an event |
 | `subscribe_events` | `{"topics": ["devices"]}` | the topics this socket now receives |
 | `unsubscribe_events` | `{"topics": [...]}` | the topics that remain |
@@ -93,6 +107,67 @@ Events on the `devices` topic: `device_added`, `device_changed`,
 `device_removed`, `tree_state`, plus `events_dropped` when a connection
 fell so far behind that the server discarded events for it — the cue to
 re-subscribe rather than trust what is held.
+
+Events on the `builds` topic: `build_job_changed` (the whole job record)
+and `build_job_output` (`{"job_id", "offset", "text"}`). The build
+commands subscribe the socket to `builds` themselves, so a client that
+submitted a build is already receiving its events.
+
+## Building (ADR 0003, 0006, 0007, 0008)
+
+The dashboard **never compiles**, not even when the build server runs on
+the same host. `build/submit` therefore does this, in this order:
+
+1. loads, validates and resolves the device **here**, in-process — so a
+   broken configuration is a refusal in a second with a line number in
+   it, not a failed compile in ten minutes;
+2. checks the build server's `GET /capabilities` before sending anything
+   (ADR 0006 decision 4): a `model_version` or builder mismatch is a
+   refusal naming both sides, never a silent fallback;
+3. sends the resolved `device-model.json` and the signing **public** key
+   with `no_sign: true`. The private key does not cross (ADR 0007
+   decision 3), and neither does the schema, `secrets.yaml`, or any file
+   name;
+4. follows the job's log from byte 0.
+
+A configuration that does not resolve is a **successful** command whose
+result says `ok: false` and carries the diagnostics — the same contract
+`device/validate` follows. Nothing is sent in that case.
+
+**Artifacts arrive and are signed automatically.** When the job
+succeeds, the client downloads every artifact the manifest names,
+verifies each chunk against its own SHA-256 and each file against the
+hash the *build* computed, and then runs `mcuhome sign` with the key
+from `/data/signing.key` (ADR 0008 decision 2; `MCUHOME_SIGNING_KEY`
+overrides the location). A key is generated on first need and that is
+logged at warning level, because every device bootstrapped afterwards
+trusts it. A file whose hash does not match is refused and not written:
+a corrupted artifact that got signed would be a corrupted artifact with
+a valid signature.
+
+> **A build server learns the Matter commissioning passcode of every
+> device it builds** — those credentials are compile-time Kconfig (ADR
+> 0007 decision 2). Operate it as a trusted machine. The dashboard says
+> so in `server/info` and `build/status`, next to the server's address.
+
+### Configuring one
+
+| Option | Environment | What it is |
+|---|---|---|
+| `--build-server-url` | `MCUHOME_DASHBOARD_BUILD_SERVER_URL` | `http(s)://` or `ws(s)://`; both forms are accepted and normalized |
+| `--build-server-token` | `MCUHOME_DASHBOARD_BUILD_SERVER_TOKEN` | the bearer token the build server logged at startup |
+| `--build-server-token-file` | `MCUHOME_DASHBOARD_BUILD_SERVER_TOKEN_FILE` | read it from a file instead |
+| `--data-dir` | `MCUHOME_DASHBOARD_DATA_DIR` | the signing key and downloaded artifacts (default `/data` in an App) |
+
+**Two Apps on one Home Assistant instance pair themselves** (ADR 0006
+decision 8): the build server writes its token to
+`/share/mcuhome/build-server.token`, the dashboard reads it from there
+and assumes `http://127.0.0.1:8100`. Nothing is configured by hand, and
+an explicit URL or token always wins over the pairing file.
+
+With nothing configured, every build command refuses with a message
+naming both environment variables. The rest of the dashboard is
+unaffected — it never compiled anything in the first place.
 
 ### Writing: `device/save` and the `conflict` code
 
@@ -138,7 +213,14 @@ editor's gutter instead of a line of text in a log pane.
 | `GET /health` | version and liveness; open on both sites |
 | `POST /auth/login` | public site only — exchanges the password for an `HttpOnly` session cookie and a CSRF token |
 | `POST /auth/logout` | public site only — needs the CSRF token in `X-CSRF-Token` |
+| `GET /api/builds/{job}/artifacts/{path}` | one artifact of a finished build — the **local**, signed copy |
 | `GET /{path}` | built frontend assets, with SPA fallback |
+
+The artifact endpoint is REST because a browser primitive needs a URL:
+`<a download>`, the flasher hand-off of ADR 0010 and `curl` all take one
+and none of them can take a frame. It serves what this dashboard
+downloaded, verified and signed — never a pass-through of the build
+server's bytes, which would hand out an unsigned image.
 
 ## Development
 
@@ -164,9 +246,15 @@ The direction of the dependency is the invariant: the dashboard follows
 the builder's releases, and using the builder CLI never requires the
 dashboard.
 
-Everything the builder still owes this side is marked `TODO(block-0):`
-in `mcuhome_dashboard/builder.py`, which is the only module that knows
-the builder's Python surface.
+`mcuhome_dashboard/builder.py` is the only module that knows the
+builder's Python surface, and since Block 0 it consumes
+[`mcuhome.api`](https://github.com/mcu-home/mcuhome) — the builder's
+supported programmatic surface — rather than reaching into the package:
+tree discovery, stages 1-3, and the typed errors with their own
+`to_dict`. Two helpers there still import past `api` (`pairing.Pairing`
+for the commissioning codes, `loader.load_yaml_file` for the summary of
+a configuration that does not resolve); both are named in that module's
+docstring as candidates for `api`.
 
 ## Layout
 
@@ -182,5 +270,7 @@ the builder's Python surface.
 | `events.py` | the in-process event bus |
 | `devices.py` | configuration-tree scanning and change detection |
 | `builder.py` | the adapter over the `mcuhome` package |
+| `buildclient.py` | the WebSocket client for a build server (ADR 0006) |
+| `signing.py` | the firmware signing key and the detached signature (ADR 0007/0008) |
 | `web.py` | static assets, SPA fallback, `X-Ingress-Path` |
 | `static/` | the frontend build output (a placeholder shell for now) |

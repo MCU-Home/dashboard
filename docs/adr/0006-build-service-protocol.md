@@ -152,3 +152,26 @@ Two constraints on it, decided now:
   carry), ADR 0009 (the threat model), ADR 0010 (hashes and flasher
   targets), ADR 0011 (version range, and the manifest that must exist);
   firmware ADR 0007; `builder-pipeline.md` §6 and §7.
+
+## Amendment: mDNS naming and rediscovery (2026-08-08, product owner)
+
+The build server announces itself via mDNS as
+`_mcuhome-build._tcp.local` with a **unique instance name generated on
+first start and persisted** in its data directory (shaped like
+`mcuhome-build-<6 hex>`). The TXT record carries port and versions —
+never the token. The dashboard resolves and stores that *name* (its
+backend does the resolution; browsers cannot speak mDNS), so a paired
+build server is re-found across DHCP address changes and "just works"
+on a local network.
+
+Discovery is strictly *finding*, never trust: the first pairing stays
+manual (token today, the Noise pin-comparison upgrade later), and after
+it the dashboard holds the (name, token) pair. Browse-based discovery
+(a picker listing found servers) arrives together with the Noise
+upgrade as one later stage, per this ADR's transport-swap seam.
+
+Deployment notes that make this work: the dashboard HA app needs host
+networking for mDNS (the ESPHome precedent), decided in the packaging
+block; a WSL-hosted build server needs WSL mirrored networking
+(`networkingMode=mirrored`) to be present on the LAN — which also
+removes the NAT port-proxy workaround.

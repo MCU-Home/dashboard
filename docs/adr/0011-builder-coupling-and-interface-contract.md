@@ -1,7 +1,60 @@
 # 0011 — Builder coupling and the firmware-side interface contract
 
-- Status: accepted
+- Status: superseded for the build-service subject by firmware
+  ADR 0017-0020 (2026-08-09)
 - Date: 2026-08-07
+
+## What is superseded, and what carries forward (2026-08-09)
+
+The valid layer for the build-service subject is firmware ADR 0017-0020,
+`mcuhome/docs/design/build-container-contract.md` and ADR 0012 of this
+repository. This ADR's *coupling* half survives it; its *work-block*
+half does not.
+
+**Superseded.**
+
+- **Decision 4 and its Block 0** — the table of firmware-repository
+  work items and the consequence that Block 0 gates dashboard Blocks
+  1-3 — is history. Part of it shipped:
+  `build-manifest.json` (`mcuhome/manifest.py`), structured errors
+  (`mcuhome/errors.py:129`, `:177`) with the `--json` mode, the registry
+  and schema export, `mcuhome new` (`cli/mcuhome_cli/cli.py:904`) and
+  detached signing are implemented (`builder-pipeline.md` §7 and §8).
+  The rest is overtaken rather than pending, because what the
+  dashboard needs from the firmware side is no longer a list of CLI
+  and manifest features: it is two published packages —
+  `mcuhome-model` and `mcuhome-workbench` (firmware ADR 0020
+  decision 1) — plus the session protocol it speaks to a build server
+  (firmware ADR 0019, ADR 0012 decision 3). A new gap is a missing
+  package capability now, not a Block 0 row.
+- **Decision 3's channel.** `model_version` is still the compatibility
+  handshake (ADR 0007 decision 4), but it is no longer advertised in
+  `GET /capabilities` — see the note in ADR 0006.
+
+**Carries forward, under firmware ADR 0020.**
+
+- **Decision 1's direction — in-process import.** The dashboard imports
+  and calls; no subprocess, no CLI output parsing, no exit-code
+  interpretation. Firmware ADR 0020 decision 1 names the dashboard as
+  one of the sites `mcuhome-workbench` runs in, and its decision 5 is
+  what makes in-process embedding hold for a surface whose principal
+  operations are a compile and a session protocol: every operation a
+  caller waits on is awaitable, so the `asyncio.to_thread` offloads
+  this repository uses today become direct awaits, and streaming and
+  cancellation become reachable where a thread boundary cannot carry
+  them.
+- **Decision 2's rule — a declared version range, not a pin, and one
+  direction.** The dashboard declares the versions it supports and
+  refuses to start outside the range, naming both; the firmware side
+  never depends on the dashboard, and using the command line must never
+  require a dashboard version. Firmware ADR 0017 §2's repo ≠ package
+  rule and ADR 0012 decision 2 keep it; what changes is only which
+  distributions the range is declared against — the packages of
+  firmware ADR 0020 decision 1, not "the lib", a term that is retired
+  (firmware ADR 0020 decision 2).
+- **Decision 5's two firmware/CI items** — pre-generated ZAP output and
+  CI-produced ccache packs — are unaffected by the protocol layer and
+  stay scheduled work.
 
 ## Context
 

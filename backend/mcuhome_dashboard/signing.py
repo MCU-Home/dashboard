@@ -35,6 +35,16 @@ and blocks the first success. What must never happen quietly is the
 *second* generation — a changed key orphans every device already
 bootstrapped with the old one (ADR 0008 decision 3) — so creation is
 logged at warning level and reported in the result.
+
+**Nothing calls this module at the moment, and that is not a reason to
+delete it.** The build-server client that did was removed with the job
+protocol; ADR 0012 decision 3 names user key handling and detached
+signing as what the dashboard keeps when everything else about the
+build path is replaced. The one sentence above that describes a
+*mechanism* rather than a decision — the build server compiling the
+public key in and returning the image unsigned — is the job protocol's
+phrasing of it; the session protocol arranges the same split
+differently, and the split itself is what stands.
 """
 
 from __future__ import annotations

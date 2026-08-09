@@ -1,19 +1,22 @@
 # mcuhome-dashboard (backend)
 
 Python backend of the [MCUHome Dashboard](https://github.com/mcu-home/dashboard):
-device management, the API the frontend consumes, and build
-orchestration against a build server. It **never compiles firmware**
-itself (ADR 0003).
+device management and the API the frontend consumes. It **never compiles
+firmware** itself (ADR 0003).
 
 Current state: the device list, the configuration tree watcher,
-validation and the **build-server client** work end to end. The client
-resolves a device in-process, sends the model to a build server (ADR
-0006), streams its events to the browser, downloads and verifies the
-artifacts and applies the firmware signature locally (ADR 0007/0008).
-What it cannot do yet is get a build to actually run — see the "Status"
-section of the
-[build server's README](https://github.com/mcu-home/build-server) for
-the one builder flag that is missing.
+validation, editing and the commissioning codes work end to end.
+
+> **This backend cannot build firmware.** Not "cannot yet get a build to
+> run" — there is no build path in the package at all. The job-protocol
+> client of ADR 0006 was **removed** when
+> [ADR 0012](../docs/adr/0012-build-server-extraction.md) decision 3 made
+> the session protocol of firmware ADR 0019 the way a dashboard reaches a
+> build server, and the session client that replaces it has not been
+> written. So: no `build/*` commands on `/ws`, no `builds` event topic,
+> no artifact download and no `build_server` block in `server/info`. What
+> survived is what that decision carries forward — the transport
+> settings, the signing module, the event bus and the frame envelope.
 
 ## Running it
 
@@ -74,28 +77,25 @@ successful `device/validate` whose result says `ok: false` and carries
 the diagnostics.
 
 Error codes: `bad_request`, `unknown_command`, `not_found`,
-`unauthorized`, `unavailable`, `conflict`, `unsupported`,
-`internal_error`. `unsupported` is the negotiation failure of ADR 0006
-decision 4 — nothing about the frame is wrong and retrying will not
-help, because one of the two sides has to change version; the error
-object carries the numbers as fields as well as in its sentence.
+`unauthorized`, `unavailable`, `conflict`, `internal_error`. An error
+object may carry extra fields beside `code` and `message`, so a refusal
+with numbers in it hands them over as data and not only in its sentence.
+
+There is no `unsupported` code any more: it existed for the build-server
+version negotiation of ADR 0006 decision 4, and both sides of that
+negotiation went with the job protocol (ADR 0012 decision 3).
 
 ### Commands
 
 | Command | Payload | Result |
 |---|---|---|
-| `server/info` | — | dashboard and builder versions, the supported builder range, the `model_version` range, trust mode, ingress base path, identity, tree state |
+| `server/info` | — | dashboard and builder versions, the supported builder range, the `model_version` range, trust mode, ingress base path, identity, tree state. **No `build_server` block** — see above |
 | `ping` | — | `{"pong": true, "time": …}` |
 | `device/list` | — | every device in the tree, with a content hash and an unresolved summary |
 | `device/get` | `{"name"}` | the raw YAML as it is on disk, plus the summary |
 | `device/save` | `{"name", "content", "expected_hash"?}` | `{"name", "device": entry, "content_hash"}` |
 | `device/validate` | `{"name"}` | `{"ok", "errors": [...], "device": summary\|null}` |
 | `device/commissioning` | `{"name"}` | `{"ok", "errors": [...], "commissioning": codes\|null}` |
-| `build/submit` | `{"name", "options"?}` | `{"name", "ok", "errors", "job_id", "job"}` |
-| `build/cancel` | `{"job_id"}` | the build server's job record |
-| `build/status` | `{"limit"?}` | `{"server": {...}, "queue": {...}\|null}` |
-| `build/log` | `{"job_id", "offset"?}` | history from `offset`, then live events |
-| `build/artifacts` | `{"job_id", "fetch"?}` | the local artifact set, each file with a download URL |
 | `config/subscribe` | — | the `device/list` snapshot, and every later change as an event |
 | `subscribe_events` | `{"topics": ["devices"]}` | the topics this socket now receives |
 | `unsubscribe_events` | `{"topics": [...]}` | the topics that remain |
@@ -109,66 +109,70 @@ Events on the `devices` topic: `device_added`, `device_changed`,
 fell so far behind that the server discarded events for it — the cue to
 re-subscribe rather than trust what is held.
 
-Events on the `builds` topic: `build_job_changed` (the whole job record)
-and `build_job_output` (`{"job_id", "offset", "text"}`). The build
-commands subscribe the socket to `builds` themselves, so a client that
-submitted a build is already receiving its events.
+The `builds` topic is gone. Its two events — `build_job_changed` and
+`build_job_output` — belonged to the job protocol. The session
+protocol's typed progress events will register a topic of their own; one
+property of the old pair has to come back with them, because the bus
+drops the oldest events for a subscriber that fell behind and build
+output is exactly the traffic that makes one fall behind: a progress
+event has to say the position it starts at, or a client cannot notice
+the hole.
 
-## Building (ADR 0003, 0006, 0007, 0008)
+## Building: it does not (ADR 0012 decision 3)
 
-The dashboard **never compiles**, not even when the build server runs on
-the same host. `build/submit` therefore does this, in this order:
+There is no build path in this package. The client that used to drive
+one spoke the job vocabulary of ADR 0006 — `submit_job`, `cancel_job`,
+`follow_job`, `download_artifacts`, `queue_status` and
+`GET /capabilities` — and ADR 0012 decision 3 replaced that vocabulary
+with the session verbs of firmware ADR 0019. The decision was to
+dismantle rather than migrate, so the client, the five `build/*`
+commands, the `builds` topic and the artifact endpoint were removed and
+nothing stands in for them.
 
-1. loads, validates and resolves the device **here**, in-process — so a
-   broken configuration is a refusal in a second with a line number in
-   it, not a failed compile in ten minutes;
-2. checks the build server's `GET /capabilities` before sending anything
-   (ADR 0006 decision 4): a `model_version` or builder mismatch is a
-   refusal naming both sides, never a silent fallback;
-3. sends the resolved `device-model.json` and the signing **public** key
-   with `no_sign: true`. The private key does not cross (ADR 0007
-   decision 3), and neither does the schema, `secrets.yaml`, or any file
-   name;
-4. follows the job's log from byte 0.
+What that costs, listed so nobody looks for it: a device cannot be
+compiled, a build log cannot be streamed, an artifact cannot be
+downloaded, and nothing is signed — because nothing produces anything to
+sign. Editing, validation, the device list and the commissioning codes
+are untouched; they never went near a build server.
 
-A configuration that does not resolve is a **successful** command whose
-result says `ok: false` and carries the diagnostics — the same contract
-`device/validate` follows. Nothing is sent in that case.
+What survives, and why:
 
-**Artifacts arrive and are signed automatically.** When the job
-succeeds, the client downloads every artifact the manifest names,
-verifies each chunk against its own SHA-256 and each file against the
-hash the *build* computed, and then runs `mcuhome sign` with the key
-from `/data/signing.key` (ADR 0008 decision 2; `MCUHOME_SIGNING_KEY`
-overrides the location). A key is generated on first need and that is
-logged at warning level, because every device bootstrapped afterwards
-trusts it. A file whose hash does not match is refused and not written:
-a corrupted artifact that got signed would be a corrupted artifact with
-a valid signature.
+| Kept | Why |
+|---|---|
+| `--build-server-url` / `-token` / `-token-file`, the pairing file | ADR 0012 decision 3 carries ADR 0006's transport and threat model forward unchanged. Dropping the pairing would silently un-pair every existing installation |
+| `signing.py` | ADR 0012 decision 3: "the dashboard keeps what only it has — user key handling and detached signing" (ADR 0007/0008). It has no caller today |
+| the event bus, the frame envelope, `versions.py` | Protocol-independent; ADR 0011 is untouched |
+
+**These settings are inert.** A configured URL and token change nothing
+in this release — the startup log says so at warning level rather than
+letting an operator wait for a build button that does not exist.
 
 > **A build server learns the Matter commissioning passcode of every
 > device it builds** — those credentials are compile-time Kconfig (ADR
-> 0007 decision 2). Operate it as a trusted machine. The dashboard says
-> so in `server/info` and `build/status`, next to the server's address.
+> 0007 decision 2). Operate it as a trusted machine. That warning used
+> to be carried to the user by `server/info` and `build/status`; with
+> both gone it lives here and in `--help` until the session client can
+> put it in front of whoever configures a server.
 
-### Configuring one
+### Configuring one (for the client that does not exist yet)
 
 | Option | Environment | What it is |
 |---|---|---|
 | `--build-server-url` | `MCUHOME_DASHBOARD_BUILD_SERVER_URL` | `http(s)://` or `ws(s)://`; both forms are accepted and normalized |
 | `--build-server-token` | `MCUHOME_DASHBOARD_BUILD_SERVER_TOKEN` | the bearer token the build server logged at startup |
 | `--build-server-token-file` | `MCUHOME_DASHBOARD_BUILD_SERVER_TOKEN_FILE` | read it from a file instead |
-| `--data-dir` | `MCUHOME_DASHBOARD_DATA_DIR` | the signing key and downloaded artifacts (default `/data` in an App) |
+| `--data-dir` | `MCUHOME_DASHBOARD_DATA_DIR` | the signing key, and the artifact directory nothing writes to yet (default `/data` in an App) |
 
 **Two Apps on one Home Assistant instance pair themselves** (ADR 0006
-decision 8): the build server writes its token to
-`/share/mcuhome/build-server.token`, the dashboard reads it from there
-and assumes `http://127.0.0.1:8100`. Nothing is configured by hand, and
-an explicit URL or token always wins over the pairing file.
+decision 8, carried forward by ADR 0012 decision 3): the build server
+writes its token to `/share/mcuhome/build-server.token`, the dashboard
+reads it from there and assumes `http://127.0.0.1:8100`. Nothing is
+configured by hand, and an explicit URL or token always wins over the
+pairing file. `tests/test_config.py` is what keeps that true while there
+is no client to exercise it.
 
-With nothing configured, every build command refuses with a message
-naming both environment variables. The rest of the dashboard is
-unaffected — it never compiled anything in the first place.
+With nothing configured, nothing happens — which is also what happens
+with everything configured, until the session client lands.
 
 ### Writing: `device/save` and the `conflict` code
 
@@ -214,14 +218,18 @@ editor's gutter instead of a line of text in a log pane.
 | `GET /health` | version and liveness; open on both sites |
 | `POST /auth/login` | public site only — exchanges the password for an `HttpOnly` session cookie and a CSRF token |
 | `POST /auth/logout` | public site only — needs the CSRF token in `X-CSRF-Token` |
-| `GET /api/builds/{job}/artifacts/{path}` | one artifact of a finished build — the **local**, signed copy |
 | `GET /{path}` | built frontend assets, with SPA fallback |
 
-The artifact endpoint is REST because a browser primitive needs a URL:
-`<a download>`, the flasher hand-off of ADR 0010 and `curl` all take one
-and none of them can take a frame. It serves what this dashboard
-downloaded, verified and signed — never a pass-through of the build
-server's bytes, which would hand out an unsigned image.
+`GET /api/builds/{job}/artifacts/{path}` used to be in that table and is
+not any more. It served the local, verified, locally signed copy of a
+finished build, and it was REST for the reason ADR 0004 decision 4
+gives: `<a download>`, the flasher hand-off of ADR 0010 and `curl` all
+take a URL and none of them can take a frame. That reason still holds —
+what does not is the directory, since nothing fills it. The route was
+removed rather than left answering 404 to everything. When the session
+protocol's `get-artifact` brings it back, its refusal has to come back
+with it: a path resolving outside the job's own directory is a 404 and
+never a 403, because naming which guess escaped is free reconnaissance.
 
 ## Development
 
@@ -271,7 +279,6 @@ docstring as candidates for `api`.
 | `events.py` | the in-process event bus |
 | `devices.py` | configuration-tree scanning and change detection |
 | `builder.py` | the adapter over the `mcuhome` package |
-| `buildclient.py` | the WebSocket client for a build server (ADR 0006) |
-| `signing.py` | the firmware signing key and the detached signature (ADR 0007/0008) |
+| `signing.py` | the firmware signing key and the detached signature (ADR 0007/0008) — kept by ADR 0012 decision 3, with no caller until a build produces something to sign |
 | `web.py` | static assets, SPA fallback, `X-Ingress-Path` |
 | `static/` | the frontend build output (a placeholder shell for now) |

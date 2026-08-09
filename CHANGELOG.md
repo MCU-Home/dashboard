@@ -8,28 +8,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The build-server client and everything that existed only for it**
+  (ADR 0012 decision 3). The job-frame vocabulary of ADR 0006 is
+  replaced by the session protocol of firmware ADR 0019, and the
+  decision was to dismantle rather than migrate — there was no
+  session-protocol client to migrate to, and a client left speaking a
+  retired vocabulary would have been a second thing to remove later.
+  Gone: `buildclient.py`; the commands `build/submit`, `build/cancel`,
+  `build/status`, `build/log` and `build/artifacts`; the `builds` event
+  topic with `build_job_changed` and `build_job_output`; the
+  `build_server` block of `server/info`; the REST endpoint
+  `GET /api/builds/{job}/artifacts/{path}`; the `unsupported` error
+  code, whose only producer was the ADR 0006 decision 4 negotiation.
+  - **The dashboard therefore cannot build, flash, stream a build log
+    or download an artifact.** No stub stands in for any of it — a
+    command that disappeared disappeared, and `server/info` no longer
+    advertises a build server it cannot reach. The startup log says so
+    at warning level. Editing, validation, the device list and the
+    commissioning codes are untouched.
+  - Kept, because ADR 0012 decision 3 carries them forward and the
+    session client needs them: `--build-server-url`/`-token`/
+    `-token-file` and the `/share/mcuhome/build-server.token`
+    auto-pairing (ADR 0006 decision 8), now covered by
+    `backend/tests/test_config.py` since no client exercises them;
+    `signing.py` in full (ADR 0007/0008 — it has no caller today and is
+    not dead code); the event bus; the frame envelope; the version-range
+    machinery of ADR 0011. The URL normalization that turned one
+    configured address into its `http` and `ws` forms moved from
+    `buildclient.py` into `config.py`, where the address is configured.
+  - `resolve_build_server_token` takes its pairing-file default at call
+    time instead of in its signature, so the pairing path is testable
+    without a real Home Assistant share.
+- Backend test suite: 168 → 151 tests. The 27 build tests of
+  `tests/test_builds.py` went with the client; 10 new tests in
+  `tests/test_config.py` cover the settings that outlived it.
+
 ### Added
 
-- Backend build-server client (`buildclient.py`) and the commands
-  `build/submit`, `build/cancel`, `build/status`, `build/log` and
-  `build/artifacts`, plus a `builds` event topic carrying
-  `build_job_changed` and `build_job_output`.
-  - `build/submit` resolves the device in-process and sends only the
-    resolved model and the signing **public** key (ADR 0007); a
-    configuration that does not resolve is a successful command carrying
-    diagnostics, and nothing crosses the wire.
-  - `GET /capabilities` is checked before every submission; a
-    `model_version` or builder mismatch is refused with the new
-    `unsupported` error code, naming both sides' numbers.
-  - Artifacts are downloaded, verified against both the per-chunk and
-    the per-file hash, and **signed locally** with `mcuhome sign`
-    (`signing.py`, ADR 0007 decision 3 / ADR 0008 decision 2) as soon as
-    a build succeeds.
-  - `GET /api/builds/{job}/artifacts/{path}` serves the local, signed
-    copy — REST because a browser download needs a URL.
-  - With no build server configured, every build command refuses with a
-    message naming the two environment variables; two Apps on one Home
-    Assistant instance pair themselves through the shared token file.
 - Frontend (`frontend/`): the single-page application of ADR 0005 — Lit 3,
   `@home-assistant/webawesome`, CodeMirror 6, TypeScript, Vite, vitest,
   eslint and prettier.
@@ -94,11 +111,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **The build server moved to its own repository** ([mcu-home/build-server](https://github.com/mcu-home/build-server),
-  ADR 0012): `buildserver/` and its test suite leave this repository;
-  the dashboard keeps its client (`buildclient.py`, the `build/*`
-  commands and the detached signing hand-off). The frame-vocabulary
-  cross-check now lives in the build-server repository and runs
-  whenever both packages are importable.
+  ADR 0012): `buildserver/` and its test suite leave this repository.
+  The dashboard kept its client at the time of the move; the client was
+  removed shortly afterwards — see **Removed**, above. The
+  frame-vocabulary cross-check retires with it (ADR 0012's
+  Consequences).
 - `mcuhome_dashboard/builder.py` consumes `mcuhome.api` — the builder's
   supported programmatic surface since its Block 0 — instead of reaching
   into the package: `load_model`, `open_config_tree`, `error_dicts` and
@@ -106,9 +123,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `_relative`/`error_to_dict` workarounds are gone. Two helpers still
   import past `api` (commissioning codes, unresolved YAML summaries) and
   say so in the module docstring.
-- The frame vocabulary gained an `unsupported` error code and
-  `ProtocolError` gained structured detail fields, so a refusal carries
-  its numbers as data and not only in its sentence.
+- `ProtocolError` gained structured detail fields, so a refusal carries
+  its numbers as data and not only in its sentence. (The `unsupported`
+  error code added alongside them has since been removed with the
+  negotiation it served — see **Removed**, above.)
 - Configuration: `--build-server-url`, `--build-server-token`,
   `--build-server-token-file` and `--data-dir`, each with a
   `MCUHOME_DASHBOARD_`-prefixed environment form.

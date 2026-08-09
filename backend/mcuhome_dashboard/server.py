@@ -32,7 +32,7 @@ from aiohttp import web
 from mcuhome_dashboard import versions
 from mcuhome_dashboard.app import AppState, create_app
 from mcuhome_dashboard.builder import MCUHOME_VERSION
-from mcuhome_dashboard.config import Config, load_config
+from mcuhome_dashboard.config import Config, http_url, load_config
 from mcuhome_dashboard.security import TrustMode
 
 __all__ = ["main", "run", "serve", "supervisor_interface"]
@@ -84,6 +84,25 @@ def _announce(config: Config) -> None:
     )
     logger.info("configuration tree: %s", config.config_root or "not configured")
     logger.info("sites: %s", config.site_summary())
+    # Said at startup rather than at the first build attempt, because
+    # there is no build attempt to say it at any more: the job-protocol
+    # client was removed with ADR 0012 decision 3 and the session client
+    # of firmware ADR 0019 has not been written. An operator who has
+    # configured a build server would otherwise wait for a build button
+    # that does not exist.
+    logger.warning(
+        "This dashboard cannot build firmware. The build-server client was removed "
+        "with the job protocol (ADR 0012 decision 3) and its replacement, the "
+        "session-protocol client, does not exist yet — so there are no build "
+        "commands on /ws, no build events and no artifact downloads. Editing, "
+        "validating and commissioning are unaffected."
+    )
+    if config.build_server_configured:
+        logger.warning(
+            "A build server is configured (%s) but nothing in this release connects "
+            "to it. The address and token are kept so the session client finds them.",
+            http_url(config.build_server_url or ""),
+        )
     if config.password_generated:
         # The code-server pattern (ADR 0009 decision 2). Printed once,
         # at a level nobody filters out, because it is the only way the

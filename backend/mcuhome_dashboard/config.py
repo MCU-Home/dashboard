@@ -19,6 +19,15 @@ and are the security-relevant part of this module:
 
 There is no branch that binds a non-loopback address without
 authentication, not even behind a warning.
+
+**The build-server settings outlive the client that used them.** ADR
+0012 decision 3 carries ADR 0006's transport and threat model forward —
+WebSocket plus bearer token, TLS at the deployment, the auto-pairing
+file — and replaces only its frame vocabulary. So a URL, a token, the
+token file and the pairing file are still resolved here and normalized
+here, even though the job-protocol client that consumed them is gone and
+the session client that will consume them again does not exist yet.
+Nothing in this process currently opens a connection with them.
 """
 
 from __future__ import annotations
@@ -30,6 +39,7 @@ import secrets
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 __all__ = [
     "DEFAULT_HOST",
@@ -40,10 +50,12 @@ __all__ = [
     "Config",
     "build_parser",
     "default_data_dir",
+    "http_url",
     "is_loopback_host",
     "load_config",
     "resolve_build_server_token",
     "resolve_password",
+    "ws_url",
 ]
 
 ENV_PREFIX = "MCUHOME_DASHBOARD_"
@@ -97,6 +109,30 @@ def is_loopback_host(host: str) -> bool:
         return False
 
 
+def _normalized(url: str, *, scheme_map: dict[str, str], path: str) -> str:
+    parts = urlsplit(url if "://" in url else f"http://{url}")
+    scheme = scheme_map.get(parts.scheme, parts.scheme)
+    base = parts.path.rstrip("/")
+    return urlunsplit((scheme, parts.netloc, f"{base}{path}", "", ""))
+
+
+def http_url(url: str, path: str = "") -> str:
+    """The REST form of a configured build-server URL.
+
+    A user configures one address and may write it in whichever of the
+    four schemes they have in front of them, or none at all; both forms
+    are derived from it rather than demanded of them. ADR 0012 decision
+    3 keeps the transport, so this survives the job protocol that first
+    needed it.
+    """
+    return _normalized(url, scheme_map={"ws": "http", "wss": "https"}, path=path)
+
+
+def ws_url(url: str) -> str:
+    """The WebSocket form of a configured build-server URL."""
+    return _normalized(url, scheme_map={"http": "ws", "https": "wss"}, path="/ws")
+
+
 @dataclass(frozen=True)
 class Config:
     """Everything the server needs to know before it binds a socket."""
@@ -118,15 +154,19 @@ class Config:
     #: this; a standalone deployment never does.
     ingress_port: int | None = None
 
-    # --- the build server (ADR 0003, ADR 0006) ---
-    #: ``None`` means no build server is configured. Build commands then
-    #: refuse in plain language naming these options; nothing about the
-    #: rest of the dashboard changes, because the dashboard never
-    #: compiled anything in the first place.
+    # --- the build server (ADR 0003, ADR 0006 transport, ADR 0012) ---
+    #: Where a build server is and how to authenticate to it. ``None``
+    #: means none is configured. **Nothing reads these yet**: the
+    #: job-protocol client that did was removed with ADR 0012 decision 3
+    #: and the session client has not been written, so a configured URL
+    #: and token buy a user nothing today. They are resolved anyway
+    #: because the transport they describe is carried forward unchanged
+    #: and because dropping the auto-pairing would silently un-pair
+    #: every existing installation.
     build_server_url: str | None = None
     build_server_token: str | None = None
-    #: ADR 0008: the App's private volume. Holds the signing key and the
-    #: artifacts fetched from a build server.
+    #: ADR 0008: the App's private volume. Holds the signing key and,
+    #: once something fetches artifacts again, those.
     data_dir: Path = field(default_factory=default_data_dir)
 
     # --- HTTP surface ---
@@ -151,6 +191,10 @@ class Config:
         Under ``/data`` and therefore inside the App's backup volume —
         but ADR 0008 decision 5 excludes it from the backup set, because
         artifacts are large, reproducible and worthless in a restore.
+
+        Nothing creates or reads this directory at the moment; the
+        layout decision is ADR 0008's and stands, the code that filled
+        it was the job protocol's and does not.
         """
         return self.data_dir / "builds"
 
@@ -194,19 +238,24 @@ def resolve_build_server_token(
     token_file: Path | None,
     *,
     env: Mapping[str, str] | None = None,
-    pair_file: Path = DEFAULT_PAIR_FILE,
+    pair_file: Path | None = None,
 ) -> tuple[str | None, bool]:
     """Find the build server's token. Returns ``(token, auto_paired)``.
 
-    ADR 0006 decision 8: when both Apps run on one Home Assistant
-    instance they share ``/share``, the build server writes its token
-    there, and the dashboard finds the pair without the user configuring
-    anything. That is what makes ADR 0003's always-remote decision
-    invisible to the people it would otherwise annoy — so the pairing
-    file is consulted *last*, after everything explicit, and never
-    overrides a token somebody typed.
+    ADR 0006 decision 8, carried forward by ADR 0012 decision 3: when
+    both Apps run on one Home Assistant instance they share ``/share``,
+    the build server writes its token there, and the dashboard finds the
+    pair without the user configuring anything. That is what makes ADR
+    0003's always-remote decision invisible to the people it would
+    otherwise annoy — so the pairing file is consulted *last*, after
+    everything explicit, and never overrides a token somebody typed.
+
+    ``pair_file`` defaults to :data:`DEFAULT_PAIR_FILE` at call time
+    rather than in the signature, so that a test can point it somewhere
+    that is not a real Home Assistant share.
     """
     environment = os.environ if env is None else env
+    pair_file = DEFAULT_PAIR_FILE if pair_file is None else pair_file
     if configured:
         return configured, False
     from_env = environment.get(ENV_PREFIX + "BUILD_SERVER_TOKEN")
@@ -291,9 +340,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--build-server-url",
         metavar="URL",
         help=(
-            "address of the build server that compiles firmware for this dashboard "
+            "address of the build server that will compile firmware for this dashboard "
             f"(for example {DEFAULT_BUILD_SERVER_URL}); the dashboard never compiles "
-            "anything itself"
+            "anything itself. A build server learns the Matter commissioning passcode "
+            "of every device it builds, because those credentials are compiled into "
+            "the firmware — operate it as a trusted machine. NOT USED YET: this "
+            "release has no build client at all, so setting this changes nothing "
+            "until the session client of ADR 0012 lands"
         ),
     )
     parser.add_argument(

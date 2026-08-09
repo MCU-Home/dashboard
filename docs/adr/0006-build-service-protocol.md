@@ -1,7 +1,58 @@
 # 0006 — The build-service protocol
 
-- Status: accepted
+- Status: superseded for the build-service subject by firmware
+  ADR 0017-0020 (2026-08-09)
 - Date: 2026-08-07
+
+## What is superseded, and what carries forward (2026-08-09)
+
+The valid layer for the build-service subject is firmware ADR 0017-0020,
+`mcuhome/docs/design/build-container-contract.md` and ADR 0012 of this
+repository. This ADR is split along one line: **the vocabulary is
+replaced, the transport and the threat model are not.** ADR 0012
+decision 3 already drew that line; this note names both halves
+exactly.
+
+**Superseded.**
+
+- **Decision 3's job-frame vocabulary** — `submit_job`, `cancel_job`,
+  `job_state_changed`, `job_output`, `download_artifacts`,
+  `queue_status`. One shot, one build, artifacts, done: a job frame
+  cannot carry state from one step into the next, and correctness, the
+  dev loop and multi-phase flows all need it to (firmware ADR 0019
+  Context). It is replaced by the session verbs of firmware ADR 0019
+  decision 2 — `capabilities`, `open-session`, `send-context`,
+  `extend-context`, `lock-context`, `verify`, `build`, `cancel`,
+  `get-artifact`, `attach-session`, `close-session`.
+- **Decision 4's `GET /capabilities` endpoint.** Negotiation before a
+  job exists survives; the REST endpoint does not. Its content moves
+  into the pre-session `capabilities` verb and into the `open-session`
+  response, which is where firmware ADR 0019 decision 2 puts discovery
+  and version negotiation — including the `model_version` range of
+  ADR 0007 decision 4 and ADR 0011 decision 3. A mismatch is still a
+  typed refusal
+  naming both sides, never a silent fallback; it now happens at the
+  door of the session rather than in a separate protocol.
+
+**Carries forward, unchanged.**
+
+- **Decisions 1 and 2 — the transport.** WebSocket with a bearer token,
+  over TLS wherever the deployment provides it, because WebSocket over
+  HTTPS traverses firewalls, NAT and reverse proxies and a build server
+  is routinely off-LAN; and the transport stays a swappable layer under
+  a stable vocabulary (the vocabulary above it is now the session verb
+  set). Firmware ADR 0019 decision 1 adopts both explicitly.
+- **The threat model** in the Consequences: bearer tokens push
+  transport security onto the deployment, an internet-reachable build
+  server must sit behind TLS, and a leaked token is shell-equivalent on
+  the build server — the sentence ADR 0009 carries into SECURITY.md.
+- **The mDNS amendment** at the end of this document: the
+  `_mcuhome-build._tcp.local` announcement with a persisted instance
+  name, TXT carrying port and versions and never the token, discovery
+  as *finding* and never as trust.
+
+Not addressed by this note, and therefore untouched by it: decisions 5
+to 8 and the hosted-build-server outlook.
 
 ## Context
 

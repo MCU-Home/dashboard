@@ -117,7 +117,11 @@ def public_key(path: Path, *, create: bool = True) -> tuple[str, bool]:
     :func:`sign_build`.
     """
     try:
-        key = signing_key(path, create=create)
+        # An empty environment, and not this process's: *path* is always
+        # an explicit override (:func:`key_path` resolved KEY_VAR already),
+        # so the library never consults the environment on this call, and
+        # saying so is better than handing it one it must not use.
+        key = signing_key(path, env={}, create=create)
         pem = public_key_pem(key.path.read_text(encoding="utf-8"))
     except MCUHomeError as error:
         raise SigningError(str(error)) from error

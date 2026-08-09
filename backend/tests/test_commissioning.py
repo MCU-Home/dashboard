@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from mcuhome.pairing import TEST_DISCRIMINATOR, TEST_PAIRING
+from mcuhome.model.pairing import TEST_DISCRIMINATOR, TEST_PAIRING
 
 from mcuhome_dashboard.app import AppState, create_app
 from mcuhome_dashboard.config import Config

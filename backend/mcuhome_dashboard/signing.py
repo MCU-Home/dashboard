@@ -55,8 +55,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from mcuhome.api import MCUHomeError, read_manifest
-from mcuhome.signing import KEY_VAR, public_key_pem, signing_key
+from mcuhome.workbench.api import MCUHomeError, read_manifest
+from mcuhome.workbench.signing import KEY_VAR, public_key_pem, signing_key
 
 __all__ = [
     "KEY_FILE",

@@ -39,8 +39,9 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from mcuhome import api
-from mcuhome.api import (
+from mcuhome.model.pairing import Pairing
+from mcuhome.workbench import api
+from mcuhome.workbench.api import (
     DEVICE_ENTRY,
     DEVICES_DIR,
     ConfigTree,
@@ -49,8 +50,7 @@ from mcuhome.api import (
     error_dicts,
     is_config_root,
 )
-from mcuhome.loader import load_yaml_file
-from mcuhome.pairing import Pairing
+from mcuhome.workbench.loader import load_yaml_file
 
 __all__ = [
     "DEVICES_DIR",

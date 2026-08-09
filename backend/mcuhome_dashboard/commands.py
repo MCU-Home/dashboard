@@ -40,7 +40,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mcuhome.errors import MCUHomeError
+from mcuhome.model.errors import MCUHomeError
 
 from mcuhome_dashboard import builder, versions
 from mcuhome_dashboard.events import TOPIC_DEVICES

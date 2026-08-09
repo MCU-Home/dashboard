@@ -10,10 +10,13 @@ standalone product to create, build, flash and manage Zephyr-based smart
 home devices. Distribution targets: **Home Assistant App** (packaged in a
 separate future packaging repo), Docker image, plain Python app.
 
-**Current phase: pre-alpha.** The design phase is complete — ADRs
-0003–0011 fix the deployment topology, the backend and frontend stacks,
-the build-service protocol, state layout, auth, flash flow and the
-builder coupling. Check `docs/adr/` before assuming any design decision.
+**Current phase: pre-alpha.** ADRs 0003–0011 fix the backend and
+frontend stacks, state layout, auth, flash flow and the builder
+coupling. **ADR 0012 supersedes the build-service protocol of ADR 0006**
+and amends ADR 0003's topology: read 0012 first, and treat 0006 as
+history except for its transport and threat-model decisions, which 0012
+decision 3 carries forward. Check `docs/adr/` before assuming any design
+decision.
 
 The **backend** is implemented: the two sites of ADR 0009, the `/ws`
 command and event vocabulary of ADR 0004, configuration-tree watching,
@@ -29,24 +32,35 @@ with conflict detection, and the commissioning view.
 `frontend/README.md` is its guide.
 
 The **build server** lives in its own repository since ADR 0012:
-[mcu-home/build-server](https://github.com/mcu-home/build-server). What
-lives here is the dashboard's **client** for it, including the detached
-signing hand-off of ADR 0007/0008. **No build runs yet**, for one reason
-recorded at the top of the build server's README: `mcuhome build` cannot
-take the resolved `device-model.json` that ADR 0007 makes the wire
-format. The server probes for that and refuses jobs with the reason
-until the builder grows the option.
+[mcu-home/build-server](https://github.com/mcu-home/build-server).
 
-Still missing: build and flash views in the browser, creating a device
-from the browser (needs `mcuhome new` as API, ADR 0011), and app
-packaging.
+**There is no build client here any more.** ADR 0012 decision 3 replaced
+ADR 0006's job-frame vocabulary with the session protocol of firmware
+ADR 0019, and the job client was dismantled rather than migrated:
+`buildclient.py`, the `build/*` commands, the `builds` event topic, the
+`build_server` block of `server/info` and the artifact REST endpoint are
+gone. What that decision carries forward stayed: the transport settings
+(URL, bearer token, token file, the auto-pairing file), the detached
+signing module of ADR 0007/0008, the event bus, the frame envelope and
+the version-range machinery of ADR 0011. Signing has no caller today —
+do not sweep it up as dead code.
 
-The architecture in one line: **two Home Assistant Apps** — the thin
-`mcuhome-dashboard` and the fat `mcuhome-build-server` — because the
-dashboard never compiles (ADR 0003). The fat half has its own
-repository (ADR 0012), and **neither Python package depends on the
+So the honest state is: **this dashboard cannot build, flash, stream a
+build log or download an artifact.** Do not add a stub that pretends
+otherwise; the next piece of work is the session client, not a
+placeholder.
+
+Still missing: the session-protocol client, build and flash views in the
+browser, creating a device from the browser (needs `mcuhome new` as API,
+ADR 0011), and app packaging.
+
+The architecture in one line: the dashboard never compiles (ADR 0003),
+so every build goes to a separate build server, which has its own
+repository (ADR 0012) — and **neither Python package depends on the
 other**: they are separate products with separate version numbers,
-joined by one protocol.
+joined by one protocol. (The two-Home-Assistant-Apps framing of ADR 0003
+is what ADR 0012's amended Consequences struck; a build server is an
+orchestrator whose primary target is standalone.)
 
 ## Repository map
 
@@ -74,9 +88,11 @@ the firmware repo:
   them as a versioned artifact — never duplicate or fork schema definitions
   here.
 - **The dashboard never compiles** (ADR 0003). Every build goes to a
-  build server over the protocol of ADR 0006 — including when both Apps
-  run on the same host. There is no local-build code path, and none is
-  to be added.
+  build server over the session protocol of firmware ADR 0019 (ADR 0012
+  decision 3) — including when both processes run on the same host.
+  There is no local-build code path, and none is to be added. Since the
+  teardown there is no *remote*-build code path either; that is a gap to
+  fill with the session client, never with a local one.
 - **The dashboard is a standalone product** with its own release cycle,
   *and* it imports the `mcuhome` builder package in-process (ADR 0011).
   Both hold because the dependency has one direction: the dashboard
@@ -87,16 +103,15 @@ the firmware repo:
   files in this repo; they go to the future packaging repo.
 - **The dashboard and the build server do not import each other** —
   since ADR 0012 a repository boundary, not just a rule. The dashboard
-  keeps its own copy of the frame codec on purpose; the build-server
-  repository carries the cross-check (its `tests/test_protocol.py`)
-  that compares the two vocabularies whenever both packages are
-  importable.
+  keeps its own copy of the frame codec on purpose. The cross-repository
+  vocabulary comparison retires with the job protocol (ADR 0012's
+  Consequences); conformance is anchored in the session protocol and the
+  build-container contract instead.
 - **The build server never signs, and the dashboard never compiles.**
   Each half is missing what the other has, by construction: the private
   signing key is only ever on the dashboard side (ADR 0007 decision 3,
-  ADR 0008), and there is no build path in `backend/`. A `submit_job`
-  that asks the build server to sign is refused rather than quietly
-  built unsigned.
+  ADR 0008), and there is no build path in `backend/`. Whatever the
+  session client does, it never asks a build server to sign.
 - **Say "App", not "Add-on"** — Home Assistant renamed them in 2026.2.
   Applies to every user-facing string, screenshot and document.
 - Stored device configurations may contain secrets (WiFi credentials,

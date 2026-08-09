@@ -3,11 +3,22 @@
 """In-process event bus (ADR 0004 decision 3).
 
 Everything that changes without a client asking — a file edited outside
-the dashboard, a job state transition, build output — publishes here,
-and the WebSocket connections that subscribed to the topic receive it.
-There is one process, so this is a set of :class:`asyncio.Queue` objects
-and nothing more; making it a message broker would be inventing a
-distributed system for a single-container app.
+the dashboard, and later the progress of a build session — publishes
+here, and the WebSocket connections that subscribed to the topic receive
+it. There is one process, so this is a set of :class:`asyncio.Queue`
+objects and nothing more; making it a message broker would be inventing
+a distributed system for a single-container app.
+
+The bus itself is protocol-independent and survived the teardown of the
+job protocol untouched (ADR 0012 decision 3). What went with that
+protocol is the ``builds`` topic and its two event constructors; the
+session protocol's typed progress events will register their own topic
+here when the session client lands. One property of those two has to be
+rebuilt rather than rediscovered: log events carried the byte offset
+they started at, because *this* bus drops the oldest events for a
+subscriber that fell behind, and build output is exactly the traffic
+that makes one fall behind. A progress stream without a resumable
+position shows a log with a hole in it and no way to notice.
 
 **Bounded queues, on purpose.** A subscriber that stops reading (a
 browser tab that froze, a suspended laptop) must not grow the server's
@@ -29,13 +40,10 @@ from types import TracebackType
 from typing import Any
 
 __all__ = [
-    "TOPIC_BUILDS",
     "TOPIC_DEVICES",
     "Event",
     "EventBus",
     "Subscription",
-    "build_job_output",
-    "build_job_state",
     "device_added",
     "device_changed",
     "device_removed",
@@ -47,11 +55,6 @@ logger = logging.getLogger(__name__)
 #: Changes to the configuration tree: devices appearing, disappearing or
 #: being edited, and the tree itself becoming (un)available.
 TOPIC_DEVICES = "devices"
-
-#: Everything a build does: state transitions and log output, relayed
-#: from the build server (ADR 0006) onto this bus so that the browser
-#: sees a build the same way it sees a file changing on disk.
-TOPIC_BUILDS = "builds"
 
 #: How many events a subscriber may fall behind before the oldest are
 #: dropped. Generous for a UI, small enough to be a bound.
@@ -87,25 +90,6 @@ def device_removed(name: str) -> Event:
 
 def tree_state(root: str | None, *, available: bool) -> Event:
     return Event(TOPIC_DEVICES, "tree_state", {"root": root, "available": available})
-
-
-def build_job_state(job: dict[str, Any]) -> Event:
-    """One build's record changed — queued, running, finished, signed."""
-    return Event(TOPIC_BUILDS, "build_job_changed", {"job": job})
-
-
-def build_job_output(job_id: str, offset: int, text: str) -> Event:
-    """A piece of build log, with the byte offset it starts at.
-
-    The offset is what lets a client notice a gap: this bus drops the
-    oldest events for a subscriber that fell behind, and a build log is
-    exactly the traffic that makes one fall behind. A jump in the
-    offsets is the cue to ask the build server for the missing range
-    (ADR 0006 decision 6) instead of showing a log with a hole in it.
-    """
-    return Event(
-        TOPIC_BUILDS, "build_job_output", {"job_id": job_id, "offset": offset, "text": text}
-    )
 
 
 class Subscription:

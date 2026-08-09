@@ -42,7 +42,6 @@ __all__ = [
     "ERROR_UNAUTHORIZED",
     "ERROR_UNAVAILABLE",
     "ERROR_UNKNOWN_COMMAND",
-    "ERROR_UNSUPPORTED",
     "TYPE_ERROR",
     "TYPE_EVENT",
     "TYPE_RESULT",
@@ -76,15 +75,16 @@ ERROR_UNAVAILABLE = "unavailable"
 #: is wrong and the fix is a human decision — reload or overwrite — not a
 #: retry.
 ERROR_CONFLICT = "conflict"
-#: The request is well-formed and cannot be honoured: a build server
-#: whose ``model_version`` range does not include ours, or whose builder
-#: is missing something every job needs. Distinct from ``bad_request``
-#: because nothing about the frame is wrong, and from ``unavailable``
-#: because retrying will not help — one of the two sides has to change
-#: version (ADR 0006 decision 4, ADR 0007 decision 4).
-ERROR_UNSUPPORTED = "unsupported"
 #: A bug on this side. Carries no traceback; the log has it.
 ERROR_INTERNAL = "internal_error"
+
+# There is no `unsupported` code any more. It existed for exactly one
+# refusal — a build server whose `model_version` range did not include
+# ours, or whose builder could not take a resolved model (ADR 0006
+# decision 4) — and both halves of that negotiation went with the job
+# protocol (ADR 0012 decision 3). The session protocol negotiates
+# differently and carries its own error layer, so the successor is a
+# decision to take there rather than a code to keep warm here.
 
 
 class ProtocolError(Exception):

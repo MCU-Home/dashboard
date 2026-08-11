@@ -192,6 +192,15 @@ export interface Identity {
   kind: Open<'ingress' | 'password' | 'open'>;
   user_id: string | null;
   user_name: string | null;
+  /**
+   * Whether this session may run the admin-only verbs (dashboard ADR
+   * 0014). `true` for the public site's `open`/`password` identities by
+   * construction; on `ingress` it is the Home Assistant admin status the
+   * backend resolved from the Supervisor. A non-admin ingress user is
+   * still refused server-side — this only lets the UI say so before the
+   * click, and the refusal itself arrives as an `unauthorized` error.
+   */
+  is_admin: boolean;
 }
 
 export interface ServerInfo {

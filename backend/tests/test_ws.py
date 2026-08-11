@@ -4,10 +4,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from pathlib import Path
 
+from mcuhome_dashboard import commands as commands_module
 from mcuhome_dashboard import versions
+from mcuhome_dashboard.app import AppState
 from mcuhome_dashboard.builder import MCUHOME_VERSION
+from mcuhome_dashboard.ws import MAX_INFLIGHT_COMMANDS
 from tests.conftest import VALID_CONFIG, call, write_device
 
 
@@ -160,3 +165,104 @@ async def test_subscriptions_can_be_dropped_again(client) -> None:
         frame = await call(ws, "unsubscribe_events", {"topics": ["devices"]}, frame_id="2")
 
     assert frame["payload"] == {"topics": []}
+
+
+# --------------------------------------------------------------------------
+# Concurrency bounds (the CPU-stall finding)
+# --------------------------------------------------------------------------
+
+
+async def test_a_connection_caps_its_in_flight_commands(client, monkeypatch) -> None:
+    """One socket cannot pile up unbounded concurrent work.
+
+    A flood of slow commands is held at :data:`MAX_INFLIGHT_COMMANDS` — the
+    reader waits for a slot before it reads the next frame, so the extra
+    frames sit in the socket buffer and never become a running handler.
+    """
+    counters = {"running": 0, "peak": 0}
+    release = asyncio.Event()
+
+    async def blocker(context, command):
+        counters["running"] += 1
+        counters["peak"] = max(counters["peak"], counters["running"])
+        try:
+            await release.wait()
+        finally:
+            counters["running"] -= 1
+        return {"ok": True}
+
+    monkeypatch.setitem(commands_module.COMMANDS, "test/block", blocker)
+    total = MAX_INFLIGHT_COMMANDS + 4
+
+    async with client.ws_connect("/ws") as ws:
+        for index in range(total):
+            await ws.send_json({"id": str(index), "type": "test/block", "payload": {}})
+
+        for _ in range(200):
+            await asyncio.sleep(0.01)
+            if counters["running"] >= MAX_INFLIGHT_COMMANDS:
+                break
+        # A moment more, so an over-admission would have shown up.
+        await asyncio.sleep(0.05)
+        assert counters["running"] == MAX_INFLIGHT_COMMANDS
+        assert counters["peak"] == MAX_INFLIGHT_COMMANDS
+
+        release.set()
+        answered = 0
+        while answered < total:
+            frame = await ws.receive_json(timeout=5)
+            if frame.get("type") == "result":
+                answered += 1
+
+    assert answered == total
+
+
+async def test_cpu_bound_builder_work_is_globally_bounded(
+    client, state: AppState, monkeypatch
+) -> None:
+    """``device/validate`` cannot exhaust the shared thread pool.
+
+    The builder gate caps how many validations run at once across every
+    connection, so the pool the rest of the app's file I/O shares stays
+    free. Sized to 2 here to make the bound observable.
+    """
+    state.builder_gate = asyncio.Semaphore(2)
+    lock = threading.Lock()
+    counters = {"running": 0, "peak": 0}
+    release = threading.Event()
+
+    def blocking(root, entry):
+        with lock:
+            counters["running"] += 1
+            counters["peak"] = max(counters["peak"], counters["running"])
+        release.wait(5)
+        with lock:
+            counters["running"] -= 1
+        return {"ok": True, "errors": [], "device": None}
+
+    monkeypatch.setattr(commands_module, "_validate_blocking", blocking)
+
+    async with client.ws_connect("/ws") as ws:
+        for index in range(4):
+            await ws.send_json(
+                {"id": str(index), "type": "device/validate", "payload": {"name": "bench-node"}}
+            )
+
+        for _ in range(300):
+            await asyncio.sleep(0.01)
+            with lock:
+                if counters["running"] >= 2:
+                    break
+        await asyncio.sleep(0.05)
+        with lock:
+            assert counters["running"] == 2
+            assert counters["peak"] == 2
+
+        release.set()
+        answered = 0
+        while answered < 4:
+            frame = await ws.receive_json(timeout=5)
+            if frame.get("type") == "result":
+                answered += 1
+
+    assert answered == 4

@@ -235,7 +235,14 @@ async def test_ingress_identity_headers_are_display_only(ingress_client) -> None
     async with ingress_client.ws_connect("/ws", headers=headers) as ws:
         identity = (await call(ws, "server/info"))["payload"]["identity"]
 
-    assert identity == {"kind": "ingress", "user_id": "abc123", "user_name": "Stefan"}
+    # The default deployment has no Supervisor token, so admin resolves to
+    # False (fail closed, ADR 0014) — the headers still only decorate.
+    assert identity == {
+        "kind": "ingress",
+        "user_id": "abc123",
+        "user_name": "Stefan",
+        "is_admin": False,
+    }
 
 
 async def test_the_ingress_site_accepts_the_home_assistant_origin(ingress_client) -> None:
@@ -261,3 +268,101 @@ async def test_the_ingress_site_refuses_a_peer_that_is_not_the_supervisor(
 
 async def test_the_ingress_site_has_no_login_to_offer(ingress_client) -> None:
     assert (await ingress_client.post("/auth/login", json={"password": PASSWORD})).status == 405
+
+
+# --------------------------------------------------------------------------
+# ADR 0014 — failed-login throttling on the public site
+# --------------------------------------------------------------------------
+
+
+def test_the_throttle_locks_after_the_threshold_and_clears_on_time() -> None:
+    now = [0.0]
+    throttle = security.LoginThrottle(clock=lambda: now[0])
+    source = "203.0.113.7"
+
+    # The honest fat-fingering window: below the threshold nothing locks.
+    for _ in range(security.LOGIN_FAILURE_THRESHOLD - 1):
+        throttle.record_failure(source)
+        assert throttle.retry_after(source) == 0.0
+
+    throttle.record_failure(source)  # the threshold-th failure arms it
+    wait = throttle.retry_after(source)
+    assert wait > 0.0
+
+    now[0] += wait + 0.01
+    assert throttle.retry_after(source) == 0.0
+
+
+def test_the_throttle_backs_off_exponentially() -> None:
+    now = [0.0]
+    throttle = security.LoginThrottle(clock=lambda: now[0])
+    source = "198.51.100.4"
+    for _ in range(security.LOGIN_FAILURE_THRESHOLD):
+        throttle.record_failure(source)
+    first = throttle.retry_after(source)
+    throttle.record_failure(source)
+    assert throttle.retry_after(source) > first
+
+
+def test_a_correct_password_clears_the_count() -> None:
+    throttle = security.LoginThrottle()
+    source = "192.0.2.9"
+    for _ in range(security.LOGIN_FAILURE_THRESHOLD):
+        throttle.record_failure(source)
+    assert throttle.retry_after(source) > 0.0
+    throttle.record_success(source)
+    assert throttle.retry_after(source) == 0.0
+
+
+def test_the_global_backstop_catches_a_distributed_guess() -> None:
+    now = [0.0]
+    throttle = security.LoginThrottle(clock=lambda: now[0])
+    # Every failure from a different source, so no single source is locked
+    # — the backstop is the only thing that can see the pattern.
+    for index in range(security.LOGIN_GLOBAL_THRESHOLD):
+        throttle.record_failure(f"src-{index}")
+    assert throttle.retry_after("a-brand-new-source") > 0.0
+
+
+def test_a_quiet_source_is_eventually_forgotten() -> None:
+    now = [0.0]
+    throttle = security.LoginThrottle(clock=lambda: now[0])
+    throttle.record_failure("192.0.2.55")
+    now[0] += security.LOGIN_FAILURE_TTL + 1
+    assert throttle.retry_after("192.0.2.55") == 0.0
+    assert throttle._by_source == {}
+
+
+async def test_repeated_wrong_logins_are_locked_out(secure_client) -> None:
+    for _ in range(security.LOGIN_FAILURE_THRESHOLD):
+        response = await secure_client.post("/auth/login", json={"password": "nope"})
+        assert response.status == 401
+
+    locked = await secure_client.post("/auth/login", json={"password": "nope"})
+    assert locked.status == 429
+    assert int(locked.headers["Retry-After"]) >= 1
+
+    # A locked source is refused even with the right password, until the
+    # window passes — the lockout is on the source, not on the guess.
+    correct = await secure_client.post("/auth/login", json={"password": PASSWORD})
+    assert correct.status == 429
+
+
+async def test_a_success_before_the_threshold_keeps_the_door_open(secure_client) -> None:
+    for _ in range(security.LOGIN_FAILURE_THRESHOLD - 1):
+        assert (await secure_client.post("/auth/login", json={"password": "no"})).status == 401
+    # The correct password clears the count, so the next wrong ones start
+    # over rather than tipping straight into a lockout.
+    assert (await secure_client.post("/auth/login", json={"password": PASSWORD})).status == 200
+    assert (await secure_client.post("/auth/login", json={"password": "no"})).status == 401
+
+
+async def test_repeated_wrong_bearer_tokens_are_locked_out(secure_client) -> None:
+    for _ in range(security.LOGIN_FAILURE_THRESHOLD):
+        with pytest.raises(WSServerHandshakeError) as caught:
+            await secure_client.ws_connect("/ws", headers={"Authorization": "Bearer nope"})
+        assert caught.value.status == 401
+
+    with pytest.raises(WSServerHandshakeError) as caught:
+        await secure_client.ws_connect("/ws", headers={"Authorization": "Bearer nope"})
+    assert caught.value.status == 429

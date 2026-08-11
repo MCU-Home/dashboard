@@ -59,6 +59,7 @@ from mcuhome_dashboard.events import TOPIC_BUILDS, TOPIC_DEVICES
 from mcuhome_dashboard.protocol import (
     ERROR_CONFLICT,
     ERROR_NOT_FOUND,
+    ERROR_UNAUTHORIZED,
     ERROR_UNAVAILABLE,
     Command,
     ProtocolError,
@@ -121,6 +122,28 @@ def _tree_required(context: CommandContext):
             code=ERROR_UNAVAILABLE,
         )
     return root
+
+
+def _require_admin(context: CommandContext, command: Command) -> None:
+    """Refuse a verb that ADR 0014 reserves for administrators.
+
+    Checked *first* in each gated handler, before the device is even
+    looked up, so a non-admin learns nothing about the tree beyond "this
+    needs an admin". On the public site every identity is an admin by
+    construction (ADR 0009's password means the operator), so this bites
+    only on the ingress site — exactly where Home Assistant has non-admin
+    users. The refusal is a typed ``unauthorized`` error the frontend
+    already renders, not a crash.
+    """
+    identity = context.identity
+    if identity is not None and identity.is_admin:
+        return
+    raise ProtocolError(
+        "This needs a Home Assistant administrator. Creating or editing devices, "
+        "starting builds and revealing commissioning codes are reserved for admins.",
+        code=ERROR_UNAUTHORIZED,
+        frame_id=command.id,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -275,7 +298,8 @@ async def device_validate(context: CommandContext, command: Command) -> dict[str
             code=ERROR_NOT_FOUND,
             frame_id=command.id,
         )
-    result = await asyncio.to_thread(_validate_blocking, root, entry)
+    async with context.state.builder_gate:
+        result = await asyncio.to_thread(_validate_blocking, root, entry)
     return {"name": name, **result}
 
 
@@ -334,6 +358,7 @@ async def device_save(context: CommandContext, command: Command) -> dict[str, An
     *other* YAML files needs a ``file`` field once something offers a
     way to open them.
     """
+    _require_admin(context, command)
     name = command.require_str("name")
     content = command.require_text("content")
     expected_hash = command.optional_str("expected_hash")
@@ -426,7 +451,11 @@ async def device_commissioning(context: CommandContext, command: Command) -> dic
     what ``builder.device_summary`` says it is leaving room for.
 
     It is the same data ``mcuhome validate`` prints on a terminal today.
+
+    **Admin-only** (ADR 0014): the QR payload is the passcode, so on the
+    ingress site only an administrator may ask for it.
     """
+    _require_admin(context, command)
     name = command.require_str("name")
     root = _tree_required(context)
     await context.devices.refresh()
@@ -437,7 +466,8 @@ async def device_commissioning(context: CommandContext, command: Command) -> dic
             code=ERROR_NOT_FOUND,
             frame_id=command.id,
         )
-    result = await asyncio.to_thread(_commissioning_blocking, root, entry)
+    async with context.state.builder_gate:
+        result = await asyncio.to_thread(_commissioning_blocking, root, entry)
     return {"name": name, **result}
 
 
@@ -479,7 +509,12 @@ async def build_start(context: CommandContext, command: Command) -> dict[str, An
     is the record's ``state`` and its ``errors``, in the same diagnostics
     shape ``device/validate`` uses. An error frame here means the build
     could not be *started*.
+
+    **Admin-only** (ADR 0014): starting a build runs a toolchain on this
+    host and produces a passcode-bearing artifact, so on ingress only an
+    administrator may.
     """
+    _require_admin(context, command)
     name = command.require_str("name")
     method = command.optional_str("method")
     _tree_required(context)
@@ -604,7 +639,11 @@ async def build_cancel(context: CommandContext, command: Command) -> dict[str, A
     Cancelling a build that already finished is not an error; it answers
     with the record unchanged, because the caller's intent — "this build
     should not be running" — is already true.
+
+    **Admin-only** (ADR 0014): the counterpart of ``build/start`` is
+    reserved for administrators for the same reason it is.
     """
+    _require_admin(context, command)
     record = await context.state.builds.cancel(_build_required(context, command).id)
     return {"build": record.to_dict()}
 

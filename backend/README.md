@@ -48,8 +48,22 @@ assumptions, and which of them exist is a matter of configuration:
 | ingress | `--ingress-port` | loopback + this container's Supervisor-network address | none of its own — Home Assistant already authenticated the user |
 
 The ingress site additionally refuses any peer that is neither loopback
-nor the Supervisor gateway (`172.30.32.2`). Its `X-Remote-User-*`
-headers are display-only and never an authorization input.
+nor the Supervisor gateway (`172.30.32.2`). `X-Remote-User-*` is never
+trusted as a raw client input — but on a request that passed the peer
+check the Supervisor has stripped and re-injected it, so
+`X-Remote-User-Name` is the authenticated username.
+
+**Ingress is admin-only** (ADR 0014). Dashboard access in Home Assistant
+is reserved for administrators: the site resolves the user's admin status
+from the Supervisor's authenticated `/auth/list` (over `SUPERVISOR_TOKEN`)
+and gates the mutating and secret-bearing verbs behind it — `device/save`,
+`device/commissioning`, `build/start`, `build/cancel` and the artifact
+download route answer `unauthorized`/`403` for a non-admin, while the
+read-only views stay open. It fails closed: an unresolved user is
+non-admin, and a deployment with no token grants the admin verbs to
+nobody. The public (password) site is unchanged — its one password is the
+operator — and reports `identity.is_admin: true`. Its two password paths
+are rate-limited (per-source lockout with backoff, `429` + `Retry-After`).
 
 **Password rules.** A loopback-only bind runs without a password.
 Binding anything else requires one: pass `MCUHOME_DASHBOARD_PASSWORD`,

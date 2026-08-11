@@ -46,6 +46,15 @@ logger = logging.getLogger(__name__)
 #: Outbound frames a connection may buffer before the producers block.
 OUTBOX_LIMIT = 512
 
+#: Commands one connection may have in flight at once. A UI issues a
+#: handful; a client firing hundreds of ``device/validate`` at a shared,
+#: CPU-bound thread pool is what this bounds (the concurrency finding).
+#: The reader waits for a slot before it reads the next frame, so this is
+#: backpressure on one socket and never a refusal — and it bounds this
+#: connection's share of the work, while :data:`…app.BUILDER_CONCURRENCY`
+#: bounds the total across all of them.
+MAX_INFLIGHT_COMMANDS = 16
+
 #: Emitted when the bus had to drop events for this connection. The
 #: client's cue to re-subscribe rather than trust what it holds.
 EVENT_DROPPED = "events_dropped"
@@ -59,6 +68,7 @@ class Connection:
         self._subscription: Subscription = bus.subscribe()
         self._outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=OUTBOX_LIMIT)
         self._tasks: set[asyncio.Task[None]] = set()
+        self._slots = asyncio.Semaphore(MAX_INFLIGHT_COMMANDS)
         self._closing = False
 
     @property
@@ -97,6 +107,14 @@ class Connection:
                 )
             await self.send(protocol.event_frame(event.name, event.payload))
 
+    async def acquire_slot(self) -> None:
+        """Wait for an in-flight command slot (:data:`MAX_INFLIGHT_COMMANDS`)."""
+        await self._slots.acquire()
+
+    def release_slot(self) -> None:
+        """Return a slot taken by :meth:`acquire_slot`."""
+        self._slots.release()
+
     def spawn(self, coro) -> None:
         """Run one command concurrently, and never lose its exception."""
         task = asyncio.create_task(coro)
@@ -118,37 +136,44 @@ async def _run_command(
     context: command_module.CommandContext,
     command: Command,
 ) -> None:
-    handler = command_module.handler_for(command.type)
-    if handler is None:
-        await connection.send(
-            protocol.error_frame(
-                command.id,
-                protocol.ERROR_UNKNOWN_COMMAND,
-                f'This server has no command called "{command.type}".',
-                known=sorted(command_module.COMMANDS),
-            )
-        )
-        return
+    # The slot was taken by the reader before this was spawned; it is
+    # returned here whatever happens, so the reader may read again.
     try:
-        payload = await handler(context, command)
-    except ProtocolError as exc:
-        await connection.send(protocol.error_frame(command.id, exc.code, exc.message, **exc.detail))
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        # A bug on this side. The client gets a code it can render; the
-        # traceback goes to the log, never over the wire.
-        logger.exception("command %r failed", command.type)
-        await connection.send(
-            protocol.error_frame(
-                command.id,
-                protocol.ERROR_INTERNAL,
-                f'The command "{command.type}" failed unexpectedly. '
-                "The dashboard log has the details.",
+        handler = command_module.handler_for(command.type)
+        if handler is None:
+            await connection.send(
+                protocol.error_frame(
+                    command.id,
+                    protocol.ERROR_UNKNOWN_COMMAND,
+                    f'This server has no command called "{command.type}".',
+                    known=sorted(command_module.COMMANDS),
+                )
             )
-        )
-    else:
-        await connection.send(protocol.result_frame(command.id, payload))
+            return
+        try:
+            payload = await handler(context, command)
+        except ProtocolError as exc:
+            await connection.send(
+                protocol.error_frame(command.id, exc.code, exc.message, **exc.detail)
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # A bug on this side. The client gets a code it can render; the
+            # traceback goes to the log, never over the wire.
+            logger.exception("command %r failed", command.type)
+            await connection.send(
+                protocol.error_frame(
+                    command.id,
+                    protocol.ERROR_INTERNAL,
+                    f'The command "{command.type}" failed unexpectedly. '
+                    "The dashboard log has the details.",
+                )
+            )
+        else:
+            await connection.send(protocol.result_frame(command.id, payload))
+    finally:
+        connection.release_slot()
 
 
 async def websocket_handler(request: web.Request) -> web.StreamResponse:
@@ -188,6 +213,9 @@ async def websocket_handler(request: web.Request) -> web.StreamResponse:
             except ProtocolError as exc:
                 await connection.send(protocol.error_frame(exc.frame_id, exc.code, exc.message))
                 continue
+            # Backpressure: wait for a slot before reading the next frame,
+            # so one connection cannot pile up unbounded in-flight work.
+            await connection.acquire_slot()
             connection.spawn(_run_command(connection, context, command))
     finally:
         await connection.close()

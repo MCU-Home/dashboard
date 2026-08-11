@@ -11,6 +11,10 @@
 
 import type { WsClient } from './client';
 import type {
+  BuildLogResult,
+  BuildStartResult,
+  BuildStatusResult,
+  BuildSubscribeResult,
   DeviceCommissioningResult,
   DeviceGetResult,
   DeviceListResult,
@@ -22,6 +26,9 @@ import type {
 
 /** The topic the device list lives on. */
 export const TOPIC_DEVICES = 'devices';
+
+/** The topic builds live on. */
+export const TOPIC_BUILDS = 'builds';
 
 export function serverInfo(client: WsClient): Promise<ServerInfo> {
   return client.send<ServerInfo>('server/info');
@@ -88,4 +95,83 @@ export function deviceCommissioning(
  */
 export function configSubscribe(client: WsClient): Promise<SubscribeResult> {
   return client.send<SubscribeResult>('config/subscribe');
+}
+
+/**
+ * Compile one device's firmware.
+ *
+ * The result is the record as it was *accepted* — `queued`, with no
+ * output and no artifacts. Everything after that arrives on the `builds`
+ * topic, so a caller subscribes before it starts one rather than polling
+ * for what it just asked for.
+ *
+ * `method` overrides this deployment's configured build method for one
+ * build (ADR 0013 decision 1) and is deliberately not validated here:
+ * the builder owns the list of real names and its refusal carries all of
+ * them, which a copy of the list in this file could only go stale
+ * against.
+ */
+export function buildStart(
+  client: WsClient,
+  name: string,
+  method?: string,
+): Promise<BuildStartResult> {
+  const payload: Record<string, unknown> = { name };
+  if (method !== undefined) {
+    payload.method = method;
+  }
+  return client.send<BuildStartResult>('build/start', payload);
+}
+
+/** Every build this backend process knows, and which one holds the slot. */
+export function buildStatus(client: WsClient): Promise<BuildStatusResult> {
+  return client.send<BuildStatusResult>('build/status');
+}
+
+/** One build by id — for a caller that holds an id and no subscription. */
+export function buildStatusOf(client: WsClient, buildId: string): Promise<BuildStartResult> {
+  return client.send<BuildStartResult>('build/status', { build_id: buildId });
+}
+
+/**
+ * Build output from an offset — the resumable half of the stream.
+ *
+ * Output arrives as `build_output` events carrying the line offset each
+ * batch starts at, and the server's event bus drops the oldest events
+ * for a connection that fell behind. A client that saw `events_dropped`,
+ * or a batch that did not start where the last one ended, asks here for
+ * everything from the last offset it holds and is whole again.
+ */
+export function buildLog(
+  client: WsClient,
+  buildId: string,
+  fromOffset?: number,
+): Promise<BuildLogResult> {
+  const payload: Record<string, unknown> = { build_id: buildId };
+  if (fromOffset !== undefined) {
+    payload.from_offset = fromOffset;
+  }
+  return client.send<BuildLogResult>('build/log', payload);
+}
+
+/**
+ * Stop the dashboard's part of a running build.
+ *
+ * Cancelling a build that already finished is not an error: it answers
+ * with the record unchanged, because the caller's intent — "this build
+ * should not be running" — is already true.
+ */
+export function buildCancel(client: WsClient, buildId: string): Promise<BuildStartResult> {
+  return client.send<BuildStartResult>('build/cancel', { build_id: buildId });
+}
+
+/**
+ * Every build, and every change to them.
+ *
+ * The build counterpart of {@link configSubscribe}, and for the same
+ * reason: a client that subscribed without a snapshot would be holding
+ * deltas against a state it never received.
+ */
+export function buildSubscribe(client: WsClient): Promise<BuildSubscribeResult> {
+  return client.send<BuildSubscribeResult>('build/subscribe');
 }

@@ -35,6 +35,11 @@ export default defineConfig({
       '/ws': { target: backend, ws: true },
       '/health': { target: backend },
       '/auth': { target: backend },
+      // The artifact route (ADR 0013 decision 5). Without a rule here the
+      // SPA fallback answers a firmware download with 200 and index.html,
+      // and `<a download>` saves the shell HTML as firmware.signed.bin —
+      // an error that looks like a corrupt image and reports nothing.
+      '/api': { target: backend },
     },
   },
 });

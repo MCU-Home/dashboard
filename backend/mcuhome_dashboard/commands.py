@@ -21,13 +21,24 @@ and walks a model; on the event loop that would stall every other
 socket. ADR 0004's "nothing CPU-bound left" is a statement about
 *compiling*, not about parsing.
 
-**There is no build command here, and no build path anywhere in this
-package.** The job-protocol client of dashboard ADR 0006 was dismantled
-when ADR 0012 decision 3 made the session protocol of firmware ADR 0019
-the way a dashboard reaches a build server. Nothing has replaced it yet,
-so this dashboard cannot compile, cannot flash and cannot fetch an
-artifact — the honest surface is the absence of the verbs, not a
-``build/submit`` that always refuses.
+**The build verbs are back** (ADR 0013). They were absent for two
+releases and the absence was the honest surface then, because ADR 0012
+decision 3 dismantled the job-protocol client without a replacement.
+What replaced it is not a protocol client at all: it is
+:func:`mcuhome.workbench.api.run_build`, the builder's own awaitable over
+its three build methods, and the dashboard is a caller of the package the
+same way the ``mcuhome`` command line is. Which method runs — a container
+here, a build server, a west workspace — is deployment configuration and
+is nothing these handlers branch on.
+
+**Streams get an offset, lists get a snapshot.** ``config/subscribe``
+hands out the state its events are deltas against; ``build/subscribe``
+does the same for builds, and ``build/log`` is the equivalent for the one
+thing a snapshot cannot carry — output that keeps arriving. The bus drops
+the oldest events for a subscriber that fell behind, so every batch of
+output names the line offset it starts at and ``build/log`` serves any
+suffix from any offset. That is the mechanism the old ``build_job_output``
+had, rebuilt in lines instead of bytes.
 """
 
 from __future__ import annotations
@@ -43,7 +54,8 @@ from typing import TYPE_CHECKING, Any
 from mcuhome.model.errors import MCUHomeError
 
 from mcuhome_dashboard import builder, versions
-from mcuhome_dashboard.events import TOPIC_DEVICES
+from mcuhome_dashboard.builds import BuildBusy, UnknownBuild
+from mcuhome_dashboard.events import TOPIC_BUILDS, TOPIC_DEVICES
 from mcuhome_dashboard.protocol import (
     ERROR_CONFLICT,
     ERROR_NOT_FOUND,
@@ -65,10 +77,10 @@ __all__ = ["COMMANDS", "CommandContext", "KNOWN_TOPICS", "handler_for"]
 logger = logging.getLogger(__name__)
 
 #: Topics a client may subscribe to. Named explicitly so a typo is a
-#: refusal instead of a subscription that never fires. One topic, because
-#: the ``builds`` topic went with the job protocol (ADR 0012 decision 3);
-#: the session protocol's progress events will bring their own.
-KNOWN_TOPICS = frozenset({TOPIC_DEVICES})
+#: refusal instead of a subscription that never fires. ``builds`` came
+#: back with ADR 0013, over the builder package rather than over the job
+#: protocol that first had it.
+KNOWN_TOPICS = frozenset({TOPIC_DEVICES, TOPIC_BUILDS})
 
 #: The largest configuration ``device/save`` accepts, in bytes of UTF-8.
 #: A device configuration is a page of YAML; a megabyte of it is a
@@ -125,14 +137,20 @@ async def server_info(context: CommandContext, command: Command) -> dict[str, An
     trust mode of the site answering, and the ingress prefix the request
     arrived with.
 
-    **No ``build_server`` block.** It said whether a build server was
-    configured, reachable and compatible; since ADR 0012 decision 3 took
-    the job protocol out, nothing here can reach one, and a field
-    reporting the health of a connection this process cannot open would
-    be an advertisement rather than an answer. It returns when the
-    session client does, describing a session and not a queue.
+    **The ``build`` block says what this deployment is set up to do**, and
+    nothing about whether it would work. It carries the configured method
+    (or ``null`` for "no preference", plus the builder's default so a
+    client can render what that resolves to), every method the installed
+    builder has, and whether a build-server address is configured — a
+    boolean, because the URL may carry a host an operator does not
+    publish and the token must never leave this process at all. It
+    deliberately does **not** report reachability: this process opens no
+    connection until a build asks it to, and a field describing the
+    health of a link nobody has tried is an advertisement rather than an
+    answer.
     """
     state = context.state
+    config = state.config
     return {
         "dashboard": {
             "name": "mcuhome-dashboard",
@@ -140,7 +158,14 @@ async def server_info(context: CommandContext, command: Command) -> dict[str, An
             "uptime_seconds": round(time.monotonic() - state.started_at, 3),
         },
         "builder": {
-            "package": "mcuhome",
+            # The distribution this dashboard imports, from the one place
+            # that names it: an operator reading this field is on their
+            # way to a `pip install`, and `supported` beside it is a
+            # requirement string over the same name. `mcuhome` is the
+            # command line's distribution (firmware ADR 0020 decision 2)
+            # and installing it here would pull in the compiler ADR 0003
+            # keeps out.
+            "package": versions.MCUHOME_PACKAGE,
             "version": builder.MCUHOME_VERSION,
             "supported": versions.MCUHOME_VERSION_SPEC,
         },
@@ -148,6 +173,13 @@ async def server_info(context: CommandContext, command: Command) -> dict[str, An
             "sends": versions.MODEL_VERSION,
             "min": versions.MODEL_VERSION_MIN,
             "max": versions.MODEL_VERSION_MAX,
+        },
+        "build": {
+            "method": config.build_method,
+            "default_method": builder.DEFAULT_BUILD_METHOD,
+            "methods": list(builder.BUILD_METHODS),
+            "server_configured": config.build_server_configured,
+            "jobs": config.build_jobs,
         },
         "deployment": {
             "trust": trust_mode_of(context.request).value,
@@ -409,6 +441,190 @@ async def device_commissioning(context: CommandContext, command: Command) -> dic
     return {"name": name, **result}
 
 
+def _build_required(context: CommandContext, command: Command):
+    """The build a command names, or ``not_found``."""
+    build_id = command.require_str("build_id")
+    try:
+        return context.state.builds.get(build_id)
+    except UnknownBuild:
+        raise ProtocolError(
+            f'This dashboard has no build called "{build_id}". Finished builds are '
+            "kept for this process's lifetime only.",
+            code=ERROR_NOT_FOUND,
+            frame_id=command.id,
+        ) from None
+
+
+async def build_start(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``build/start`` — compile one device's firmware.
+
+    Payload: ``{"name": "<device>", "method"?: "<method>"}``. Result:
+    ``{"build": {...}}`` — the record as it is the moment it was
+    accepted, which is ``queued``. Everything after that arrives on the
+    ``builds`` topic, so a client subscribes *before* it starts one.
+
+    ``method`` overrides this deployment's configured build method for
+    one build and is otherwise the deployment's own (ADR 0013 decision
+    1). It is not validated here: the builder owns the list of real
+    method names and its refusal names all of them, so a typo is answered
+    by the package that knows rather than by a copy of the list that can
+    go stale in this file.
+
+    **One build at a time, for the whole process** (ADR 0013 decision 3).
+    A second start is refused with ``conflict`` carrying the build that
+    holds the slot, so a UI can say *which* one and offer to cancel it
+    rather than only saying no.
+
+    A build that runs and **fails is a successful command**: the refusal
+    is the record's ``state`` and its ``errors``, in the same diagnostics
+    shape ``device/validate`` uses. An error frame here means the build
+    could not be *started*.
+    """
+    name = command.require_str("name")
+    method = command.optional_str("method")
+    _tree_required(context)
+    await context.devices.refresh()
+    if context.devices.get(name) is None:
+        raise ProtocolError(
+            f'There is no device called "{name}" in this configuration tree.',
+            code=ERROR_NOT_FOUND,
+            frame_id=command.id,
+        )
+    try:
+        record = await context.state.builds.begin(name, method=method)
+    except BuildBusy as busy:
+        holder = busy.running
+        # A holder that already reads `cancelled` is the honest case the
+        # slot rule creates: cancelling stops this process waiting, not
+        # the container it started, and the slot is the work's until that
+        # ends. Saying "is already running" there would describe a record
+        # the same answer carries, in the state `cancelled`.
+        refusal = (
+            f'The build of "{holder.device}" was cancelled, but the work it started '
+            "has not ended yet — a container cannot be interrupted. This dashboard "
+            "builds one device at a time; the next build can start when it has."
+            if holder.finished_state
+            else f'A build of "{holder.device}" is already running. This dashboard '
+            "builds one device at a time; wait for it or cancel it."
+        )
+        raise ProtocolError(
+            refusal,
+            code=ERROR_CONFLICT,
+            frame_id=command.id,
+            build=holder.to_dict(),
+        ) from None
+    except MCUHomeError as exc:
+        # An unusable method name. The builder's hint lists the real ones.
+        raise ProtocolError(
+            str(exc),
+            frame_id=command.id,
+            errors=builder.errors_from_exception(exc),
+        ) from None
+    return {"build": record.to_dict()}
+
+
+async def build_status(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``build/status`` — one build, or every build this process knows.
+
+    Payload: ``{"build_id"?}``. With one, the result is
+    ``{"build": {...}}``; without, ``{"builds": [...], "running": id |
+    null}``, oldest first.
+
+    Records live in memory and die with the process. A finished build's
+    *artifacts* are on disk and survive, but the record that says which
+    build wrote them does not — so after a restart the files are there
+    and unattributed, and this command says so by not listing them rather
+    than by inventing a record for bytes it did not write.
+    """
+    builds = context.state.builds
+    if command.optional_str("build_id") is not None:
+        return {"build": _build_required(context, command).to_dict()}
+    running = builds.running
+    return {
+        "builds": [record.to_dict() for record in builds.snapshot()],
+        "running": running.id if running else None,
+    }
+
+
+async def build_log(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``build/log`` — build output from an offset, for filling a hole.
+
+    Payload: ``{"build_id", "from_offset"?}``. Result:
+    ``{"build_id", "offset", "lines", "next_offset", "truncated"}``.
+
+    **This is the resumable half of the stream** (ADR 0013 decision 4).
+    Output arrives as ``build_output`` events carrying the line offset
+    each batch starts at; the bus drops the oldest events for a
+    subscriber that falls behind, and a build log is the traffic that
+    makes one fall behind. A client that sees ``events_dropped``, or a
+    batch that does not start where the last one ended, asks here for
+    everything from the last offset it holds.
+
+    ``offset`` is where the answer actually starts, which is not always
+    ``from_offset``: the retained log is bounded, and a request for
+    something already discarded comes back from the oldest line still
+    held with ``truncated: true``. Saying so is the point — a log that
+    quietly began in the middle would be indistinguishable from a build
+    that printed less than it did.
+    """
+    record = _build_required(context, command)
+    requested = command.optional_int("from_offset") or 0
+    offset, lines, truncated = record.log.since(requested)
+    return {
+        "build_id": record.id,
+        "offset": offset,
+        "lines": lines,
+        "next_offset": record.log.next_offset,
+        "first_offset": record.log.first_offset,
+        "truncated": truncated,
+        "state": record.state,
+    }
+
+
+async def build_cancel(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``build/cancel`` — stop the dashboard's part of a running build.
+
+    Payload: ``{"build_id"}``. Result: ``{"build": {...}}``.
+
+    What "stop" means is said rather than implied: the work runs to its
+    own end. ``local`` and ``local-dev`` are blocked in a worker thread
+    that Python cannot interrupt, so the container or the compiler cannot
+    be told anything at all. The record ends ``cancelled`` immediately,
+    nothing is collected and nothing is signed — a cancelled build never
+    leaves a flashable image behind — and its build directory is removed
+    once nothing is writing to it.
+
+    **The one build slot stays taken until the work really ends**, so a
+    ``build/start`` in that window is refused with ``conflict`` naming a
+    record that already reads ``cancelled``. Freeing the slot when the
+    *waiting* ended would let a second Zephyr build start on a machine
+    the first one is still compiling on, which is the situation ADR 0013
+    decision 3 exists to prevent.
+
+    Cancelling a build that already finished is not an error; it answers
+    with the record unchanged, because the caller's intent — "this build
+    should not be running" — is already true.
+    """
+    record = await context.state.builds.cancel(_build_required(context, command).id)
+    return {"build": record.to_dict()}
+
+
+async def build_subscribe(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``build/subscribe`` — every build, and every change to them.
+
+    Payload: none. Result: the ``build/status`` snapshot plus the topic
+    now subscribed. Afterwards ``build_started``, ``build_changed`` and
+    ``build_output`` arrive on this socket until it closes.
+
+    The build counterpart of ``config/subscribe``, and for the same
+    reason: a client that subscribed without a snapshot would hold
+    deltas against a state it never received.
+    """
+    context.connection.subscribe(TOPIC_BUILDS)
+    snapshot = await build_status(context, command)
+    return {"topic": TOPIC_BUILDS, **snapshot}
+
+
 async def config_subscribe(context: CommandContext, command: Command) -> dict[str, Any]:
     """``config/subscribe`` — the device list, and every change to it.
 
@@ -460,6 +676,11 @@ COMMANDS: dict[str, Handler] = {
     "device/save": device_save,
     "device/validate": device_validate,
     "device/commissioning": device_commissioning,
+    "build/start": build_start,
+    "build/status": build_status,
+    "build/log": build_log,
+    "build/cancel": build_cancel,
+    "build/subscribe": build_subscribe,
     "config/subscribe": config_subscribe,
     "subscribe_events": subscribe_events,
     "unsubscribe_events": unsubscribe_events,

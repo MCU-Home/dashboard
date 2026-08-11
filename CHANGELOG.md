@@ -28,14 +28,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     advertises a build server it cannot reach. The startup log says so
     at warning level. Editing, validation, the device list and the
     commissioning codes are untouched.
+    - Superseded within this same unreleased block by ADR 0013 (see
+      **Added**): building, log streaming and artifact download came
+      back — over `mcuhome.workbench.api.run_build`, not over a
+      protocol client. The vocabulary above stays removed; the verbs
+      that returned are `build/start`, `build/status`, `build/log`,
+      `build/cancel` and `build/subscribe`, and they answer with build
+      *records* rather than job frames. Flashing is still absent
+      (ADR 0010).
   - Kept, because ADR 0012 decision 3 carries them forward and the
     session client needs them: `--build-server-url`/`-token`/
     `-token-file` and the `/share/mcuhome/build-server.token`
     auto-pairing (ADR 0006 decision 8), now covered by
     `backend/tests/test_config.py` since no client exercises them;
-    `signing.py` in full (ADR 0007/0008 — it has no caller today and is
-    not dead code); the event bus; the frame envelope; the version-range
-    machinery of ADR 0011. The URL normalization that turned one
+    `signing.py` in full (ADR 0007/0008 — it had no caller then and was
+    not dead code; ADR 0013 gave it one); the event bus; the frame
+    envelope; the version-range machinery of ADR 0011. The URL
+    normalization that turned one
     configured address into its `http` and `ws` forms moved from
     `buildclient.py` into `config.py`, where the address is configured.
   - `resolve_build_server_token` takes its pairing-file default at call
@@ -43,9 +52,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     without a real Home Assistant share.
 - Backend test suite: 168 → 151 tests. The 27 build tests of
   `tests/test_builds.py` went with the client; 10 new tests in
-  `tests/test_config.py` cover the settings that outlived it.
+  `tests/test_config.py` cover the settings that outlived it. (ADR 0013
+  then took it to 199, with a new `tests/test_builds.py` about builds
+  rather than about jobs.)
 
 ### Added
+
+- **Building, over the builder package rather than over a protocol**
+  (ADR 0013). The successor the entry above was waiting for turned out
+  to be already written: firmware ADR 0020 / E64 put the three build
+  methods behind `mcuhome.workbench.api.run_build`, in the package this
+  dashboard already imports in-process. So there is still no build
+  protocol client here — and the dashboard builds.
+  - `build/start`, `build/status`, `build/log`, `build/cancel` and
+    `build/subscribe` on `/ws`; the `builds` event topic with
+    `build_started`, `build_changed` and `build_output`; a `build` block
+    in `server/info` (configured method, the builder's default, every
+    method it has, whether a server is configured — never the address,
+    never the token).
+  - `GET /api/builds/{build}/artifacts/{path}` is back, with the refusal
+    the removal notice demanded: an unknown build, a missing file and a
+    path escaping the build's directory are all **404 and never 403**.
+    It serves **only what the record declares** in `artifacts` — a build
+    method's scratch area lives inside the build directory and holds the
+    resolved model, so serving the directory would have handed out the
+    device's Matter pairing tuple over a plain `GET`.
+  - Artifacts live at `<data-dir>/builds/<device>/<build id>/`: one
+    directory per **build**, because the URL space is keyed by build id
+    and a record's artifacts have to be the files behind that id. A
+    build that succeeds removes the older directories of its device; one
+    that did not succeed removes its own.
+  - **Which build method runs is deployment configuration**
+    (`--build-method`), not a decision taken in this code. The dashboard
+    neither subsets the builder's methods nor validates a name against a
+    copy of the list. ADR 0003 is unchanged and now *checkable*:
+    `mcuhome-compiler` is deliberately not installed, so the compiling
+    methods refuse in-process, naming the distribution they need.
+  - **Build logs are resumable.** Every `build_output` carries the line
+    offset it starts at, and `build/log` serves any suffix from any
+    offset with a `truncated` flag. This is the property `events.py` and
+    the README both recorded as having to come back with any successor,
+    because the bus drops the oldest events for a subscriber that fell
+    behind and build output is what makes one fall behind. Offsets count
+    lines rather than bytes, and output is batched so the drop is rare
+    as well as recoverable.
+  - `signing.py` gets its caller and loses its subprocess: the detached
+    signature is applied in-process through `mcuhome.workbench.imgtool`
+    — the same library `mcuhome sign` runs — because that command
+    belongs to the CLI distribution this package does not install. A
+    Matter `.ota` is wrapped around the freshly signed image where the
+    device can take one. The signer runs with `create=False`: the key is
+    created, if at all, by the call that produces the build's public
+    input, and a key that vanished in between is a loud failed build
+    rather than a second key. A key-custody failure names the key by its
+    role and never by its path — a build record's `errors` reaches every
+    subscribed tab.
+  - Settings reactivated and given a reader: `--build-server-url`,
+    `--build-server-token`, `--build-server-token-file` and the `/share`
+    auto-pairing file now map onto `BuildRequest.server`/`.token`. New:
+    `--build-method`, `--build-jobs`, `--sdk-source`. The `mcuhome`
+    command line's `build-servers.toml` ladder is deliberately **not**
+    read (ADR 0013 decision 2).
+  - One build at a time for the whole process; a second start is refused
+    with `conflict` carrying the record that holds the slot. **The slot
+    belongs to the work**: cancelling stops this process waiting, not
+    the container it started, so the record ends `cancelled` at once
+    while the slot stays taken until the work really ends — and the
+    refusal in that window says which of the two it is.
+  - 48 new backend tests (`tests/test_builds.py`, plus one in
+    `tests/test_versions.py`): 151 → 199. Two of them drive the *real*
+    `run_build` and assert that its refusals — a missing compiler
+    distribution, `remote` without a server address — arrive as rendered
+    build errors carrying the builder's own fix, never as a crash.
 
 - Frontend (`frontend/`): the single-page application of ADR 0005 — Lit 3,
   `@home-assistant/webawesome`, CodeMirror 6, TypeScript, Vite, vitest,

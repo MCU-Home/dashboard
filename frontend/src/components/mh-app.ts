@@ -2,20 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * The shell: one connection, one store, one route, one theme.
+ * The shell: one connection, the stores, one route, one theme.
  *
  * Everything with a lifetime longer than a view lives here, because ADR
  * 0004's "one connection carries the entire UI" only holds if there is
  * exactly one owner of it. Views are given what they need as properties
- * and own nothing.
+ * and own nothing — a build in particular outlives the page that started
+ * it, so the store holding it cannot belong to that page.
  *
  * The reconnect contract is the part worth reading. Subscriptions are
  * per socket on the server and die with it, so `onConnected` — which
- * fires on every open, first or fiftieth — re-subscribes and takes a
- * fresh snapshot rather than trying to repair the list it was holding.
- * The same path handles `events_dropped`, where the server has said in
- * so many words that what this client holds is no longer a function of
- * what it received.
+ * fires on every open, first or fiftieth — re-subscribes to *both*
+ * topics and takes fresh snapshots rather than trying to repair what it
+ * was holding. The same path handles `events_dropped`, where the server
+ * has said in so many words that what this client holds is no longer a
+ * function of what it received.
+ *
+ * Build output is the one thing a fresh snapshot does not restore: the
+ * records come back whole, but the lines that were printed while this
+ * connection was away were only ever events. That is what the log
+ * offsets are for, and `#refillLogs` is the other half of them — after
+ * any resubscribe, and after any batch that arrived past what the store
+ * holds, the log is refetched from the offset the store already has.
  */
 
 import { css, html, LitElement } from 'lit';
@@ -23,11 +31,12 @@ import { customElement, state } from 'lit/decorators.js';
 
 import { WsClient } from '../api/client';
 import type { ConnectionState } from '../api/client';
-import { configSubscribe, serverInfo } from '../api/commands';
+import { buildSubscribe, configSubscribe, serverInfo } from '../api/commands';
 import { logout, serverReachable } from '../api/session';
 import type { ServerInfo } from '../api/types';
 import { watchRoute } from '../router';
 import type { Route } from '../router';
+import { BuildStore, coalesced, fillLogGaps } from '../state/build-store';
 import { DeviceStore } from '../state/device-store';
 import type { ResolvedTheme, ThemePreference } from '../state/theme';
 import {
@@ -45,6 +54,9 @@ import './mh-connection-status';
 import './mh-device-list';
 import './mh-device-page';
 import './mh-login';
+
+/** One shared empty array, so a device with no build re-renders nothing. */
+const NO_LINES: readonly string[] = Object.freeze([]);
 
 @customElement('mh-app')
 export class MhApp extends LitElement {
@@ -103,9 +115,13 @@ export class MhApp extends LitElement {
   ];
 
   readonly #store = new DeviceStore();
+  readonly #builds = new BuildStore();
   readonly #client = new WsClient({ probe: serverReachable });
   readonly #validity = new ValidityTracker(this.#client);
   readonly #cleanup: (() => void)[] = [];
+
+  /** Both stores see `events_dropped`; one resubscribe answers it. */
+  #resubscribing = false;
 
   @state() private connection: ConnectionState = 'closed';
   @state() private route: Route = { view: 'devices' };
@@ -127,8 +143,12 @@ export class MhApp extends LitElement {
       }),
       watchRoute((route) => {
         this.route = route;
+        // A device page just opened wants its build's log, which nothing
+        // has fetched while it was not on screen.
+        this.#refillLogs();
       }),
       this.#store.subscribe(() => this.#onStoreChanged()),
+      this.#builds.subscribe(() => this.#onBuildsChanged()),
       this.#validity.subscribe(() => {
         this.revision += 1;
       }),
@@ -195,14 +215,20 @@ export class MhApp extends LitElement {
             .validityOf=${(name: string) => this.#validity.get(name)}
           ></mh-device-list>
         `;
-      case 'device':
+      case 'device': {
+        const build = this.#builds.forDevice(this.route.name) ?? null;
         return html`
           <mh-device-page
             .client=${this.#client}
             .device=${this.route.name}
+            .build=${build}
+            .buildLines=${build === null ? NO_LINES : this.#builds.linesFor(build.id)}
+            .buildTruncated=${build !== null && this.#builds.truncatedFor(build.id)}
+            .buildMethod=${this.info?.build.method ?? this.info?.build.default_method ?? null}
             ?dark-theme=${this.theme === 'dark'}
           ></mh-device-page>
         `;
+      }
       default:
         return html`
           <wa-callout variant="neutral">
@@ -260,7 +286,25 @@ export class MhApp extends LitElement {
     }
   }
 
+  /**
+   * The build store changed, which is also how a hole announces itself.
+   *
+   * `build_output` that arrived past what the store holds leaves a gap
+   * behind, and a fresh snapshot leaves one whenever the server got
+   * further than this connection did. Both come out here as "some build
+   * needs its log fetched", and both are answered the same way.
+   */
+  #onBuildsChanged(): void {
+    this.revision += 1;
+    if (this.#builds.stale) {
+      void this.#resubscribe();
+      return;
+    }
+    this.#refillLogs();
+  }
+
   #onEvent(event: string, payload: Record<string, unknown>): void {
+    this.#builds.applyEvent(event, payload);
     const changed = this.#store.applyEvent(event, payload);
     if (!changed) return;
     if (event === 'device_added' || event === 'device_changed') {
@@ -287,21 +331,56 @@ export class MhApp extends LitElement {
   }
 
   async #resubscribe(): Promise<void> {
+    // Both stores mark themselves stale on the same `events_dropped`, so
+    // without this the one event would take two snapshots.
+    if (this.#resubscribing) return;
+    this.#resubscribing = true;
     this.#validity.reset();
     try {
-      const [snapshot, info] = await Promise.all([
+      const [snapshot, builds, info] = await Promise.all([
         configSubscribe(this.#client),
+        buildSubscribe(this.#client),
         serverInfo(this.#client),
       ]);
       this.#store.setSnapshot(snapshot.devices, snapshot.tree);
+      // The records are whole again; the output printed while this
+      // connection was away is not, and `#refillLogs` is what fetches it.
+      this.#builds.setSnapshot(builds.builds, builds.running);
       this.info = info;
     } catch {
       // A failed re-subscribe is a dropped connection nine times out of
       // ten, and the client is already reconnecting. The tenth is a
       // backend that refused, and the connection indicator says so.
       this.#store.reset();
+      this.#builds.reset();
+    } finally {
+      this.#resubscribing = false;
     }
   }
+
+  /**
+   * Refetch what the store is missing of the logs worth having.
+   *
+   * Not every build's — a snapshot can carry twenty finished ones, and
+   * fetching all of their logs to render none of them would spend a
+   * command per build for nothing. The two that are worth it are the
+   * build that is running and the one the open device page is showing.
+   */
+  readonly #refillLogs = coalesced(async () => {
+    const targets: string[] = [];
+    const running = this.#builds.running;
+    if (running !== null) targets.push(running);
+    if (this.route.view === 'device') {
+      const shown = this.#builds.forDevice(this.route.name);
+      if (shown !== undefined && !targets.includes(shown.id)) targets.push(shown.id);
+    }
+    // The targets are decided here, when the round starts — which is why
+    // a call arriving during one is owed another rather than dropped
+    // ({@link coalesced}): a device page opened mid-fetch is not in this
+    // list, and with nothing building no event would ever ask again.
+    if (!targets.some((id) => this.#builds.needsLog(id))) return;
+    await fillLogGaps(this.#client, this.#builds, targets);
+  });
 
   #retry = (): void => {
     this.#client.retry();
@@ -311,6 +390,7 @@ export class MhApp extends LitElement {
     void logout().then(() => {
       this.info = null;
       this.#store.reset();
+      this.#builds.reset();
       this.#client.close();
       this.#client.connect();
     });

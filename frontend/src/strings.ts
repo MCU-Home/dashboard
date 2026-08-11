@@ -105,12 +105,59 @@ export const t = {
     failed: (message: string) => `The commissioning codes could not be read: ${message}`,
   },
 
+  build: {
+    title: 'Firmware',
+    lead: 'Compile this device and download what it produced.',
+    start: 'Build firmware',
+    starting: 'Starting…',
+    cancel: 'Cancel build',
+    cancelling: 'Cancelling…',
+    never: 'This device has not been built since the dashboard started.',
+    method: (name: string) => `Method: ${name}`,
+    queued: 'Queued',
+    running: 'Building',
+    succeeded: 'Succeeded',
+    failed: 'Failed',
+    cancelled: 'Cancelled',
+    unknownState: 'Unknown',
+    elapsed: (duration: string) => `running for ${duration}`,
+    took: (duration: string) => `took ${duration}`,
+    duration: (seconds: number) => {
+      const total = Math.max(0, Math.round(seconds));
+      if (total < 60) return `${total} s`;
+      const minutes = Math.floor(total / 60);
+      if (minutes < 60) return `${minutes} min ${total % 60} s`;
+      return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+    },
+    log: 'Build output',
+    logEmpty: 'No output yet.',
+    logTruncated: '…earlier output was discarded.',
+    problems: 'Why this build failed',
+    artifacts: 'Artifacts',
+    noArtifacts: 'This build produced no files to download.',
+    signed: 'signed',
+    ota: (version: string, softwareVersion: number) =>
+      `Matter OTA image for version ${version} (software version ${softwareVersion}).`,
+    createdKeyTitle: 'A firmware signing key was created',
+    createdKeyBody:
+      'This deployment had no signing key, so one was generated for this build. Back it up: it is the only key these devices will accept an update from, and every device already bootstrapped against it is unreachable if it is lost.',
+    startFailed: (message: string) => `This build could not be started: ${message}`,
+    busy: (device: string) =>
+      `A build of "${device}" is already running. This dashboard builds one device at a time.`,
+    busyCancelled: (device: string) =>
+      `The build of "${device}" was cancelled, but the work it started has not ended yet — a container cannot be interrupted. The next build can start when it has.`,
+    cancelFailed: (message: string) => `This build could not be cancelled: ${message}`,
+    size: (bytes: number) => {
+      if (bytes < 1024) return `${bytes} B`;
+      const kibibytes = bytes / 1024;
+      if (kibibytes < 1024) return `${kibibytes.toFixed(1)} KiB`;
+      return `${(kibibytes / 1024).toFixed(1)} MiB`;
+    },
+  },
+
   device: {
     notFound: (name: string) => `There is no device called "${name}" in this configuration tree.`,
     back: 'All devices',
-    // TODO(block-1): build, flash and log views belong to the build
-    // server (ADR 0006) and the flash ladder (ADR 0010).
-    buildPending: 'Building and flashing arrive with the build server.',
   },
 
   theme: {

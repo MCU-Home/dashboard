@@ -18,8 +18,9 @@ pnpm install
 pnpm dev            # dev server on http://127.0.0.1:5173
 ```
 
-`pnpm dev` serves the frontend and proxies `/ws`, `/health` and `/auth`
-to a backend you start yourself:
+`pnpm dev` serves the frontend and proxies `/ws`, `/health`, `/auth` and
+`/api` — the last one being the artifact downloads of ADR 0013 — to a
+backend you start yourself:
 
 ```sh
 # in another terminal, from the repository root
@@ -105,6 +106,7 @@ a theme exists.
 | `src/api/session.ts` | login, logout, the reachability probe |
 | `src/api/types.ts` | what the command results contain |
 | `src/state/device-store.ts` | the device list, as snapshot-then-events |
+| `src/state/build-store.ts` | the builds, and the log offsets that make a lost batch of output recoverable |
 | `src/state/validity.ts` | the per-device validity badges, and their queue |
 | `src/state/theme.ts` | light/dark |
 | `src/components/` | the Lit elements |
@@ -151,9 +153,9 @@ a theme exists.
   editor has the autocompletion extension mounted with no schema source;
   the schema may not be reimplemented here, because the firmware
   repository owns it.
-- **Building, flashing and build logs** — the build server (ADR 0006) and
-  the flash ladder (ADR 0010).
+- **Flashing** — the flash ladder (ADR 0010). Building and its log are
+  here: the device page starts a build, follows its output live and
+  offers what came out for download.
 - **Translations** — structure is in place, English only.
 
-Each is marked `TODO(block-0):` or `TODO(block-1):` where the code would
-change.
+Each is marked `TODO(block-0):` where the code would change.

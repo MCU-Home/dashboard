@@ -5,18 +5,24 @@ device management and the API the frontend consumes. It **never compiles
 firmware** itself (ADR 0003).
 
 Current state: the device list, the configuration tree watcher,
-validation, editing and the commissioning codes work end to end.
+validation, editing, the commissioning codes, and — since
+[ADR 0013](../docs/adr/0013-building-over-the-builder-package.md) —
+building, signing and artifact download work end to end.
 
-> **This backend cannot build firmware.** Not "cannot yet get a build to
-> run" — there is no build path in the package at all. The job-protocol
-> client of ADR 0006 was **removed** when
-> [ADR 0012](../docs/adr/0012-build-server-extraction.md) decision 3 made
-> the session protocol of firmware ADR 0019 the way a dashboard reaches a
-> build server, and the session client that replaces it has not been
-> written. So: no `build/*` commands on `/ws`, no `builds` event topic,
-> no artifact download and no `build_server` block in `server/info`. What
-> survived is what that decision carries forward — the transport
-> settings, the signing module, the event bus and the frame envelope.
+> **It still does not compile anything itself** (ADR 0003). A build goes
+> to `mcuhome.workbench.api.run_build`, the builder package's one
+> awaitable over its three build methods: a build container on this
+> machine, a build server, or a west workspace. Which one runs is
+> deployment configuration (`--build-method`) and nothing in this package
+> branches on it. `mcuhome-compiler` is deliberately **not** installed —
+> `requirements-dev.txt` leaves it out — so the two methods that compile
+> refuse in this very process, naming the distribution they need. That is
+> what makes "the dashboard never compiles" checkable here rather than
+> promised.
+>
+> There is no *protocol* client in this repository and none is to be
+> added: the session protocol of firmware ADR 0019 is spoken by
+> `mcuhome-workbench`, which this package imports in-process (ADR 0011).
 
 ## Running it
 
@@ -89,15 +95,20 @@ negotiation went with the job protocol (ADR 0012 decision 3).
 
 | Command | Payload | Result |
 |---|---|---|
-| `server/info` | — | dashboard and builder versions, the supported builder range, the `model_version` range, trust mode, ingress base path, identity, tree state. **No `build_server` block** — see above |
+| `server/info` | — | dashboard and builder versions, the supported builder range, the `model_version` range, the `build` block (below), trust mode, ingress base path, identity, tree state |
 | `ping` | — | `{"pong": true, "time": …}` |
 | `device/list` | — | every device in the tree, with a content hash and an unresolved summary |
 | `device/get` | `{"name"}` | the raw YAML as it is on disk, plus the summary |
 | `device/save` | `{"name", "content", "expected_hash"?}` | `{"name", "device": entry, "content_hash"}` |
 | `device/validate` | `{"name"}` | `{"ok", "errors": [...], "device": summary\|null}` |
 | `device/commissioning` | `{"name"}` | `{"ok", "errors": [...], "commissioning": codes\|null}` |
+| `build/start` | `{"name", "method"?}` | `{"build": record}` — accepted, not finished |
+| `build/status` | `{"build_id"?}` | one `{"build": record}`, or `{"builds": [...], "running": id\|null}` |
+| `build/log` | `{"build_id", "from_offset"?}` | `{"offset", "lines", "next_offset", "first_offset", "truncated", "state"}` |
+| `build/cancel` | `{"build_id"}` | `{"build": record}` |
+| `build/subscribe` | — | the `build/status` snapshot, and every later change as an event |
 | `config/subscribe` | — | the `device/list` snapshot, and every later change as an event |
-| `subscribe_events` | `{"topics": ["devices"]}` | the topics this socket now receives |
+| `subscribe_events` | `{"topics": ["devices", "builds"]}` | the topics this socket now receives |
 | `unsubscribe_events` | `{"topics": [...]}` | the topics that remain |
 
 Lists follow **snapshot-then-events**: the subscription's result is the
@@ -105,74 +116,153 @@ current state and every change after it arrives as an event. Clients do
 not poll and do not re-fetch.
 
 Events on the `devices` topic: `device_added`, `device_changed`,
-`device_removed`, `tree_state`, plus `events_dropped` when a connection
-fell so far behind that the server discarded events for it — the cue to
-re-subscribe rather than trust what is held.
+`device_removed`, `tree_state`. Events on the `builds` topic:
+`build_started`, `build_changed`, `build_output`. On either,
+`events_dropped` arrives when a connection fell so far behind that the
+server discarded events for it — the cue to re-subscribe rather than
+trust what is held.
 
-The `builds` topic is gone. Its two events — `build_job_changed` and
-`build_job_output` — belonged to the job protocol. The session
-protocol's typed progress events will register a topic of their own; one
-property of the old pair has to come back with them, because the bus
-drops the oldest events for a subscriber that fell behind and build
-output is exactly the traffic that makes one fall behind: a progress
-event has to say the position it starts at, or a client cannot notice
-the hole.
+## Building (ADR 0013)
 
-## Building: it does not (ADR 0012 decision 3)
+A build is `mcuhome.workbench.api.run_build`: one awaitable over the
+builder's three build methods. **Which one runs is configuration**, not
+code here — `--build-method local` drives a build container on this
+machine, `remote` a build server, `local-dev` a west workspace — and a
+method this installation cannot run refuses in the builder's own words,
+naming the exact `pip install` it is missing. The dashboard neither
+subsets the list nor validates a name against a copy of it.
 
-There is no build path in this package. The client that used to drive
-one spoke the job vocabulary of ADR 0006 — `submit_job`, `cancel_job`,
-`follow_job`, `download_artifacts`, `queue_status` and
-`GET /capabilities` — and ADR 0012 decision 3 replaced that vocabulary
-with the session verbs of firmware ADR 0019. The decision was to
-dismantle rather than migrate, so the client, the five `build/*`
-commands, the `builds` topic and the artifact endpoint were removed and
-nothing stands in for them.
+### The build record
 
-What that costs, listed so nobody looks for it: a device cannot be
-compiled, a build log cannot be streamed, an artifact cannot be
-downloaded, and nothing is signed — because nothing produces anything to
-sign. Editing, validation, the device list and the commissioning codes
-are untouched; they never went near a build server.
+```jsonc
+{
+  "id": "9f2c…", "device": "bench-node", "method": "local",
+  "state": "queued" | "running" | "succeeded" | "failed" | "cancelled",
+  "started": 1770000000.0, "finished": null,
+  "context_id": "…",          // the identity the work is attributed to
+  "image": "ghcr.io/mcu-home/builder:…",
+  "status": "success",        // the method's own word
+  "errors": [/* diagnostics, the same shape device/validate returns */],
+  "artifacts": [{"role": "firmware", "path": "firmware.bin", "size": 1234, "signed": false}],
+  "signing": {"signed": true, "created_key": false, "outputs": ["firmware.signed.bin"]},
+  "ota": {"path": "bench-node-0.1.0.ota", "version": "0.1.0", "software_version": 1},
+  "log_first_offset": 0, "log_next_offset": 5821
+}
+```
 
-What survives, and why:
+A build that runs and **fails is a successful command** — the refusal is
+the record's `state` and its `errors`, in the same diagnostics shape
+`device/validate` uses, so one component renders both. An error frame
+from `build/start` means the build could not be *started*: `not_found`
+for an unknown device, `conflict` when the one build slot is taken
+(carrying `build`, the record that holds it), `bad_request` for a method
+name the builder does not have.
 
-| Kept | Why |
-|---|---|
-| `--build-server-url` / `-token` / `-token-file`, the pairing file | ADR 0012 decision 3 carries ADR 0006's transport and threat model forward unchanged. Dropping the pairing would silently un-pair every existing installation |
-| `signing.py` | ADR 0012 decision 3: "the dashboard keeps what only it has — user key handling and detached signing" (ADR 0007/0008). It has no caller today |
-| the event bus, the frame envelope, `versions.py` | Protocol-independent; ADR 0011 is untouched |
+**One build at a time, for the whole process** (ADR 0013 decision 3).
+The default method compiles in a container on this machine, and two
+concurrent Zephyr builds thrash rather than finish sooner.
 
-**These settings are inert.** A configured URL and token change nothing
-in this release — the startup log says so at warning level rather than
-letting an operator wait for a build button that does not exist.
+**The slot belongs to the work, not to the record.** `build/cancel`
+stops this process waiting; it cannot interrupt a container or a
+compiler in a worker thread, so the record ends `cancelled` at once —
+nothing collected, nothing signed, and its directory removed as soon as
+nothing is writing to it — while the slot stays taken until the work
+really ends. A `build/start` in that window is refused with `conflict`
+naming a record that already reads `cancelled`, which is the honest
+answer: the machine is still busy.
 
-> **A build server learns the Matter commissioning passcode of every
-> device it builds** — those credentials are compile-time Kconfig (ADR
-> 0007 decision 2). Operate it as a trusted machine. That warning used
-> to be carried to the user by `server/info` and `build/status`; with
-> both gone it lives here and in `--help` until the session client can
-> put it in front of whoever configures a server.
+### Log offsets, and the hole the bus is allowed to punch
 
-### Configuring one (for the client that does not exist yet)
+`build_output` carries `{"build_id", "offset", "lines"}`, where `offset`
+is the line number of `lines[0]` in that build's log — counted from
+zero, monotonic, never reused. This is the property the old
+`build_job_output` had and that had to come back with any successor:
+**the bus drops the oldest events for a subscriber that fell behind, and
+build output is exactly the traffic that makes one fall behind.** A
+stream without a resumable position shows a log with a hole and no way
+to notice.
+
+So a client that sees `events_dropped`, or a batch that does not start
+where the last one ended, calls `build/log` with the last offset it
+holds. The answer's `offset` is where it actually starts, which is not
+always what was asked for: the retained log is bounded, and a request
+for something already dropped comes back from `first_offset` with
+`truncated: true` rather than quietly beginning in the middle.
+
+Output is batched (every 200 ms, ≤ 250 lines per event) because the bus
+queue is 256 deep and one event per line would guarantee the drop on
+every build. Offsets are lines, not bytes — lines are the unit
+`run_build`'s sink produces.
+
+### After the build: artifacts, signature, OTA
+
+Every build method delivers an **unsigned** image; one host-side step
+signs it, here, because this is the side that has the private key (ADR
+0007 decision 3, ADR 0008 decision 2). In order:
+
+1. the artifacts the method **declared and verified** are copied into
+   `<data-dir>/builds/<device>/<build id>/` — nothing undeclared rides
+   along, and the directory is that build's own, so what a record says
+   about its artifacts is true of the files behind its id;
+2. `mcuhome.workbench.imgtool` signs, in-process — the same library
+   `mcuhome sign` runs, called rather than spawned, because that command
+   belongs to the CLI distribution this package does not install;
+3. a Matter `.ota` is wrapped around the freshly **signed** binary when
+   the board and the device can take one.
+
+A build directory is kept until a newer build of that device succeeds;
+one that did **not** succeed removes its own, because it declared no
+artifacts and can serve nothing. So the device's directory holds the
+current image and not a dated pile of them, and no cancelled or failed
+build can leave a flashable lookalike behind.
+
+The signing key is generated on first need, by the same call that
+produces the public PEM the build needs as input — the signer itself
+runs with `create=False` and refuses loudly rather than inventing one.
+A generation is reported (`signing.created_key`) and logged loudly: a
+*second* one orphans every device already bootstrapped against the first
+(ADR 0008 decision 3). The private half never enters a build request —
+there is no field it fits in, on any method — and never enters a build
+record, not even inside an error message: a key that cannot be read or
+created says so by the key's *role*, and the path is in the server log.
+
+### Configuring where it builds
 
 | Option | Environment | What it is |
 |---|---|---|
+| `--build-method` | `MCUHOME_DASHBOARD_BUILD_METHOD` | `local`, `remote` or `local-dev`; unset takes the builder's default |
 | `--build-server-url` | `MCUHOME_DASHBOARD_BUILD_SERVER_URL` | `http(s)://` or `ws(s)://`; both forms are accepted and normalized |
 | `--build-server-token` | `MCUHOME_DASHBOARD_BUILD_SERVER_TOKEN` | the bearer token the build server logged at startup |
 | `--build-server-token-file` | `MCUHOME_DASHBOARD_BUILD_SERVER_TOKEN_FILE` | read it from a file instead |
-| `--data-dir` | `MCUHOME_DASHBOARD_DATA_DIR` | the signing key, and the artifact directory nothing writes to yet (default `/data` in an App) |
+| `--sdk-source` (repeatable) | `MCUHOME_DASHBOARD_SDK_SOURCE` (`PATH`-style) | where the hash-pinned MCUHome SDK package is; both container-shaped methods resolve the pin here |
+| `--build-jobs` | `MCUHOME_DASHBOARD_BUILD_JOBS` | parallel compile jobs (default: this machine's cores) |
+| `--data-dir` | `MCUHOME_DASHBOARD_DATA_DIR` | the signing key and every build's artifacts (default `/data` in an App) |
+
+`server/info`'s `build` block reports the configured method, the
+builder's default, every method it has, `server_configured` and `jobs`.
+It is deliberately a **boolean** for the server and carries no token:
+the address may name a host an operator does not publish, and the token
+never leaves this process. It reports no reachability, because nothing
+opens a connection until a build asks it to.
+
+**This is the dashboard's own configuration surface** (ADR 0013 decision
+2). The `mcuhome` command line's `build-servers.toml` / `tokens/<label>`
+ladder is *not* read here: a dashboard is configured by whoever deploys
+it, and a second invisible ladder underneath App options would make the
+build server depend on the home directory of whichever user the
+container happens to run as.
 
 **Two Apps on one Home Assistant instance pair themselves** (ADR 0006
 decision 8, carried forward by ADR 0012 decision 3): the build server
 writes its token to `/share/mcuhome/build-server.token`, the dashboard
 reads it from there and assumes `http://127.0.0.1:8100`. Nothing is
 configured by hand, and an explicit URL or token always wins over the
-pairing file. `tests/test_config.py` is what keeps that true while there
-is no client to exercise it.
+pairing file.
 
-With nothing configured, nothing happens — which is also what happens
-with everything configured, until the session client lands.
+> **A build server learns the Matter commissioning passcode of every
+> device it builds** — those credentials are compile-time Kconfig (ADR
+> 0007 decision 2). Operate it as a trusted machine. It never learns the
+> firmware signing key: the image comes back unsigned and is signed here.
 
 ### Writing: `device/save` and the `conflict` code
 
@@ -218,18 +308,34 @@ editor's gutter instead of a line of text in a log pane.
 | `GET /health` | version and liveness; open on both sites |
 | `POST /auth/login` | public site only — exchanges the password for an `HttpOnly` session cookie and a CSRF token |
 | `POST /auth/logout` | public site only — needs the CSRF token in `X-CSRF-Token` |
+| `GET /api/builds/{build}/artifacts/{path}` | one file of a finished build: the local, verified, locally signed copy |
 | `GET /{path}` | built frontend assets, with SPA fallback |
 
-`GET /api/builds/{job}/artifacts/{path}` used to be in that table and is
-not any more. It served the local, verified, locally signed copy of a
-finished build, and it was REST for the reason ADR 0004 decision 4
-gives: `<a download>`, the flasher hand-off of ADR 0010 and `curl` all
-take a URL and none of them can take a frame. That reason still holds —
-what does not is the directory, since nothing fills it. The route was
-removed rather than left answering 404 to everything. When the session
-protocol's `get-artifact` brings it back, its refusal has to come back
-with it: a path resolving outside the job's own directory is a 404 and
-never a 403, because naming which guess escaped is free reconnaissance.
+The artifact route is REST for the reason ADR 0004 decision 4 gives, and
+only that reason: `<a download>`, the flash-tool hand-off of ADR 0010
+and `curl` all take a URL and none of them can take a frame.
+
+**It serves what the record declares in `artifacts`, and no other file
+in the build directory.** A build method puts its scratch area inside
+that directory, and that area holds the build context — the resolved
+model, with the device's Matter pairing tuple in it. Serving the
+directory would hand it out over a plain `GET`, in a backend where
+commissioning codes travel only when a user asked for them.
+
+**Everything unservable is a 404, and nothing is a 403.** An unknown
+build id, a build with no artifacts, an undeclared file, a missing file
+and a path that resolves outside the build's own directory all answer
+identically —
+naming which guess was close is free reconnaissance, and a legitimate
+caller follows a link out of a record it was given. It lives under
+`/api/`, so it needs an identity on the public site by the same rule as
+`/ws`; that matters, because these bytes are firmware signed with this
+installation's key.
+
+Build *records* are in memory and die with the process; artifacts do
+not. After a restart the files are still on disk and no record claims
+them, so they are not served — inventing a record for bytes this process
+did not write is the thing ADR 0013 decision 5 rules out.
 
 ## Development
 
@@ -255,15 +361,29 @@ The direction of the dependency is the invariant: the dashboard follows
 the builder's releases, and using the builder CLI never requires the
 dashboard.
 
-`mcuhome_dashboard/builder.py` is the only module that knows the
-builder's Python surface, and since Block 0 it consumes
-[`mcuhome.api`](https://github.com/mcu-home/mcuhome) — the builder's
-supported programmatic surface — rather than reaching into the package:
-tree discovery, stages 1-3, and the typed errors with their own
-`to_dict`. Two helpers there still import past `api` (`pairing.Pairing`
-for the commissioning codes, `loader.load_yaml_file` for the summary of
-a configuration that does not resolve); both are named in that module's
-docstring as candidates for `api`.
+`mcuhome_dashboard/builder.py` is the module that knows the builder's
+Python surface, and it consumes
+[`mcuhome.workbench.api`](https://github.com/mcu-home/mcuhome) — the
+builder's supported programmatic surface — rather than reaching into the
+package: tree discovery, stages 1-3, the typed errors with their own
+`to_dict`, and `run_build` with its request and outcome types. **The
+build seam is there and nowhere else**, so the whole of this package's
+knowledge of how a build is started is one file.
+
+Three helpers there still import past `api` (`model.pairing.Pairing` for
+the commissioning codes, `workbench.loader.load_yaml_file` for the
+summary of a configuration that does not resolve,
+`model.manifest.ota_parameters` plus `workbench.otafile` for the Matter
+OTA wrapper); all three are named in that module's docstring as
+candidates for `api`. `signing.py` reaches past it as well, to
+`workbench.signing` and `workbench.imgtool`, and says why.
+
+The imported distribution is **`mcuhome-workbench`** (which brings
+`mcuhome-model`). `mcuhome-compiler` is not installed and is not to be:
+that is what keeps ADR 0003 checkable rather than promised. The plain
+name `mcuhome` is the command line's distribution since firmware ADR
+0020 decision 2, which is why the range in `versions.py` does not use
+it.
 
 ## Layout
 
@@ -278,7 +398,8 @@ docstring as candidates for `api`.
 | `commands.py` | one function per command |
 | `events.py` | the in-process event bus |
 | `devices.py` | configuration-tree scanning and change detection |
-| `builder.py` | the adapter over the `mcuhome` package |
-| `signing.py` | the firmware signing key and the detached signature (ADR 0007/0008) — kept by ADR 0012 decision 3, with no caller until a build produces something to sign |
+| `builds.py` | the build registry: one slot, the log offsets, and what happens after an outcome (ADR 0013) |
+| `builder.py` | the adapter over the `mcuhome` package — including the `run_build` seam |
+| `signing.py` | the firmware signing key and the detached signature (ADR 0007/0008), in-process over `mcuhome.workbench.imgtool` |
 | `web.py` | static assets, SPA fallback, `X-Ingress-Path` |
 | `static/` | the frontend build output (a placeholder shell for now) |

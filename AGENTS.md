@@ -13,10 +13,12 @@ separate future packaging repo), Docker image, plain Python app.
 **Current phase: pre-alpha.** ADRs 0003–0011 fix the backend and
 frontend stacks, state layout, auth, flash flow and the builder
 coupling. **ADR 0012 supersedes the build-service protocol of ADR 0006**
-and amends ADR 0003's topology: read 0012 first, and treat 0006 as
-history except for its transport and threat-model decisions, which 0012
-decision 3 carries forward. Check `docs/adr/` before assuming any design
-decision.
+and amends ADR 0003's topology; **ADR 0013 then supersedes 0012's
+decision 3** — the dashboard does not speak the session protocol at all,
+it calls `mcuhome.workbench.api.run_build` and the *package* speaks it.
+Read 0013 first, then 0012; treat 0006 as history except for its
+transport and threat-model decisions, which both carry forward. Check
+`docs/adr/` before assuming any design decision.
 
 The **backend** is implemented: the two sites of ADR 0009, the `/ws`
 command and event vocabulary of ADR 0004, configuration-tree watching,
@@ -34,33 +36,34 @@ with conflict detection, and the commissioning view.
 The **build server** lives in its own repository since ADR 0012:
 [mcu-home/build-server](https://github.com/mcu-home/build-server).
 
-**There is no build client here any more.** ADR 0012 decision 3 replaced
-ADR 0006's job-frame vocabulary with the session protocol of firmware
-ADR 0019, and the job client was dismantled rather than migrated:
-`buildclient.py`, the `build/*` commands, the `builds` event topic, the
-`build_server` block of `server/info` and the artifact REST endpoint are
-gone. What that decision carries forward stayed: the transport settings
-(URL, bearer token, token file, the auto-pairing file), the detached
-signing module of ADR 0007/0008, the event bus, the frame envelope and
-the version-range machinery of ADR 0011. Signing has no caller today —
-do not sweep it up as dead code.
+**There is no build *protocol* client here, and none is to be added.**
+ADR 0012 decision 3 dismantled ADR 0006's job client and named the
+session protocol of firmware ADR 0019 as its successor; **ADR 0013**
+found that successor already written, in `mcuhome-workbench`, which this
+package imports in-process (ADR 0011). Writing a second one here would
+be a second opinion about a protocol the package already speaks.
 
-So the honest state is: **this dashboard cannot build, flash, stream a
-build log or download an artifact.** Do not add a stub that pretends
-otherwise; the next piece of work is the session client, not a
-placeholder.
+So the dashboard **builds** — `build/*` commands, the `builds` topic,
+streamed logs with resumable offsets, the artifact endpoint and detached
+signing — by calling `mcuhome.workbench.api.run_build`, and speaks no
+build protocol itself. Which build method runs is **deployment
+configuration** (`--build-method`): a build container on this machine, a
+build server, or a west workspace. `backend/mcuhome_dashboard/builds.py`
+is the registry; `builder.py` holds the one seam.
 
-Still missing: the session-protocol client, build and flash views in the
-browser, creating a device from the browser (needs `mcuhome new` as API,
-ADR 0011), and app packaging.
+Still missing: flash views in the browser, creating a device from the
+browser (needs `mcuhome new` as API, ADR 0011), and app packaging.
 
-The architecture in one line: the dashboard never compiles (ADR 0003),
-so every build goes to a separate build server, which has its own
-repository (ADR 0012) — and **neither Python package depends on the
-other**: they are separate products with separate version numbers,
-joined by one protocol. (The two-Home-Assistant-Apps framing of ADR 0003
-is what ADR 0012's amended Consequences struck; a build server is an
-orchestrator whose primary target is standalone.)
+The architecture in one line: the dashboard never compiles (ADR 0003) —
+it carries no toolchain, and `mcuhome-compiler` is deliberately not
+installed, so that invariant is checkable in the venv rather than
+promised — and a build therefore runs in a build container or on a build
+server, the latter having its own repository (ADR 0012). **Neither
+Python package depends on the other**: separate products with separate
+version numbers, joined by one protocol that a third package speaks for
+both. (The two-Home-Assistant-Apps framing of ADR 0003 is what ADR
+0012's amended Consequences struck; a build server is an orchestrator
+whose primary target is standalone.)
 
 ## Repository map
 
@@ -87,18 +90,22 @@ the firmware repo:
   metadata are owned by the firmware repository. The dashboard consumes
   them as a versioned artifact — never duplicate or fork schema definitions
   here.
-- **The dashboard never compiles** (ADR 0003). Every build goes to a
-  build server over the session protocol of firmware ADR 0019 (ADR 0012
-  decision 3) — including when both processes run on the same host.
-  There is no local-build code path, and none is to be added. Since the
-  teardown there is no *remote*-build code path either; that is a gap to
-  fill with the session client, never with a local one.
+- **The dashboard never compiles** (ADR 0003), and the enforcement is
+  the dependency, not a missing code path: this package **must never
+  depend on `mcuhome-compiler`**. That distribution holds stages 4-5;
+  without it the compiling build methods refuse in-process, naming what
+  they need, which is why `requirements-dev.txt` leaves it out on
+  purpose. What ADR 0013 superseded is the older phrasing "there is no
+  local-build code path": there is one code path, `run_build`, and
+  *where* it runs is configuration.
 - **The dashboard is a standalone product** with its own release cycle,
-  *and* it imports the `mcuhome` builder package in-process (ADR 0011).
-  Both hold because the dependency has one direction: the dashboard
-  declares a supported `mcuhome` version range and follows the builder's
+  *and* it imports `mcuhome-workbench` in-process (ADR 0011). Both hold
+  because the dependency has one direction: the dashboard declares a
+  supported version range (`versions.py`) and follows the builder's
   releases; the builder never depends on the dashboard, and using the
   builder CLI must never require the dashboard or any dashboard version.
+  The range names `mcuhome-workbench`, never the bare `mcuhome` — since
+  firmware ADR 0020 decision 2 that is the *command line's* distribution.
 - **App packaging does not live here** — no `config.yaml`/Dockerfile App
   files in this repo; they go to the future packaging repo.
 - **The dashboard and the build server do not import each other** —
@@ -110,8 +117,11 @@ the firmware repo:
 - **The build server never signs, and the dashboard never compiles.**
   Each half is missing what the other has, by construction: the private
   signing key is only ever on the dashboard side (ADR 0007 decision 3,
-  ADR 0008), and there is no build path in `backend/`. Whatever the
-  session client does, it never asks a build server to sign.
+  ADR 0008), and no toolchain is installed here. Every build method
+  delivers an *unsigned* image and one host-side step signs it, here
+  (ADR 0013 decision 6). The structural half of that invariant is in the
+  builder: `BuildRequest` has no field a private key fits in, on any
+  method — only the PEM public half travels.
 - **Say "App", not "Add-on"** — Home Assistant renamed them in 2026.2.
   Applies to every user-facing string, screenshot and document.
 - Stored device configurations may contain secrets (WiFi credentials,
@@ -149,7 +159,7 @@ ruff check --fix backend && ruff format backend
 
 # Frontend (Node >= 22.12; `corepack enable` picks up the pinned pnpm)
 cd frontend && pnpm install
-pnpm dev            # dev server on :5173, proxying /ws to the backend
+pnpm dev            # dev server on :5173, proxying /ws /health /auth /api
 pnpm check          # format, lint, types and tests — what a commit must pass
 pnpm build          # emits frontend/dist
 

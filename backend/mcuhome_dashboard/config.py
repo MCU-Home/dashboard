@@ -192,6 +192,18 @@ class Config:
     #: this; a standalone deployment never does.
     ingress_port: int | None = None
 
+    # --- ingress admin resolution (ADR 0014) ---
+    #: The add-on's ``SUPERVISOR_TOKEN``, used to ask the Supervisor's
+    #: authenticated ``/auth/list`` which ingress users are administrators
+    #: (:mod:`mcuhome_dashboard.admin`). ``None`` everywhere but a Home
+    #: Assistant app; without it no ingress user resolves to an admin, so
+    #: the admin-only verbs are refused — the fail-closed default of ADR
+    #: 0014. It never reaches the wire (like the build-server token).
+    supervisor_token: str | None = None
+    #: Where the Supervisor answers. The in-cluster name a Home Assistant
+    #: app resolves; overridable for a test or an unusual deployment.
+    supervisor_url: str = "http://supervisor"
+
     # --- building (ADR 0003, ADR 0006 transport, ADR 0012, ADR 0013) ---
     #: Where a build server is and how to authenticate to it. ``None``
     #: means none is configured, which is not an error: only the
@@ -557,12 +569,20 @@ def load_config(
     if build_jobs < 1:
         raise SystemExit(f"--build-jobs must be at least 1, not {build_jobs}.")
 
+    # `SUPERVISOR_TOKEN` is Home Assistant's own environment variable, not
+    # a dashboard setting, so it is read unprefixed (ADR 0014). The URL is
+    # a dashboard setting and keeps the prefix.
+    supervisor_token = env.get("SUPERVISOR_TOKEN") or None
+    supervisor_url = env.get(ENV_PREFIX + "SUPERVISOR_URL") or "http://supervisor"
+
     config = Config(
         config_root=root.expanduser().resolve() if root is not None else None,
         host=args.host or env.get(ENV_PREFIX + "HOST") or DEFAULT_HOST,
         port=args.port or _env_int(env, "PORT") or DEFAULT_PORT,
         public_site=public_site,
         ingress_port=args.ingress_port or _env_int(env, "INGRESS_PORT"),
+        supervisor_token=supervisor_token,
+        supervisor_url=supervisor_url,
         build_server_url=build_url or None,
         build_server_token=build_token,
         build_method=(args.build_method or env.get(ENV_PREFIX + "BUILD_METHOD") or None),

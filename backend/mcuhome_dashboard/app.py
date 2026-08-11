@@ -17,7 +17,10 @@ a different route table.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import math
+import os
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -27,6 +30,7 @@ from typing import Any
 from aiohttp import web
 
 from mcuhome_dashboard import versions, ws
+from mcuhome_dashboard.admin import AdminOracle, build_admin_oracle
 from mcuhome_dashboard.builder import MCUHOME_VERSION
 from mcuhome_dashboard.builds import BuildRegistry, UnknownBuild
 from mcuhome_dashboard.config import Config
@@ -37,11 +41,13 @@ from mcuhome_dashboard.security import (
     SESSION_COOKIE,
     STATE_KEY,
     TRUST_KEY,
+    LoginThrottle,
     SessionStore,
     TrustMode,
     auth_middleware,
     check_origin,
     identity_of,
+    peer_address,
     require_csrf,
 )
 from mcuhome_dashboard.web import base_path, static_handler
@@ -49,6 +55,14 @@ from mcuhome_dashboard.web import base_path, static_handler
 __all__ = ["AppState", "create_app"]
 
 logger = logging.getLogger(__name__)
+
+#: The most CPU-bound builder calls (``device/validate``,
+#: ``device/commissioning``) that may run at once across every connection
+#: (the concurrency finding). Smaller than the default thread pool on
+#: purpose, so a client firing validates cannot exhaust the pool the rest
+#: of the app's file I/O shares and stall every socket. Modest on a Home
+#: Assistant box, which is where this runs (the build-RAM note).
+BUILDER_CONCURRENCY = max(1, min(4, os.cpu_count() or 2))
 
 
 @dataclass
@@ -58,12 +72,23 @@ class AppState:
     config: Config
     bus: EventBus = field(default_factory=EventBus)
     sessions: SessionStore = field(default_factory=SessionStore)
+    #: Failed public-site password attempts, so a guesser is slowed and
+    #: then locked out (ADR 0014). Shared by both password paths.
+    throttle: LoginThrottle = field(default_factory=LoginThrottle)
     devices: DeviceStore = field(init=False)
     #: Builds, and the one slot they take turns in (ADR 0013). A sibling
     #: of :attr:`devices` and not a sub-object of it: both are long-lived,
     #: process-owned publishers on their own topic, and a build outlives
     #: the socket that asked for it.
     builds: BuildRegistry = field(init=False)
+    #: Resolves ingress users to their Home Assistant admin status (ADR
+    #: 0014). Supervisor-backed when a token is configured, fail-closed
+    #: otherwise. A test replaces it to script an admin/non-admin user.
+    admin_oracle: AdminOracle = field(init=False)
+    #: Caps concurrent CPU-bound builder work so one client cannot exhaust
+    #: the shared thread pool and stall every socket (the concurrency
+    #: finding). Created here so all connections share one bound.
+    builder_gate: asyncio.Semaphore = field(init=False)
     started_at: float = field(default_factory=time.monotonic)
 
     def __post_init__(self) -> None:
@@ -73,6 +98,11 @@ class AppState:
             poll_interval=self.config.poll_interval,
         )
         self.builds = BuildRegistry(self.config, self.bus, devices=self.devices)
+        self.admin_oracle = build_admin_oracle(
+            supervisor_url=self.config.supervisor_url,
+            supervisor_token=self.config.supervisor_token,
+        )
+        self.builder_gate = asyncio.Semaphore(BUILDER_CONCURRENCY)
 
     async def start(self) -> None:
         versions.check_mcuhome_version(MCUHOME_VERSION)
@@ -84,6 +114,7 @@ class AppState:
         # and a cancelled build should stop before the thing it reads.
         await self.builds.stop()
         await self.devices.stop()
+        await self.admin_oracle.aclose()
 
 
 # --------------------------------------------------------------------------
@@ -129,6 +160,17 @@ async def login(request: web.Request) -> web.Response:
     if state.config.password is None:
         raise web.HTTPBadRequest(text="This dashboard is not password-protected.")
 
+    # Failed-attempt throttling (ADR 0014). Checked before the password is
+    # weighed, so a locked source cannot keep guessing; the sibling bearer
+    # path feeds the same counter through the auth middleware.
+    source = peer_address(request)
+    wait = state.throttle.retry_after(source)
+    if wait > 0:
+        raise web.HTTPTooManyRequests(
+            text="Too many failed sign-in attempts. Try again later.",
+            headers={"Retry-After": str(math.ceil(wait))},
+        )
+
     try:
         body = await request.json()
     except (ValueError, TypeError):
@@ -136,8 +178,10 @@ async def login(request: web.Request) -> web.Response:
     presented = body.get("password") if isinstance(body, dict) else None
     if not isinstance(presented, str) or not _matches(presented, state.config.password):
         # Deliberately identical for "no password" and "wrong password".
+        state.throttle.record_failure(source)
         raise web.HTTPUnauthorized(text="Wrong password.")
 
+    state.throttle.record_success(source)
     session = state.sessions.create()
     response = web.json_response({"csrf_token": session.csrf_token})
     response.set_cookie(
@@ -195,8 +239,19 @@ async def build_artifact(request: web.Request) -> web.StreamResponse:
     it need an identity on the public site — the same door as ``/ws``,
     which matters because these bytes are firmware signed with this
     installation's key.
+
+    **And it needs an administrator** (ADR 0014). An artifact carries the
+    device's Matter pairing tuple resolved into it, so on ingress it is
+    gated the same as ``device/commissioning``: a non-admin is refused
+    with ``403`` before the build id is even looked at, which is a blanket
+    authorization answer that leaks nothing about which builds exist. The
+    public site's identities are administrators by construction, so this
+    changes only the ingress door.
     """
     state = request.app[STATE_KEY]
+    identity = identity_of(request)
+    if not (identity and identity.is_admin):
+        raise web.HTTPForbidden(text="Downloading build artifacts needs an administrator.")
     try:
         record = state.builds.get(request.match_info["build"])
     except UnknownBuild:

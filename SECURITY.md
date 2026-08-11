@@ -31,6 +31,19 @@ Particularly relevant attack surfaces for this project:
 the build server and holds the firmware signing key.** Treat access to
 the dashboard, and to any build server it is paired with, accordingly.
 
+**In a Home Assistant deployment the dashboard is admin-only** (ADR
+0014). The ingress site derives the Home Assistant user's admin status
+from the Supervisor — the peer check authenticates
+`X-Remote-User-Name`, and the Supervisor's authenticated `/auth/list`
+turns that username into the admin decision (never a client-settable
+header). Device edits, `device/commissioning` (which returns the Matter
+passcode), the build verbs and the artifact download route are refused
+for non-admin users; read-only views stay open. The check **fails
+closed**: an ingress user whose admin status cannot be resolved is
+treated as non-admin. The public (password) site is unchanged — its one
+password already implies an operator. The public password paths are
+rate-limited with per-source lockout and a global backstop.
+
 Since ADR 0013 a session can also **start a build**, which on the
 default build method means starting a container on the dashboard's own
 host. That is not a new trust boundary — it is the boundary ADR 0009

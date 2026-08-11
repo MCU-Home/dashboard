@@ -124,7 +124,46 @@ async def client(aiohttp_client, state: AppState):
 
 @pytest.fixture
 async def ingress_client(aiohttp_client, state: AppState):
-    """A client of the ingress site."""
+    """A client of the ingress site (no Supervisor token: nobody is admin)."""
+    return await aiohttp_client(create_app(state, TrustMode.INGRESS))
+
+
+#: The username the roster fixtures below treat as an administrator, and
+#: the one they do not. The Supervisor sets ``X-Remote-User-Name`` from
+#: the authenticated session, so a test that sends it is standing in for
+#: the Supervisor, not for a client that could forge it (ADR 0014).
+ADMIN_USER = "admin-user"
+NON_ADMIN_USER = "regular-user"
+ADMIN_HEADERS = {"X-Remote-User-Id": "u-admin", "X-Remote-User-Name": ADMIN_USER}
+NON_ADMIN_HEADERS = {"X-Remote-User-Id": "u-regular", "X-Remote-User-Name": NON_ADMIN_USER}
+
+
+class StubAdminOracle:
+    """A scripted stand-in for the Supervisor's admin roster (ADR 0014).
+
+    ``is_admin`` answers from a fixed set of admin usernames, and ``None``
+    when there is no username to match — the same fail-closed shape the
+    real :class:`mcuhome_dashboard.admin.SupervisorAdminOracle` has.
+    """
+
+    def __init__(self, admins: set[str] | None = None) -> None:
+        self.admins = set(admins or ())
+        self.calls: list[tuple[str | None, str | None]] = []
+
+    async def is_admin(self, *, user_id: str | None, username: str | None) -> bool | None:
+        self.calls.append((user_id, username))
+        if username is None:
+            return None
+        return username in self.admins
+
+    async def aclose(self) -> None:
+        return None
+
+
+@pytest.fixture
+async def roster_ingress_client(aiohttp_client, state: AppState):
+    """An ingress site whose Supervisor roster has exactly one admin."""
+    state.admin_oracle = StubAdminOracle({ADMIN_USER})
     return await aiohttp_client(create_app(state, TrustMode.INGRESS))
 
 

@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **The Home Assistant ingress site is now admin-only** (ADR 0014). Every
+  Home Assistant user who could open the ingress panel had full trust and
+  could read a device's Matter commissioning passcode, download
+  passcode-bearing build artifacts, edit devices and start builds. The
+  ingress site now derives the user's admin status from the Supervisor —
+  the peer check authenticates `X-Remote-User-Name`, and the Supervisor's
+  authenticated `/auth/list` (over `SUPERVISOR_TOKEN`) turns that username
+  into the admin decision, never a client-settable header. `device/save`,
+  `device/commissioning`, `build/start`, `build/cancel` and the artifact
+  download route are refused for non-admins; read-only views stay open.
+  The check **fails closed** (unresolved status ⇒ non-admin), and
+  `server/info` now reports `identity.is_admin`. The public (password)
+  site is unchanged.
+- **Failed-login throttling on the public site** (ADR 0014). Both password
+  paths (`POST /auth/login` and the bearer token) now share a per-source
+  lockout with exponential backoff answered as `429` + `Retry-After`, plus
+  a process-wide backstop for distributed guessing.
+- **Concurrency limits** to keep one authenticated client from stalling
+  every socket: a per-connection in-flight command cap (backpressure on
+  the reader) and a process-wide gate on the CPU-bound `device/validate`
+  and `device/commissioning` work, so it cannot exhaust the shared thread
+  pool.
+
 ### Removed
 
 - **The build-server client and everything that existed only for it**

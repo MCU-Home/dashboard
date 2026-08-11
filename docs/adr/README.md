@@ -22,3 +22,4 @@ versioning) live in the firmware repository:
 | [0011](0011-builder-coupling-and-interface-contract.md) | Builder coupling and the firmware-side interface contract | superseded for the build-service subject by firmware ADR 0017-0020 |
 | [0012](0012-build-server-extraction.md) | Build-server extraction into its own repository | accepted; amended 2026-08-09; decision 3's session client superseded by 0013 |
 | [0013](0013-building-over-the-builder-package.md) | Building over the builder package, not over a protocol | accepted |
+| [0014](0014-ingress-admin-only-and-abuse-limits.md) | Ingress is admin-only; login throttling and concurrency limits | accepted |

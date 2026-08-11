@@ -26,11 +26,12 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { WsClient } from '../api/client';
 import { deviceCommissioning, deviceGet, deviceSave, deviceValidate } from '../api/commands';
 import { CommandError } from '../api/protocol';
-import type { CommissioningCodes, Diagnostic } from '../api/types';
+import type { BuildRecord, CommissioningCodes, Diagnostic } from '../api/types';
 import { devicesHref } from '../router';
 import { t } from '../strings';
 import { sharedStyles } from '../styles/shared';
 
+import './mh-build-panel';
 import './mh-commissioning';
 import './mh-diagnostics';
 import './mh-yaml-editor';
@@ -79,6 +80,24 @@ export class MhDevicePage extends LitElement {
   @property({ type: Boolean, attribute: 'dark-theme' })
   darkTheme = false;
 
+  /**
+   * This device's most recent build, and its output.
+   *
+   * Handed down from the shell rather than fetched here: a build outlives
+   * this page, so the store that holds it has to as well.
+   */
+  @property({ attribute: false })
+  build: BuildRecord | null = null;
+
+  @property({ attribute: false })
+  buildLines: readonly string[] = [];
+
+  @property({ type: Boolean })
+  buildTruncated = false;
+
+  @property({ type: String })
+  buildMethod: string | null = null;
+
   @state() private loading = true;
   @state() private loadError: string | null = null;
   @state() private content = '';
@@ -124,6 +143,16 @@ export class MhDevicePage extends LitElement {
           : this.#editor()
       }
       <section>
+        <mh-build-panel
+          .client=${this.client}
+          .device=${this.device}
+          .record=${this.build}
+          .lines=${this.buildLines}
+          .truncated=${this.buildTruncated}
+          .defaultMethod=${this.buildMethod}
+        ></mh-build-panel>
+      </section>
+      <section>
         <mh-commissioning
           .device=${this.device}
           .codes=${this.codes}
@@ -135,7 +164,6 @@ export class MhDevicePage extends LitElement {
           @commissioning-hidden=${this.#forgetCodes}
         ></mh-commissioning>
       </section>
-      <p class="quiet">${t.device.buildPending}</p>
     `;
   }
 

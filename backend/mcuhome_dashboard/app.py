@@ -21,12 +21,14 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from aiohttp import web
 
 from mcuhome_dashboard import versions, ws
 from mcuhome_dashboard.builder import MCUHOME_VERSION
+from mcuhome_dashboard.builds import BuildRegistry, UnknownBuild
 from mcuhome_dashboard.config import Config
 from mcuhome_dashboard.devices import DeviceStore
 from mcuhome_dashboard.events import EventBus
@@ -57,15 +59,12 @@ class AppState:
     bus: EventBus = field(default_factory=EventBus)
     sessions: SessionStore = field(default_factory=SessionStore)
     devices: DeviceStore = field(init=False)
+    #: Builds, and the one slot they take turns in (ADR 0013). A sibling
+    #: of :attr:`devices` and not a sub-object of it: both are long-lived,
+    #: process-owned publishers on their own topic, and a build outlives
+    #: the socket that asked for it.
+    builds: BuildRegistry = field(init=False)
     started_at: float = field(default_factory=time.monotonic)
-
-    #: There is no build client here. ADR 0012 decision 3 replaced the
-    #: job protocol of ADR 0006 with the session protocol of firmware
-    #: ADR 0019, and the old client was removed rather than migrated, so
-    #: this process currently holds no connection to a build server and
-    #: no way to open one. ``config.build_server_url``/``_token`` are
-    #: still resolved (including the pairing file) because the session
-    #: client will need exactly them; nothing reads them yet.
 
     def __post_init__(self) -> None:
         self.devices = DeviceStore(
@@ -73,12 +72,17 @@ class AppState:
             self.bus,
             poll_interval=self.config.poll_interval,
         )
+        self.builds = BuildRegistry(self.config, self.bus, devices=self.devices)
 
     async def start(self) -> None:
         versions.check_mcuhome_version(MCUHOME_VERSION)
         await self.devices.start()
+        await self.builds.start()
 
     async def stop(self) -> None:
+        # Builds first: one may be holding the device store's tree open,
+        # and a cancelled build should stop before the thing it reads.
+        await self.builds.stop()
         await self.devices.stop()
 
 
@@ -159,17 +163,76 @@ async def logout(request: web.Request) -> web.Response:
     return response
 
 
-#: ``GET /api/builds/{job}/artifacts/{path}`` used to live here: the
-#: browser primitive of ADR 0004 decision 4 that served the local,
-#: verified, locally signed copy of a finished build. It went with the
-#: job protocol (ADR 0012 decision 3), because nothing writes into
-#: ``config.artifact_root`` any more — the route could only ever have
-#: answered 404, and a route table that lists an endpoint with no
-#: possible content is a worse lie than a missing one. What has to come
-#: back with the session protocol's ``get-artifact`` is not just the
-#: handler but its refusal: a path that resolves outside the job's own
-#: directory is a 404 and never a 403, because naming which guess
-#: escaped is free reconnaissance.
+async def build_artifact(request: web.Request) -> web.StreamResponse:
+    """``GET /api/builds/{build}/artifacts/{path}`` — one file of a build.
+
+    REST for the reason ADR 0004 decision 4 gives, and the only reason:
+    ``<a download>``, the flash-tool hand-off of ADR 0010 and ``curl``
+    all take a URL, and none of them can take a WebSocket frame. It came
+    back with ADR 0013 together with the thing that fills the directory.
+
+    **It serves the artifacts the record declares, and no other file.**
+    ADR 0013 decision 5's "only what the build method declared and
+    verified" is a rule about the *reader* as much as about the copier:
+    a build method puts its scratch area inside the build directory, and
+    that area holds the build context — the resolved device model, which
+    carries the Matter pairing tuple. Serving the directory would put it
+    one plain ``GET`` away, in a codebase where commissioning codes
+    travel only when a user asked for them (AGENTS.md). So the requested
+    path has to *be* one of ``record.artifacts``; anything else is not
+    there.
+
+    **Everything unservable is a 404, and nothing is a 403.** An unknown
+    build id, a build that produced no artifacts, an undeclared file, a
+    file that is not there, and a path that climbs out of the build's own
+    directory all answer identically. Distinguishing them would confirm
+    which guess was close — free reconnaissance — and there is no case
+    where telling the caller *why* helps a legitimate one, because a
+    legitimate one follows a link out of a build record it was given.
+
+    It is under ``/api/``, so
+    :data:`mcuhome_dashboard.security.PROTECTED_PREFIXES` already makes
+    it need an identity on the public site — the same door as ``/ws``,
+    which matters because these bytes are firmware signed with this
+    installation's key.
+    """
+    state = request.app[STATE_KEY]
+    try:
+        record = state.builds.get(request.match_info["build"])
+    except UnknownBuild:
+        raise web.HTTPNotFound() from None
+    if record.out_dir is None:
+        raise web.HTTPNotFound()
+
+    wanted = request.match_info["path"].lstrip("/")
+    declared = {str(entry.get("path")) for entry in record.artifacts}
+    if wanted not in declared:
+        raise web.HTTPNotFound()
+
+    root = Path(record.out_dir).resolve()
+    candidate = (root / wanted).resolve()
+    # Containment is kept as the cheap second answer: a declared name is
+    # a name the build method chose, and this handler is not the place to
+    # find out that one of them was `../`.
+    if not candidate.is_relative_to(root) or not candidate.is_file():
+        raise web.HTTPNotFound()
+
+    # The name reaches a header, so it is reduced to characters that
+    # cannot end the quoted string or start a second header. A build
+    # method names its own artifacts and none of them contain anything
+    # exotic — which is exactly why an artifact that did would be worth
+    # neutering rather than trusting.
+    safe = "".join(char for char in candidate.name if char.isalnum() or char in "._-") or "artifact"
+    return web.FileResponse(
+        candidate,
+        headers={
+            # Firmware, not a page: never rendered, never sniffed, and
+            # named after the file it is rather than the URL it came from.
+            "Content-Type": "application/octet-stream",
+            "Content-Disposition": f'attachment; filename="{safe}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 def _matches(presented: str, expected: str) -> bool:
@@ -189,6 +252,7 @@ def create_app(state: AppState, trust: TrustMode) -> web.Application:
 
     app.router.add_get("/health", health)
     app.router.add_get("/ws", ws.websocket_handler)
+    app.router.add_get("/api/builds/{build}/artifacts/{path:.*}", build_artifact)
     if trust is TrustMode.PUBLIC:
         # Ingress has no password to exchange and no session to drop.
         app.router.add_post("/auth/login", login)

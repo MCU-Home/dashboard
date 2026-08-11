@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import importlib.metadata
+
 import pytest
 
 from mcuhome_dashboard import versions
@@ -34,7 +36,22 @@ def test_versions_outside_it_are_refused(version: str) -> None:
 
 
 def test_the_range_is_stated_the_way_a_dependency_would_be() -> None:
-    assert versions.MCUHOME_VERSION_SPEC == "mcuhome>=0.1.0,<0.2.0"
+    assert versions.MCUHOME_VERSION_SPEC == "mcuhome-workbench>=0.1.0,<0.2.0"
+
+
+def test_the_range_names_the_distribution_that_is_actually_imported() -> None:
+    """Firmware ADR 0020 split the builder; the plain name is the CLI's.
+
+    A range spelled ``mcuhome>=…`` would, once these are published,
+    declare a dependency on the command-line distribution — a console
+    script this package neither imports nor wants — while saying nothing
+    about the one it does import.
+    """
+    assert versions.MCUHOME_PACKAGE == "mcuhome-workbench"
+    assert importlib.metadata.version(versions.MCUHOME_PACKAGE) == MCUHOME_VERSION
+    assert versions.release_tuple(MCUHOME_VERSION) >= versions.release_tuple(
+        versions.MCUHOME_VERSION_MIN
+    )
 
 
 def test_the_model_version_is_one_and_says_so_at_both_ends() -> None:

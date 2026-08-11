@@ -7,30 +7,49 @@ output parsing, no exit codes. This module is the single place that
 knows the builder's Python surface, so that a change on the builder's
 side lands here and nowhere else.
 
-**Everything below goes through** :mod:`mcuhome.api`, which Block 0 made
-the builder's supported programmatic surface: tree discovery, stages 1-3,
-the typed errors and their ``to_dict``. Nothing here re-implements
-builder behaviour, because that would put the dashboard in the business
-of knowing what a valid configuration is — a contract the firmware
+**Everything below goes through** :mod:`mcuhome.workbench.api`, which
+Block 0 made the builder's supported programmatic surface: tree
+discovery, stages 1-3, the typed errors and their ``to_dict``, and —
+since firmware E64 — the three build methods behind one awaitable
+:func:`run_build`. Nothing here re-implements builder behaviour, because
+that would put the dashboard in the business of knowing what a valid
+configuration is, or how a container is started — contracts the firmware
 repository owns (AGENTS.md).
 
-Two functions still reach past ``mcuhome.api`` into the package, both
-because the operation they need has no public form yet and neither is
-worth a second implementation on this side:
+**The build seam is here and nowhere else.** ADR 0013 makes the
+dashboard a caller of ``run_build``, and it calls it through the names
+re-exported below, so the whole of the dashboard's knowledge of how a
+build is started is this one file. Which *method* runs — a container on
+this machine, a build server, the caller's own workspace — is
+configuration (:class:`~mcuhome_dashboard.config.Config.build_method`)
+and not something this module or its callers branch on: that is the
+point of ADR 0013 decision 1, and it is only true because the request
+object is the same for all three.
+
+Three functions still reach past ``mcuhome.workbench.api`` into the
+package, each because the operation it needs has no public form yet and
+none is worth a second implementation on this side:
 
 :func:`commissioning_codes`
-    uses ``mcuhome.pairing.Pairing`` to derive the QR payload and the
-    manual code from the model's pairing tuple. It is the same
+    uses ``mcuhome.model.pairing.Pairing`` to derive the QR payload and
+    the manual code from the model's pairing tuple. It is the same
     computation ``mcuhome validate`` prints, and deriving it here a
     second time is exactly what must not happen.
 
 :func:`raw_summary`
-    uses ``mcuhome.loader.load_yaml_file`` to read a configuration that
-    does *not* resolve, which no ``api`` entry point offers — every one
-    of them runs the whole of stages 1-3.
+    uses ``mcuhome.workbench.loader.load_yaml_file`` to read a
+    configuration that does *not* resolve, which no ``api`` entry point
+    offers — every one of them runs the whole of stages 1-3.
 
-Both are candidates for ``mcuhome.api``; until then they are the two
-imports in this file that a builder release may break.
+:func:`write_ota_image`
+    uses ``mcuhome.model.manifest.ota_parameters`` and
+    ``mcuhome.workbench.otafile`` to wrap a signed image in a Matter OTA
+    file. The vendor/product identity and the SoftwareVersion derivation
+    are the firmware repository's (its ``ota.py`` is asserted to be the
+    only writer of them), so this is a call and not a copy.
+
+All three are candidates for ``mcuhome.workbench.api``; until then they
+are the imports in this file that a builder release may break.
 """
 
 from __future__ import annotations
@@ -39,24 +58,37 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from mcuhome.model.manifest import ota_parameters
 from mcuhome.model.pairing import Pairing
-from mcuhome.workbench import api
+from mcuhome.workbench import api, otafile
 from mcuhome.workbench.api import (
+    DEFAULT_METHOD,
     DEVICE_ENTRY,
     DEVICES_DIR,
+    METHODS,
+    BuildOutcome,
+    BuildRequest,
     ConfigTree,
     DeviceModel,
     MCUHomeError,
     error_dicts,
     is_config_root,
+    resolve_method,
+    run_build,
 )
 from mcuhome.workbench.loader import load_yaml_file
 
 __all__ = [
+    "BUILD_METHODS",
+    "DEFAULT_BUILD_METHOD",
     "DEVICES_DIR",
     "DEVICE_ENTRY",
     "MCUHOME_VERSION",
+    "BuildOutcome",
+    "BuildRequest",
     "ConfigTree",
+    "DeviceModel",
+    "MCUHomeError",
     "commissioning_codes",
     "device_summary",
     "errors_from_exception",
@@ -64,9 +96,24 @@ __all__ = [
     "load_model",
     "open_config_tree",
     "raw_summary",
+    "resolve_method",
+    "run_build",
+    "write_ota_image",
 ]
 
 logger = logging.getLogger(__name__)
+
+#: Every build method the installed builder has (ADR 0020 decision 6).
+#: The dashboard does not subset it — ADR 0013 decision 1: the package
+#: abstracts *where* a build runs, and a dashboard that re-decided that
+#: would be re-deciding it worse and in a second place.
+BUILD_METHODS = METHODS
+
+#: What a deployment that expressed no preference gets: the builder's own
+#: default, not a copy of it. Firmware E54 makes that ``local``; if it
+#: moves, this moves with it, which is the whole reason it is not a
+#: literal here.
+DEFAULT_BUILD_METHOD = DEFAULT_METHOD
 
 #: The installed builder's version, re-exported so that the rest of the
 #: dashboard never imports ``mcuhome`` itself (ADR 0011 decision 2 checks
@@ -219,4 +266,39 @@ def raw_summary(entry: Path) -> dict[str, Any]:
         "friendly_name": _plain(device.get("friendly_name")),
         "board": _plain(device.get("board")),
         "endpoint_count": len(endpoints) if isinstance(endpoints, list) else 0,
+    }
+
+
+def write_ota_image(model: DeviceModel, *, out_dir: Path, signed: Path) -> dict[str, Any] | None:
+    """Wrap the signed image in a Matter OTA file, when this device can take one.
+
+    ``None`` — silently, and correctly — for a board whose update scheme
+    has no staging slot and for a device without a Matter stack: neither
+    can be updated over the air, so an ``.ota`` file for it would be a
+    file nothing can deliver. The same two facts
+    ``mcuhome.model.manifest.ota_parameters`` checks, checked by calling
+    it rather than by knowing them here.
+
+    *signed* has to be the **signed** binary. An unsigned one produces a
+    valid ``.ota`` that a device downloads, stages, reboots into and then
+    rejects at the bootloader, because MCUboot's signature is the only
+    trust anchor in that path (ADR 0015 decision 6). That is why this is
+    called after the signing step and never beside it.
+
+    Blocking (it hashes the image); call it in an executor.
+    """
+    parameters = ota_parameters(model)
+    if parameters is None or not signed.is_file():
+        return None
+    image = otafile.write_ota_image(
+        payload=signed,
+        output=out_dir / otafile.ota_file_name(model.device.name, parameters.version),
+        vendor_id=parameters.vendor_id,
+        product_id=parameters.product_id,
+        version=parameters.version,
+    )
+    return {
+        "path": image.path.name,
+        "version": image.version,
+        "software_version": image.software_version,
     }

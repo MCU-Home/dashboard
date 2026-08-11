@@ -20,14 +20,32 @@ and are the security-relevant part of this module:
 There is no branch that binds a non-loopback address without
 authentication, not even behind a warning.
 
-**The build-server settings outlive the client that used them.** ADR
-0012 decision 3 carries ADR 0006's transport and threat model forward —
-WebSocket plus bearer token, TLS at the deployment, the auto-pairing
-file — and replaces only its frame vocabulary. So a URL, a token, the
-token file and the pairing file are still resolved here and normalized
-here, even though the job-protocol client that consumed them is gone and
-the session client that will consume them again does not exist yet.
-Nothing in this process currently opens a connection with them.
+**The build settings are live again** (ADR 0013). They outlived two
+protocols: ADR 0012 decision 3 carried ADR 0006's transport and threat
+model forward — WebSocket plus bearer token, TLS at the deployment, the
+auto-pairing file — while the client that read them was dismantled, and
+ADR 0013 gives them a reader again. They are not resolved *for* the
+session protocol any more: they are resolved into
+:class:`mcuhome.workbench.api.BuildRequest`, whose ``server`` and
+``token`` the builder's ``remote`` method uses, and the protocol on the
+wire is the builder's business rather than this file's.
+
+**This is the dashboard's own configuration surface, deliberately**
+(ADR 0013 decision 2). The command line reads no
+``build-servers.toml``: the XDG ladder of firmware E53/E63 is the
+``mcuhome`` command line's, where a human types ``--server`` and expects
+their shell's configuration to be found. A dashboard is configured by
+whoever deploys it — App options, ``docker run`` environment, flags —
+and a second, invisible ladder underneath those would mean an App whose
+build server depends on a file in the home directory of whichever user
+the container happens to run as.
+
+**Which build method runs is configuration, not code** (ADR 0013
+decision 1). :attr:`Config.build_method` is passed to
+:func:`mcuhome.workbench.api.run_build` and nothing here interprets it;
+``None`` means "no preference" and takes the builder's own default. A
+method this installation cannot run refuses in the builder's own words,
+which is a better answer than a shorter list of choices here.
 """
 
 from __future__ import annotations
@@ -42,6 +60,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 __all__ = [
+    "DEFAULT_BUILD_JOBS",
     "DEFAULT_HOST",
     "DEFAULT_PAIR_FILE",
     "DEFAULT_POLL_INTERVAL",
@@ -55,6 +74,7 @@ __all__ = [
     "load_config",
     "resolve_build_server_token",
     "resolve_password",
+    "split_paths",
     "ws_url",
 ]
 
@@ -80,6 +100,24 @@ DEFAULT_POLL_INTERVAL = 2.0
 #: Shipped with the wheel. The Vite build of the frontend (ADR 0005)
 #: writes its output here; until Block 3 it holds a placeholder shell.
 DEFAULT_STATIC_ROOT = Path(__file__).resolve().parent / "static"
+
+#: Parallel compile jobs a build is given. Every core, because a build is
+#: the only heavy thing this process ever starts and it starts one at a
+#: time (ADR 0013 decision 3). A machine that cannot afford that — a
+#: Home Assistant box with 2 GB of RAM meeting a Matter build — turns it
+#: down with ``--build-jobs``; nothing here can measure memory pressure
+#: honestly, so nothing here pretends to.
+DEFAULT_BUILD_JOBS = os.cpu_count() or 1
+
+
+def split_paths(raw: str) -> tuple[Path, ...]:
+    """A ``PATH``-style list of directories, order kept, duplicates dropped."""
+    seen: dict[str, None] = {}
+    for part in raw.split(os.pathsep):
+        cleaned = part.strip()
+        if cleaned:
+            seen.setdefault(cleaned, None)
+    return tuple(Path(item).expanduser() for item in seen)
 
 
 def default_data_dir(env: Mapping[str, str] | None = None) -> Path:
@@ -154,19 +192,38 @@ class Config:
     #: this; a standalone deployment never does.
     ingress_port: int | None = None
 
-    # --- the build server (ADR 0003, ADR 0006 transport, ADR 0012) ---
+    # --- building (ADR 0003, ADR 0006 transport, ADR 0012, ADR 0013) ---
     #: Where a build server is and how to authenticate to it. ``None``
-    #: means none is configured. **Nothing reads these yet**: the
-    #: job-protocol client that did was removed with ADR 0012 decision 3
-    #: and the session client has not been written, so a configured URL
-    #: and token buy a user nothing today. They are resolved anyway
-    #: because the transport they describe is carried forward unchanged
-    #: and because dropping the auto-pairing would silently un-pair
-    #: every existing installation.
+    #: means none is configured, which is not an error: only the
+    #: ``remote`` method needs them, and it says so itself when they are
+    #: missing. They become
+    #: :attr:`mcuhome.workbench.api.BuildRequest.server` and ``.token``
+    #: (ADR 0013 decision 2) — this is the dashboard's own surface, and
+    #: the ``mcuhome`` command line's ``build-servers.toml`` is not read.
     build_server_url: str | None = None
     build_server_token: str | None = None
-    #: ADR 0008: the App's private volume. Holds the signing key and,
-    #: once something fetches artifacts again, those.
+
+    #: Which build method runs (ADR 0013 decision 1). ``None`` expresses
+    #: no preference and takes the builder's own default. Not validated
+    #: here: :func:`mcuhome.workbench.api.resolve_method` owns the list of
+    #: real names and its refusal names all of them, so a typo is
+    #: answered by the package that knows rather than by a copy of the
+    #: list that can go stale.
+    build_method: str | None = None
+
+    #: Parallel compile jobs handed to a build.
+    build_jobs: int = DEFAULT_BUILD_JOBS
+
+    #: Directories holding the hash-pinned MCUHome SDK package (firmware
+    #: ADR 0018). Both container-shaped methods read them and for the same
+    #: reason (firmware E65): the package's hash is an input of the build
+    #: context's identity, so the pin is resolved on *this* machine
+    #: whether a container here or a build server elsewhere fetches the
+    #: bytes afterwards.
+    sdk_sources: tuple[Path, ...] = ()
+
+    #: ADR 0008: the App's private volume. Holds the signing key and the
+    #: artifacts of every build this dashboard ran.
     data_dir: Path = field(default_factory=default_data_dir)
 
     # --- HTTP surface ---
@@ -186,21 +243,36 @@ class Config:
 
     @property
     def artifact_root(self) -> Path:
-        """Where artifacts fetched from a build server are kept.
+        """Where the artifacts of a build are kept: ``<device>/<build id>``.
 
         Under ``/data`` and therefore inside the App's backup volume —
         but ADR 0008 decision 5 excludes it from the backup set, because
         artifacts are large, reproducible and worthless in a restore.
 
-        Nothing creates or reads this directory at the moment; the
-        layout decision is ADR 0008's and stands, the code that filled
-        it was the job protocol's and does not.
+        One directory per **build**, under the device's own, because a
+        build record is addressed by build id and what it says about its
+        artifacts has to be true of the files behind that id — sharing
+        one directory per device made a cancelled build's URLs serve its
+        predecessor's signed firmware, and made two builds of one device
+        write into the same build context. Retention is what keeps the
+        promise the per-device layout was after: a successful build
+        removes the older directories of that device, so what is on disk
+        is still the current image and not a dated pile (ADR 0013
+        decision 5).
         """
         return self.data_dir / "builds"
 
     @property
     def build_server_configured(self) -> bool:
-        return bool(self.build_server_url and self.build_server_token)
+        """Whether a build server address is set. The token may be absent.
+
+        A token is not part of being configured: firmware ADR 0019 lets a
+        build server want no ``Authorization`` header at all, and
+        :class:`…api.BuildRequest` permits ``None`` for exactly that. An
+        address, on the other hand, is never invented — there is no
+        discovery and no default (E53).
+        """
+        return bool(self.build_server_url)
 
     def site_summary(self) -> str:
         parts = []
@@ -337,16 +409,45 @@ def build_parser() -> argparse.ArgumentParser:
         "command line is visible to every process on the machine",
     )
     parser.add_argument(
+        "--build-method",
+        metavar="METHOD",
+        help=(
+            "where firmware is compiled: local (a build container on this machine), "
+            "remote (a build server, needs --build-server-url) or local-dev (this "
+            "machine's own west workspace). Default: whatever the installed mcuhome "
+            "package defaults to. A method this installation cannot run — no "
+            "container runtime, no toolchain installed — refuses with the exact "
+            "install it is missing"
+        ),
+    )
+    parser.add_argument(
+        "--build-jobs",
+        type=int,
+        metavar="N",
+        help=f"parallel compile jobs per build (default {DEFAULT_BUILD_JOBS}: this machine's)",
+    )
+    parser.add_argument(
+        "--sdk-source",
+        action="append",
+        type=Path,
+        metavar="PATH",
+        dest="sdk_sources",
+        help=(
+            "directory holding the MCUHome SDK package (repeatable). The build "
+            "context pins the package by version and hash, and that pin is resolved "
+            "here — needed by the local and remote methods alike"
+        ),
+    )
+    parser.add_argument(
         "--build-server-url",
         metavar="URL",
         help=(
-            "address of the build server that will compile firmware for this dashboard "
-            f"(for example {DEFAULT_BUILD_SERVER_URL}); the dashboard never compiles "
-            "anything itself. A build server learns the Matter commissioning passcode "
-            "of every device it builds, because those credentials are compiled into "
-            "the firmware — operate it as a trusted machine. NOT USED YET: this "
-            "release has no build client at all, so setting this changes nothing "
-            "until the session client of ADR 0012 lands"
+            "address of the build server that compiles firmware for this dashboard "
+            f"(for example {DEFAULT_BUILD_SERVER_URL}), used by --build-method remote. "
+            "A build server learns the Matter commissioning passcode of every device "
+            "it builds, because those credentials are compiled into the firmware — "
+            "operate it as a trusted machine. The firmware signing key is never sent "
+            "to it: the dashboard signs afterwards, where the key is"
         ),
     )
     parser.add_argument(
@@ -372,8 +473,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="PATH",
         help=(
-            "private state directory: the firmware signing key and downloaded build "
-            "artifacts (default /data inside a Home Assistant App)"
+            "private state directory: the firmware signing key and the artifacts of "
+            "every build (default /data inside a Home Assistant App)"
         ),
     )
     parser.add_argument(
@@ -448,6 +549,14 @@ def load_config(
         # should have to know (ADR 0006 decision 8).
         build_url = DEFAULT_BUILD_SERVER_URL
 
+    sdk_sources: list[Path] = [path.expanduser() for path in (args.sdk_sources or ())]
+    if env.get(ENV_PREFIX + "SDK_SOURCE"):
+        sdk_sources += split_paths(env[ENV_PREFIX + "SDK_SOURCE"])
+
+    build_jobs = args.build_jobs or _env_int(env, "BUILD_JOBS") or DEFAULT_BUILD_JOBS
+    if build_jobs < 1:
+        raise SystemExit(f"--build-jobs must be at least 1, not {build_jobs}.")
+
     config = Config(
         config_root=root.expanduser().resolve() if root is not None else None,
         host=args.host or env.get(ENV_PREFIX + "HOST") or DEFAULT_HOST,
@@ -456,6 +565,9 @@ def load_config(
         ingress_port=args.ingress_port or _env_int(env, "INGRESS_PORT"),
         build_server_url=build_url or None,
         build_server_token=build_token,
+        build_method=(args.build_method or env.get(ENV_PREFIX + "BUILD_METHOD") or None),
+        build_jobs=build_jobs,
+        sdk_sources=tuple(dict.fromkeys(sdk_sources)),
         data_dir=(data_dir.expanduser() if data_dir is not None else default_data_dir(env)),
         static_root=static_root or DEFAULT_STATIC_ROOT,
         allowed_origins=tuple(dict.fromkeys(origins)),

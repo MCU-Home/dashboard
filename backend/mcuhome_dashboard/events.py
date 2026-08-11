@@ -10,15 +10,18 @@ objects and nothing more; making it a message broker would be inventing
 a distributed system for a single-container app.
 
 The bus itself is protocol-independent and survived the teardown of the
-job protocol untouched (ADR 0012 decision 3). What went with that
-protocol is the ``builds`` topic and its two event constructors; the
-session protocol's typed progress events will register their own topic
-here when the session client lands. One property of those two has to be
-rebuilt rather than rediscovered: log events carried the byte offset
-they started at, because *this* bus drops the oldest events for a
-subscriber that fell behind, and build output is exactly the traffic
-that makes one fall behind. A progress stream without a resumable
-position shows a log with a hole in it and no way to notice.
+job protocol untouched (ADR 0012 decision 3). The ``builds`` topic went
+with that protocol and is back with ADR 0013, over
+:func:`mcuhome.workbench.api.run_build` instead of a job queue — and the
+one property of the old pair that had to be **rebuilt rather than
+rediscovered** came back with it: a log event carries the offset it
+starts at, because *this* bus drops the oldest events for a subscriber
+that fell behind, and build output is exactly the traffic that makes one
+fall behind. A progress stream without a resumable position shows a log
+with a hole in it and no way to notice. The offsets are line numbers now
+rather than byte positions (:mod:`mcuhome_dashboard.builds` streams
+lines, not a byte range), which is the same promise in the unit the
+producer actually has: monotonic, per build, and never reused.
 
 **Bounded queues, on purpose.** A subscriber that stops reading (a
 browser tab that froze, a suspended laptop) must not grow the server's
@@ -40,10 +43,14 @@ from types import TracebackType
 from typing import Any
 
 __all__ = [
+    "TOPIC_BUILDS",
     "TOPIC_DEVICES",
     "Event",
     "EventBus",
     "Subscription",
+    "build_changed",
+    "build_output",
+    "build_started",
     "device_added",
     "device_changed",
     "device_removed",
@@ -55,6 +62,9 @@ logger = logging.getLogger(__name__)
 #: Changes to the configuration tree: devices appearing, disappearing or
 #: being edited, and the tree itself becoming (un)available.
 TOPIC_DEVICES = "devices"
+
+#: Builds starting, progressing and ending, and their output (ADR 0013).
+TOPIC_BUILDS = "builds"
 
 #: How many events a subscriber may fall behind before the oldest are
 #: dropped. Generous for a UI, small enough to be a bound.
@@ -90,6 +100,35 @@ def device_removed(name: str) -> Event:
 
 def tree_state(root: str | None, *, available: bool) -> Event:
     return Event(TOPIC_DEVICES, "tree_state", {"root": root, "available": available})
+
+
+def build_started(build: dict[str, Any]) -> Event:
+    return Event(TOPIC_BUILDS, "build_started", {"build": build})
+
+
+def build_changed(build: dict[str, Any]) -> Event:
+    return Event(TOPIC_BUILDS, "build_changed", {"build": build})
+
+
+def build_output(build_id: str, *, offset: int, lines: list[str]) -> Event:
+    """A batch of build log lines, and the offset the batch starts at.
+
+    ``offset`` is the line number of ``lines[0]`` in this build's log,
+    counted from zero and never reused. It is what makes the hole this
+    bus is allowed to punch (see the module docstring) *noticeable and
+    fillable*: a client that receives ``events_dropped``, or whose next
+    batch does not start where the last one ended, asks ``build/log``
+    for everything from the offset it has and is whole again.
+
+    Lines are batched rather than sent one per event because a Zephyr
+    build prints thousands of them and :data:`QUEUE_LIMIT` is 256. One
+    event per line would guarantee the drop it is the client's job to
+    recover from; batching makes it rare and the offset makes it
+    survivable either way.
+    """
+    return Event(
+        TOPIC_BUILDS, "build_output", {"build_id": build_id, "offset": offset, "lines": lines}
+    )
 
 
 class Subscription:

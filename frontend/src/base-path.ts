@@ -47,6 +47,28 @@ export function httpUrl(path: string, win: Window = window): string {
 }
 
 /**
+ * The download URL of one build artifact, relative on purpose.
+ *
+ * `<a download href>` is resolved by the browser against the `<base>`
+ * element the backend injects, so a *relative* URL is already correct
+ * under ingress, behind a reverse-proxy sub-path and at a bare root
+ * without this module having to know which — the one case where the
+ * document does the work {@link httpUrl} exists to do by hand.
+ *
+ * Both segments are user-supplied (a build id, a path the build
+ * declared) and are encoded per path segment, so a name with a space or
+ * a `#` in it addresses the file rather than a fragment.
+ */
+export function artifactUrl(buildId: string, artifactPath: string): string {
+  const tail = artifactPath
+    .split('/')
+    .filter((segment) => segment !== '')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  return `api/builds/${encodeURIComponent(buildId)}/artifacts/${tail}`;
+}
+
+/**
  * The `/ws` URL, absolute, because a WebSocket needs one.
  *
  * The scheme follows the page: a dashboard behind a TLS-terminating

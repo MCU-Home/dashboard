@@ -15,15 +15,19 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import '../src/components/mh-build-panel';
 import '../src/components/mh-commissioning';
 import '../src/components/mh-device-list';
 import '../src/components/mh-diagnostics';
 import '../src/components/mh-validity-badge';
+import type { MhBuildPanel } from '../src/components/mh-build-panel';
 import type { MhCommissioning } from '../src/components/mh-commissioning';
 import type { MhDeviceList } from '../src/components/mh-device-list';
 import type { MhDiagnostics } from '../src/components/mh-diagnostics';
 import type { MhValidityBadge } from '../src/components/mh-validity-badge';
-import type { DeviceEntry } from '../src/api/types';
+import type { BuildRecord, DeviceEntry } from '../src/api/types';
+import { WsClient } from '../src/api/client';
+import { flush, socketRecorder } from './helpers';
 
 async function mount<T extends HTMLElement>(tag: string, apply: (element: T) => void): Promise<T> {
   const element = document.createElement(tag) as T;
@@ -251,5 +255,197 @@ describe('mh-diagnostics', () => {
       node.diagnostics = [];
     });
     expect(text(element)).toContain('No problems found');
+  });
+});
+
+describe('mh-build-panel', () => {
+  const record = (overrides: Partial<BuildRecord> = {}): BuildRecord => ({
+    id: 'b1',
+    device: 'bench-node',
+    method: 'local',
+    state: 'succeeded',
+    started: 1000,
+    finished: 1075,
+    context_id: 'ctx',
+    image: 'builder:r6',
+    status: 'success',
+    errors: [],
+    artifacts: [],
+    signing: null,
+    ota: null,
+    log_first_offset: 0,
+    log_next_offset: 0,
+    ...overrides,
+  });
+
+  it('offers a build and nothing else for a device never built', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.defaultMethod = 'local';
+    });
+
+    expect(text(element)).toContain('has not been built');
+    expect(text(element)).toContain('local');
+    expect(element.shadowRoot?.querySelector('.log')).toBeNull();
+  });
+
+  it('shows the state, the method and how long it took', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.record = record();
+    });
+
+    expect(text(element)).toContain('Succeeded');
+    expect(text(element)).toContain('Method: local');
+    expect(text(element)).toContain('1 min 15 s');
+  });
+
+  it('refuses to start a second build while one of this device runs', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.record = record({ state: 'running', finished: null });
+    });
+
+    expect(element.active).toBe(true);
+    const buttons = [...(element.shadowRoot?.querySelectorAll('wa-button') ?? [])];
+    const start = buttons.at(-1);
+    expect(start?.hasAttribute('disabled')).toBe(true);
+    // …and offers to stop the one that is running instead.
+    expect(text(element)).toContain('Cancel build');
+  });
+
+  it('renders the output as one monospace block', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.record = record({ state: 'running', finished: null });
+      node.lines = ['-- west build --', 'Memory region  Used Size'];
+    });
+
+    expect(element.shadowRoot?.querySelector('.log pre')?.textContent).toBe(
+      '-- west build --\nMemory region  Used Size',
+    );
+  });
+
+  it('says when the beginning of the output is gone', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.record = record();
+      node.lines = ['…'];
+      node.truncated = true;
+    });
+
+    expect(text(element)).toContain('earlier output was discarded');
+  });
+
+  it('renders a failed build on the diagnostics component, not a second one', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.record = record({
+        state: 'failed',
+        status: 'failure',
+        errors: [
+          {
+            message: 'This board does not exist.',
+            file: 'devices/bench-node/main.yaml',
+            line: 3,
+            column: 1,
+            key: 'device.board',
+            hint: 'Run `mcuhome boards`.',
+            kind: 'ConfigError',
+          },
+        ],
+      });
+    });
+
+    const diagnostics = element.shadowRoot?.querySelector('mh-diagnostics') as MhDiagnostics | null;
+    await diagnostics?.updateComplete;
+    expect(text(diagnostics!)).toContain('This board does not exist.');
+  });
+
+  it('links each artifact relative, so the injected base resolves it', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.record = record({
+        artifacts: [
+          { role: 'firmware', path: 'zephyr.bin', size: 812_345, signed: false },
+          { role: 'firmware-signed', path: 'zephyr.signed.bin', size: 812_600, signed: true },
+        ],
+      });
+    });
+
+    const links = [...(element.shadowRoot?.querySelectorAll('a') ?? [])];
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      'api/builds/b1/artifacts/zephyr.bin',
+      'api/builds/b1/artifacts/zephyr.signed.bin',
+    ]);
+    expect(links[0]?.hasAttribute('download')).toBe(true);
+    expect(text(element)).toContain('793.3 KiB');
+    expect(text(element)).toContain('signed');
+  });
+
+  it('warns that a freshly created signing key has to be backed up', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.record = record({
+        signing: { signed: true, created_key: true, outputs: ['zephyr.signed.bin'] },
+      });
+    });
+
+    expect(text(element)).toContain('A firmware signing key was created');
+    expect(text(element)).toContain('Back it up');
+  });
+
+  it('says why a start was refused, in the words the holder deserves', async () => {
+    // The one build slot belongs to the *work*, not to the record: a
+    // cancel stops the dashboard waiting, not the container it started
+    // (ADR 0013 decisions 3 and 7). So a refusal can name a build that
+    // already reads `cancelled`, and calling that "already running"
+    // would contradict the state the same answer carries.
+    const recorder = socketRecorder();
+    const client = new WsClient({
+      url: () => 'ws://test/ws',
+      socketFactory: recorder.factory,
+      probe: () => Promise.resolve(false),
+    });
+    client.connect();
+    recorder.sockets[0]!.open();
+
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.client = client;
+    });
+
+    const start = [...(element.shadowRoot?.querySelectorAll('wa-button') ?? [])].at(-1);
+    start?.dispatchEvent(new Event('click'));
+    await flush();
+
+    const socket = recorder.sockets[0]!;
+    const command = socket.commands.at(-1);
+    expect(command?.type).toBe('build/start');
+    socket.receive({
+      id: command!.id,
+      type: 'error',
+      error: {
+        code: 'conflict',
+        message: 'The build of "kitchen" was cancelled, but the work it started has not ended.',
+        build: record({ id: 'b0', device: 'kitchen', state: 'cancelled' }),
+      },
+    });
+    await flush();
+    await element.updateComplete;
+
+    expect(text(element)).toContain('was cancelled');
+    expect(text(element)).not.toContain('is already running');
+  });
+
+  it('names the OTA image when the device can take one', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.record = record({
+        ota: { path: 'bench-node-1.0.0.ota', version: '1.0.0', software_version: 1 },
+      });
+    });
+
+    expect(text(element)).toContain('Matter OTA image for version 1.0.0');
   });
 });

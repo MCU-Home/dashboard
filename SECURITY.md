@@ -31,5 +31,16 @@ Particularly relevant attack surfaces for this project:
 the build server and holds the firmware signing key.** Treat access to
 the dashboard, and to any build server it is paired with, accordingly.
 
+Since ADR 0013 a session can also **start a build**, which on the
+default build method means starting a container on the dashboard's own
+host. That is not a new trust boundary — it is the boundary ADR 0009
+already draws around `/ws` — but it is a sharper consequence of crossing
+it, and it is one more reason the artifact endpoint requires an identity
+by the same rule as `/ws`: the files behind it are firmware signed with
+that installation's key. That endpoint serves **only the artifacts a
+build record declares**, never the build directory: a build method
+leaves its build context there, and that context holds the resolved
+device model with its commissioning credentials in it.
+
 Firmware and builder vulnerabilities belong to
 [mcu-home/mcuhome](https://github.com/mcu-home/mcuhome/security).

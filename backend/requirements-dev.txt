@@ -6,9 +6,10 @@
 #     python3 -m venv .venv && . .venv/bin/activate
 #     pip install -r requirements-dev.txt
 #
-# The `mcuhome` builder package is imported in-process (ADR 0011) but is
-# not published yet, so it is installed from the sibling checkout of the
-# west workspace:
+# `mcuhome-workbench` (with `mcuhome-model` under it) is imported
+# in-process (ADR 0011) but is not published yet, so it is installed
+# from the sibling checkout of the west workspace. The bare `mcuhome` is
+# the command line's distribution and is deliberately not installed:
 #
 #     <workspace>/mcuhome/            the builder (this line)
 #     <workspace>/dashboard/backend/  this package

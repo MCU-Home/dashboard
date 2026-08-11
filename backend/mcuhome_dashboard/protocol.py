@@ -155,6 +155,29 @@ class Command:
             )
         return value
 
+    def optional_int(self, key: str, *, minimum: int = 0) -> int | None:
+        """Fetch an optional integer field, or refuse the command.
+
+        ``bool`` is rejected even though Python calls it an ``int``: a
+        client that sent ``true`` for a log offset made a mistake, and
+        silently reading it as 1 turns that mistake into a log that
+        starts in the wrong place.
+        """
+        value = self.payload.get(key)
+        if value is None:
+            return None
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ProtocolError(
+                f'"{self.type}" wants "{key}" as a whole number.',
+                frame_id=self.id,
+            )
+        if value < minimum:
+            raise ProtocolError(
+                f'"{self.type}" wants "{key}" to be {minimum} or more, not {value}.',
+                frame_id=self.id,
+            )
+        return value
+
     def optional_dict(self, key: str) -> dict[str, Any]:
         """Fetch an optional object field, or refuse the command.
 

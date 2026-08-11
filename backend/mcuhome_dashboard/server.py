@@ -31,7 +31,7 @@ from aiohttp import web
 
 from mcuhome_dashboard import versions
 from mcuhome_dashboard.app import AppState, create_app
-from mcuhome_dashboard.builder import MCUHOME_VERSION
+from mcuhome_dashboard.builder import DEFAULT_BUILD_METHOD, MCUHOME_VERSION
 from mcuhome_dashboard.config import Config, http_url, load_config
 from mcuhome_dashboard.security import TrustMode
 
@@ -84,24 +84,25 @@ def _announce(config: Config) -> None:
     )
     logger.info("configuration tree: %s", config.config_root or "not configured")
     logger.info("sites: %s", config.site_summary())
-    # Said at startup rather than at the first build attempt, because
-    # there is no build attempt to say it at any more: the job-protocol
-    # client was removed with ADR 0012 decision 3 and the session client
-    # of firmware ADR 0019 has not been written. An operator who has
-    # configured a build server would otherwise wait for a build button
-    # that does not exist.
-    logger.warning(
-        "This dashboard cannot build firmware. The build-server client was removed "
-        "with the job protocol (ADR 0012 decision 3) and its replacement, the "
-        "session-protocol client, does not exist yet — so there are no build "
-        "commands on /ws, no build events and no artifact downloads. Editing, "
-        "validating and commissioning are unaffected."
+    # Where a build will go, said once at startup rather than at the
+    # first build. Which method runs is deployment configuration (ADR
+    # 0013 decision 1), and an operator who set one — or who set none and
+    # gets the package's default — should learn it from the log rather
+    # than from a build that took an unexpected path.
+    logger.info(
+        "builds: method %s%s",
+        config.build_method or f"{DEFAULT_BUILD_METHOD} (the builder's default)",
+        (
+            f", build server {http_url(config.build_server_url or '')}"
+            if config.build_server_configured
+            else ", no build server configured"
+        ),
     )
-    if config.build_server_configured:
+    if config.build_method == "remote" and not config.build_server_configured:
         logger.warning(
-            "A build server is configured (%s) but nothing in this release connects "
-            "to it. The address and token are kept so the session client finds them.",
-            http_url(config.build_server_url or ""),
+            "The remote build method is configured but no build server address is. "
+            "There is no discovery and no default, so every build will refuse until "
+            "MCUHOME_DASHBOARD_BUILD_SERVER_URL (or --build-server-url) is set."
         )
     if config.password_generated:
         # The code-server pattern (ADR 0009 decision 2). Printed once,

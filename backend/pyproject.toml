@@ -23,10 +23,12 @@ classifiers = [
 
 dependencies = ["aiohttp>=3.10,<4"]
 
-# The `mcuhome` builder package is a real runtime dependency (ADR 0011
-# decision 1: it is imported in-process, never spawned). It is NOT
-# declared here yet, because it is not published: pip would resolve the
-# name against PyPI and fail. Until then:
+# `mcuhome-workbench` — the builder distribution this package imports,
+# never the bare `mcuhome`, which is the command line's since firmware
+# ADR 0020 decision 2 — is a real runtime dependency (ADR 0011 decision
+# 1: it is imported in-process, never spawned). It is NOT declared here
+# yet, because it is not published: pip would resolve the name against
+# PyPI and fail. Until then:
 #
 #   * the supported range lives in `mcuhome_dashboard/versions.py` as
 #     MCUHOME_VERSION_SPEC, and the server refuses to start outside it,

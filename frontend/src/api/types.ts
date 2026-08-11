@@ -106,6 +106,88 @@ export interface CommissioningCodes {
   test_credentials: boolean;
 }
 
+/**
+ * Every state a build passes through, as `builds.py` names them.
+ *
+ * `queued` lasts microseconds and exists so a client never holds a build
+ * it started in no state at all. The three that end it — `succeeded`,
+ * `failed`, `cancelled` — are the only ones for which `finished` is set.
+ */
+export type BuildState = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+
+/** One downloadable file a build left behind. */
+export interface BuildArtifact {
+  /** `firmware`, `firmware-signed`, `ota`, … — what the file is for. */
+  role: string;
+  /**
+   * Relative to the build directory, and never a server path — it is the
+   * tail of the artifact URL, which is the only reason a client sees it.
+   */
+  path: string;
+  size: number;
+  /** True for what *this dashboard* signed (ADR 0008), not the builder. */
+  signed: boolean;
+}
+
+/**
+ * What the host-side signing step did, without saying where the key is.
+ *
+ * `created_key` is the field that has to reach a human: ADR 0008 gives a
+ * deployment exactly one signing key, and every device bootstrapped
+ * against it is orphaned if it is lost. A key that was just generated is
+ * a key nobody has backed up yet.
+ */
+export interface BuildSigning {
+  signed: boolean;
+  created_key: boolean;
+  outputs: string[];
+}
+
+/** The Matter OTA image, for the boards and stacks that can take one. */
+export interface BuildOta {
+  path: string;
+  version: string;
+  software_version: number;
+}
+
+/**
+ * One build, from the moment it was accepted to whatever ended it.
+ *
+ * `errors` is the *same* `Diagnostic` shape `device/validate` answers
+ * with, on purpose: a build refusal renders on the same component as a
+ * configuration problem, hint and all, instead of on a second renderer
+ * that would drift from the first.
+ *
+ * The two log offsets are what makes the output stream resumable. They
+ * are line numbers from the start of this build, monotonic and never
+ * reused; `log_first_offset` moves forward as the backend drops old
+ * lines, so a client that asks for something below it is told
+ * (`truncated`) rather than silently served a log beginning in the
+ * middle.
+ */
+export interface BuildRecord {
+  id: string;
+  device: string;
+  /** Which build method ran — deployment configuration (ADR 0013). */
+  method: string;
+  state: Open<BuildState>;
+  /** Epoch seconds, as Python's `time.time()` produces them. */
+  started: number;
+  finished: number | null;
+  /** The identity the work was attributed to; empty for methods without one. */
+  context_id: string;
+  /** The build-container reference, where one was used. */
+  image: string;
+  /** The method's own word for the result — `success`/`failure`. */
+  status: string;
+  errors: Diagnostic[];
+  artifacts: BuildArtifact[];
+  signing: BuildSigning | null;
+  ota: BuildOta | null;
+  log_first_offset: number;
+  log_next_offset: number;
+}
+
 export interface Identity {
   kind: Open<'ingress' | 'password' | 'open'>;
   user_id: string | null;
@@ -115,6 +197,21 @@ export interface Identity {
 export interface ServerInfo {
   dashboard: { name: string; version: string; uptime_seconds: number };
   builder: { package: string; version: string; supported: string };
+  /**
+   * How this deployment builds (ADR 0013 decision 1).
+   *
+   * `method` is what this deployment configured and `null` when it
+   * configured nothing, in which case `default_method` is what runs — so
+   * a view that wants to name the method before a build exists reads
+   * `method ?? default_method` rather than assuming either.
+   */
+  build: {
+    method: string | null;
+    default_method: string;
+    methods: string[];
+    server_configured: boolean;
+    jobs: number;
+  };
   model_version: { sends: number; min: number; max: number };
   deployment: { trust: Open<'ingress' | 'public'>; base_path: string };
   identity: Identity | null;
@@ -156,4 +253,46 @@ export interface DeviceCommissioningResult {
 
 export interface SubscribeResult extends DeviceListResult {
   topic: string;
+}
+
+/**
+ * The answer of every command that speaks about exactly one build —
+ * `build/start`, `build/cancel`, and `build/status` with an id.
+ *
+ * A build that ran and *failed* answers here like any other: the refusal
+ * is the record's `state` and its `errors`. An error frame from
+ * `build/start` means the build could not be **started**, which is a
+ * different thing and needs a different message.
+ */
+export interface BuildStartResult {
+  build: BuildRecord;
+}
+
+/** Every build this backend process knows, oldest first. */
+export interface BuildStatusResult {
+  builds: BuildRecord[];
+  /** The build holding the one slot — one build at a time (ADR 0013). */
+  running: string | null;
+}
+
+export interface BuildSubscribeResult extends BuildStatusResult {
+  topic: string;
+}
+
+/**
+ * A window onto one build's output, and the offsets around it.
+ *
+ * `offset` is where the answer actually starts, which is not always what
+ * was asked for: the retained log is bounded, and a request for
+ * something already discarded comes back from the oldest line still held
+ * with `truncated: true`.
+ */
+export interface BuildLogResult {
+  build_id: string;
+  offset: number;
+  lines: string[];
+  next_offset: number;
+  first_offset: number;
+  truncated: boolean;
+  state: Open<BuildState>;
 }

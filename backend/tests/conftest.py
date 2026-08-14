@@ -76,8 +76,13 @@ def write_device(root: Path, name: str, config: str) -> Path:
 
 
 def make_tree(root: Path, devices: dict[str, str] | None = None) -> Path:
-    """Build a configuration tree at *root*."""
+    """Build a project directory at *root*."""
     (root / "devices").mkdir(parents=True, exist_ok=True)
+    # Mark the root as a project (ADR 0022)
+    (root / ".mcuhome-project-root").write_text(
+        "# This file marks the root of an MCUHome project (ADR 0022).\n"
+        "# Its presence is its meaning; configuration lives in mcuhome.yaml.\n"
+    )
     for name, config in (devices or {}).items():
         write_device(root, name, config)
     return root

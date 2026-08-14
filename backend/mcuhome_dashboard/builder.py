@@ -68,12 +68,13 @@ from mcuhome.workbench.api import (
     METHODS,
     BuildOutcome,
     BuildRequest,
-    ConfigTree,
     DeviceModel,
     MCUHomeError,
+    Project,
     error_dicts,
-    is_config_root,
+    is_project_root,
     resolve_method,
+    resolve_project,
     run_build,
 )
 from mcuhome.workbench.loader import load_yaml_file
@@ -86,17 +87,18 @@ __all__ = [
     "MCUHOME_VERSION",
     "BuildOutcome",
     "BuildRequest",
-    "ConfigTree",
     "DeviceModel",
     "MCUHomeError",
+    "Project",
     "commissioning_codes",
     "device_summary",
     "errors_from_exception",
-    "is_config_root",
+    "is_project_root",
     "load_model",
     "open_config_tree",
     "raw_summary",
     "resolve_method",
+    "resolve_project",
     "run_build",
     "write_ota_image",
 ]
@@ -127,9 +129,9 @@ MCUHOME_VERSION = api.VERSION
 _PLAIN_TYPES = (str, int, float, bool)
 
 
-def open_config_tree(root: Path) -> ConfigTree:
-    """Open *root* as a configuration tree, or raise ``ConfigError``."""
-    return api.open_config_tree(root, cwd=root)
+def open_config_tree(root: Path) -> Project:
+    """Open *root* as a project, or raise ``ConfigError``."""
+    return resolve_project(explicit=root, env={}, cwd=root)
 
 
 def errors_from_exception(exc: MCUHomeError, *, root: Path | None = None) -> list[dict[str, Any]]:
@@ -146,13 +148,13 @@ def errors_from_exception(exc: MCUHomeError, *, root: Path | None = None) -> lis
     return error_dicts(exc, root=root)
 
 
-def load_model(entry: Path, *, tree: ConfigTree) -> DeviceModel:
+def load_model(entry: Path, *, tree: Project) -> DeviceModel:
     """Run the builder's stages 1-3 on one device configuration.
 
     Blocking and CPU-bound-ish (YAML parsing); call it in an executor,
     never on the event loop (ADR 0004).
     """
-    return api.load_model(entry, tree=tree)
+    return api.load_model(entry, project=tree)
 
 
 def device_summary(model: DeviceModel) -> dict[str, Any]:

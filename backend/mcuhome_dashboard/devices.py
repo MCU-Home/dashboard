@@ -200,12 +200,12 @@ class DeviceStore:
     def _scan_stamps(self) -> tuple[bool, dict[str, _Scan]]:
         """The cheap half: which device folders exist, and their stamps."""
         root = self._root
-        if root is None or not root.is_dir() or not builder.is_config_root(root):
+        if root is None or not root.is_dir() or not builder.is_project_root(root):
             return False, {}
 
         devices_dir = root / builder.DEVICES_DIR
         if not devices_dir.is_dir():
-            # A tree marked by mcuhome.yaml alone is a valid, empty tree.
+            # A project root with no devices/ is a valid, empty project.
             return True, {}
 
         scans: dict[str, _Scan] = {}

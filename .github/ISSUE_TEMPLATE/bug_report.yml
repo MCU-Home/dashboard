@@ -8,8 +8,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting! Firmware/builder problems belong in the
-        [firmware repo](https://github.com/mcu-home/mcuhome/issues) —
+        Thanks for reporting! Firmware and device problems belong in the
+        [SDK repo](https://github.com/mcu-home/mcuhome-sdk/issues), YAML
+        config and build-pipeline problems in the
+        [workbench repo](https://github.com/mcu-home/mcuhome/issues) —
         this tracker is for the web interface only.
   - type: input
     id: version

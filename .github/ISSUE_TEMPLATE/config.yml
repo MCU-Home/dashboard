@@ -6,9 +6,12 @@ contact_links:
   - name: Questions & ideas
     url: https://github.com/mcu-home/dashboard/discussions
     about: Ask questions and discuss feature ideas in GitHub Discussions before filing an issue.
-  - name: Firmware / builder issues
+  - name: Firmware / device issues
+    url: https://github.com/mcu-home/mcuhome-sdk/issues
+    about: Problems with firmware or devices belong in the SDK repository.
+  - name: YAML config / build issues
     url: https://github.com/mcu-home/mcuhome/issues
-    about: Problems with firmware builds, YAML configs or devices belong in the firmware repository.
+    about: Problems with YAML configs or the build pipeline belong in the workbench repository.
   # TODO(publish): enable private vulnerability reporting in the repo
   # settings, otherwise this link 404s for reporters.
   - name: Security vulnerabilities

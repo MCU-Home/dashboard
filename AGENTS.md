@@ -10,6 +10,15 @@ standalone product to create, build, flash and manage Zephyr-based smart
 home devices. Distribution targets: **Home Assistant App** (packaged in a
 separate future packaging repo), Docker image, plain Python app.
 
+> **FROZEN (product-owner decision, 2026-08-14).** This repository is
+> deliberately not being kept in step with the workbench while the CLI
+> phase reshapes `mcuhome.workbench` and its API. Red tests or CI here
+> are expected and accepted; do not fix them along the way. Once the
+> CLI stands, the dashboard is rebuilt against the settled
+> workbench/API in a dedicated pass of its own (adopting the ADR 0022
+> project/configuration model in the process). The last synchronized
+> state is the commit that introduced this note.
+
 **Current phase: pre-alpha.** ADRs 0003–0011 fix the backend and
 frontend stacks, state layout, auth, flash flow and the builder
 coupling. **ADR 0012 supersedes the build-service protocol of ADR 0006**

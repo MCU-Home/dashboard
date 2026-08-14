@@ -1,10 +1,9 @@
 # SPDX-FileCopyrightText: 2026 The MCUHome Contributors
 # SPDX-License-Identifier: Apache-2.0
 #
-# The npm ecosystem entry is added together with the frontend framework
-# decision (docs/adr/0002), and the github-actions entry together with the
-# first CI workflow — dependabot errors on directories without manifest
-# files. Pin all actions to full commit SHAs when that happens.
+# The github-actions entry is added together with the first CI workflow —
+# dependabot errors on directories without manifest files. Pin all
+# actions to full commit SHAs when that happens.
 
 version: 2
 updates:
@@ -14,4 +13,11 @@ updates:
       interval: weekly
     groups:
       python-deps:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      frontend-deps:
         patterns: ["*"]

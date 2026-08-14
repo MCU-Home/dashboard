@@ -18,7 +18,10 @@ decision 3** — the dashboard does not speak the session protocol at all,
 it calls `mcuhome.workbench.api.run_build` and the *package* speaks it.
 Read 0013 first, then 0012; treat 0006 as history except for its
 transport and threat-model decisions, which both carry forward. Check
-`docs/adr/` before assuming any design decision.
+`docs/adr/` — immutable finals at the top level, living drafts in
+`draft/` (state layout 0008 and flash flow 0010 are drafts; lifecycle
+per firmware ADR 0021, see `docs/adr/README.md`) — before assuming any
+design decision.
 
 The **backend** is implemented: the two sites of ADR 0009, the `/ws`
 command and event vocabulary of ADR 0004, configuration-tree watching,
@@ -62,7 +65,7 @@ server, the latter having its own repository (ADR 0012). **Neither
 Python package depends on the other**: separate products with separate
 version numbers, joined by one protocol that a third package speaks for
 both. (The two-Home-Assistant-Apps framing of ADR 0003 is what ADR
-0012's amended Consequences struck; a build server is an orchestrator
+0012's Consequences struck; a build server is an orchestrator
 whose primary target is standalone.)
 
 ## Repository map
@@ -188,4 +191,7 @@ There is no CI yet.
 - Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, …).
 - Every commit is DCO-signed-off: `git commit -s`.
 - Default branch is `main`; short-lived `feat/…`, `fix/…` branches.
-- Non-trivial design decisions require an ADR in `docs/adr/`.
+- Non-trivial design decisions require an ADR **draft** in
+  `docs/adr/draft/`; the final ADR is written from the real result once
+  the component is done (lifecycle: `docs/adr/README.md`, firmware
+  ADR 0021).

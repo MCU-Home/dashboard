@@ -12,8 +12,6 @@ contact_links:
   - name: YAML config / build issues
     url: https://github.com/mcu-home/mcuhome/issues
     about: Problems with YAML configs or the build pipeline belong in the workbench repository.
-  # TODO(publish): enable private vulnerability reporting in the repo
-  # settings, otherwise this link 404s for reporters.
   - name: Security vulnerabilities
     url: https://github.com/mcu-home/dashboard/security/advisories/new
     about: Report security issues privately — never as public issues.

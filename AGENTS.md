@@ -84,15 +84,15 @@ documented in the
 README.
 
 Project-wide decisions (license, repo split, versioning) are recorded in
-the firmware repo:
+the workbench repo:
 [mcu-home/mcuhome/docs/adr](https://github.com/mcu-home/mcuhome/tree/main/docs/adr).
 
 ## Non-obvious invariants
 
 - **Contract ownership:** the YAML configuration schema and device
-  metadata are owned by the firmware repository. The dashboard consumes
-  them as a versioned artifact — never duplicate or fork schema definitions
-  here.
+  metadata are owned by the workbench and SDK repositories (ADR 0024).
+  The dashboard consumes them as a versioned artifact — never duplicate
+  or fork schema definitions here.
 - **The dashboard never compiles** (ADR 0003), and the enforcement is
   the dependency, not a missing code path: this package **must never
   depend on `mcuhome-compiler`**. That distribution holds stages 4-5;
@@ -148,9 +148,9 @@ the firmware repo:
 ## Commands
 
 ```sh
-# Backend setup. requirements-dev.txt also installs the mcuhome builder
-# package from the sibling checkout (../../mcuhome) — it is imported
-# in-process (ADR 0011) and is not published yet.
+# Backend setup. requirements-dev.txt also installs the workbench and
+# model packages from the sibling checkouts (../../mcuhome and
+# ../../mcuhome-sdk) — imported in-process (ADR 0011), not published yet.
 cd backend && python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 

@@ -28,7 +28,7 @@ building, signing and artifact download work end to end.
 
 ```sh
 python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements-dev.txt      # installs the builder from ../../mcuhome
+pip install -r requirements-dev.txt      # workbench + model from the sibling checkouts
 mcuhome-dashboard --config-root ~/mcuhome-config
 ```
 
@@ -368,8 +368,9 @@ parsed from stdout (ADR 0011). The supported range lives in
 `mcuhome_dashboard/versions.py` and is asserted at startup; a mismatch
 refuses to start and names both versions. It is not in
 `pyproject.toml`'s `dependencies` yet because the builder is not
-published; `requirements-dev.txt` installs it from the sibling checkout,
-and moving the range into the metadata is part of release tooling.
+published; `requirements-dev.txt` installs it from the sibling
+checkouts, and moving the range into the metadata is part of release
+tooling.
 
 The direction of the dependency is the invariant: the dashboard follows
 the builder's releases, and using the builder CLI never requires the

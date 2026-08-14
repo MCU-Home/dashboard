@@ -42,8 +42,10 @@ Identical to the firmware repository:
 
 - **Conventional Commits** (`feat:`, `fix:`, `docs:`, `chore:`, …).
 - **DCO sign-off** on every commit: `git commit -s`.
-- Focused PRs; non-trivial design decisions get an ADR in
-  [docs/adr/](docs/adr/).
+- Focused PRs; non-trivial design decisions get an ADR draft in
+  [docs/adr/draft/](docs/adr/draft/) — the final ADR is written from
+  the real result once the component is done
+  ([docs/adr/README.md](docs/adr/README.md)).
 
 ## Reporting issues
 

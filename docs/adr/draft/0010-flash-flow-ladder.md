@@ -1,6 +1,6 @@
 # 0010 — The flash-flow ladder; v0.1 stops at rung 1
 
-- Status: accepted
+- Status: draft
 - Date: 2026-08-07
 
 ## Context

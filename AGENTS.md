@@ -7,8 +7,11 @@ repository.
 
 The web interface for [MCUHome](https://github.com/mcu-home/mcuhome): a
 standalone product to create, build, flash and manage Zephyr-based smart
-home devices. Distribution targets: **Home Assistant App** (packaged in a
-separate future packaging repo), Docker image, plain Python app.
+home devices. Distribution targets: **Home Assistant App**, Docker image,
+plain Python app. The first two are container images built here and
+published to GHCR; the App's metadata lives in
+[mcu-home/ha-apps-repository](https://github.com/mcu-home/ha-apps-repository)
+(ADR 0018).
 
 > **FEATURE-FROZEN (product-owner decision, 2026-08-14; narrowed
 > 2026-08-16).** This repository is not being grown while the CLI phase
@@ -78,7 +81,13 @@ nothing MCUHome has not brought up, `device/new` writes the first
 `device/matter-pairing` draws the device's commissioning identity once.
 None of those verbs judges a name — every refusal is the builder's.
 
-Still missing: flash views in the browser, and app packaging.
+It is also **packaged** (ADR 0018): `docker/Dockerfile` builds the
+standalone and the Home Assistant image, `.github/workflows/release.yml`
+publishes them on a `v*` tag, and the App's entry point creates or
+migrates the project before the server starts — the one thing this
+program will not do for itself.
+
+Still missing: flash views in the browser.
 
 The architecture in one line: the dashboard never compiles (ADR 0003) —
 it carries no toolchain, and `mcuhome-compiler` is deliberately not
@@ -97,6 +106,7 @@ whose primary target is standalone.)
 |---|---|
 | `backend/` | Python ≥ 3.13 backend (`mcuhome_dashboard` package), aiohttp, WebSocket-first API (ADR 0004) |
 | `frontend/` | TypeScript SPA: Lit 3 + `@home-assistant/webawesome` + CodeMirror 6, built with Vite (ADR 0005) |
+| `docker/` | The two published images: one Dockerfile, the runtime pins, and the Home Assistant entry point |
 | `docs/adr/` | Dashboard-specific architecture decision records |
 
 The two READMEs here are the contracts: `backend/README.md` is the
@@ -132,8 +142,16 @@ the workbench repo:
   builder CLI must never require the dashboard or any dashboard version.
   The range names `mcuhome-workbench`, never the bare `mcuhome` — since
   firmware ADR 0020 decision 2 that is the *command line's* distribution.
-- **App packaging does not live here** — no `config.yaml`/Dockerfile App
-  files in this repo; they go to the future packaging repo.
+- **The images are built here; the app metadata is not** (ADR 0018).
+  `docker/Dockerfile` builds both published images — `standalone` for
+  `docker run`, `homeassistant` for the App — because the repository that
+  holds the source is the one that knows how to build it. What lives
+  elsewhere is `repository.yaml` and the App's `config.yaml`, in
+  [mcu-home/ha-apps-repository](https://github.com/mcu-home/ha-apps-repository),
+  which builds nothing and only names the image and pins its tag. This
+  replaces the older rule ("no Dockerfile here either"), whose reason —
+  one packaging place for a fixed pair of Apps — went away with the
+  two-App topology.
 - **The dashboard and the build server do not import each other** —
   since ADR 0012 a repository boundary, not just a rule. The dashboard
   keeps its own copy of the frame codec on purpose. The cross-repository

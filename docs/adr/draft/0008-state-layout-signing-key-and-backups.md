@@ -45,7 +45,7 @@ say that it holds none of it.
 
 ### 1. The configuration tree lives in the app's own config directory
 
-`addon_config` → `/addon_configs/mcuhome-dashboard`, mounted at
+`addon_config` → `/addon_configs/<id>_mcuhome-ui`, mounted at
 `/config` inside the app. The builder tree layout (`devices/`,
 `shared/`, `components/`, `secrets.yaml` — owned by the firmware
 repository, `builder-pipeline.md` §2) sits directly at its root. The

@@ -52,3 +52,4 @@ Numbers missing above live here — they are the same sequence.
 | [0015](draft/0015-the-dashboard-opens-projects-it-does-not-manage-them.md) | The dashboard opens a project; it does not manage one |
 | [0016](draft/0016-build-progress-travels-in-the-record.md) | Build progress travels in the record, as facts |
 | [0017](draft/0017-a-device-is-described-from-the-registry.md) | A device is described from the registry, not from memory |
+| [0018](draft/0018-images-here-app-metadata-in-its-own-repository.md) | Images are built here; app metadata lives in its own repository |

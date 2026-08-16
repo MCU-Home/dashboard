@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Python outside `backend/` — the app entry point in `docker/` — is
+# packaging glue, and it is held to the same standard as the program it
+# starts. One source of truth: this extends the backend's configuration
+# rather than restating it, so a setting is changed in one place.
+extend = "backend/pyproject.toml"

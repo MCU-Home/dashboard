@@ -7,9 +7,8 @@
 create, build, flash and manage Zephyr-based smart home devices from your
 browser.**
 
-The dashboard is a standalone product with its own release cycle. It will
-be distributed as a Home Assistant App (packaged in a separate,
-yet-to-be-created packaging repository), as a Docker image, and as a
+The dashboard is a standalone product with its own release cycle,
+distributed as a **Home Assistant App**, as a **Docker image**, and as a
 plain Python application.
 
 **The dashboard never compiles.** Firmware builds always run on a
@@ -41,10 +40,10 @@ diagnostics on the editor's gutter, and shows a device's Matter
 commissioning codes. **Building works end to end** (ADR 0013): the
 `build/*` commands, the `builds` topic, logs streamed with resumable
 offsets, the artifact endpoint and host-side signing — the private
-signing key never leaves this side. Still to come: the flash views in
-the browser, creating a device from the browser, and the Home Assistant
-App packaging. Firmware framework and
-YAML builder live in
+signing key never leaves this side. A device can be **created** from the
+browser, and both container images are built and published from this
+repository. Still to come: the flash views in the browser. Firmware
+framework and YAML builder live in
 [mcu-home/mcuhome](https://github.com/mcu-home/mcuhome).
 
 ## Architecture
@@ -53,6 +52,7 @@ YAML builder live in
 |---|---|
 | `backend/` | Python backend (aiohttp, WebSocket-first API): device management |
 | `frontend/` | TypeScript single-page application: Lit 3, `@home-assistant/webawesome`, CodeMirror 6, Vite |
+| `docker/` | The two published container images, built from one Dockerfile |
 | `docs/adr/` | Architecture decision records (dashboard-specific) |
 
 Two products, two version numbers, one protocol — and since ADR 0012 two
@@ -67,6 +67,55 @@ exists the two are not joined at all.
 The backend drives the MCUHome builder (`mcuhome` Python package) and
 serves the frontend. The YAML configuration schema and device metadata are
 owned by the firmware repository and consumed here as a versioned artifact.
+
+## Running it
+
+### In Home Assistant
+
+Add the MCUHome app repository once —
+**Settings → Apps → App Store → ⋮ → Repositories**:
+
+```
+https://github.com/mcu-home/ha-apps-repository
+```
+
+then install **MCUHome Dashboard** and open its web interface. The App
+creates its project directory on first start and keeps it current across
+updates; only Home Assistant administrators can change or build anything.
+
+### With Docker
+
+```sh
+docker run -d --name mcuhome-dashboard \
+  -p 8099:8099 \
+  -e MCUHOME_DASHBOARD_PASSWORD='choose-one' \
+  -v mcuhome-config:/config \
+  -v mcuhome-data:/data \
+  ghcr.io/mcu-home/mcuhome-dashboard:latest
+```
+
+`/config` is the MCUHome project — devices, secrets, shared pieces — and
+`/data` is private: the firmware signing key and build output. **Back up
+the signing key.** Every device you bootstrap accepts only firmware
+signed with it.
+
+The password is what the public site asks for; there is no Home Assistant
+here to say who is asking. Unlike the App, this image does not create a
+project for you — point it at one, or make one with
+[the command line](https://github.com/mcu-home/cli).
+
+Both images are built from `docker/Dockerfile` in this repository and
+published on a `v*` tag; the App's metadata lives in
+[mcu-home/ha-apps-repository](https://github.com/mcu-home/ha-apps-repository)
+([ADR 0018](docs/adr/draft/0018-images-here-app-metadata-in-its-own-repository.md)).
+
+### Building firmware
+
+Neither deployment compiles. Point the dashboard at a
+[build server](https://github.com/mcu-home/build-server) with
+`MCUHOME_DASHBOARD_BUILD_SERVER_URL`; everything else — creating,
+editing, validating devices and drawing commissioning credentials — works
+without one.
 
 ## Contributing
 

@@ -27,3 +27,13 @@ updates:
     groups:
       frontend-deps:
         patterns: ["*"]
+    ignore:
+      # TypeScript 7 is where the ecosystem is heading, but
+      # `typescript-eslint` 8 refuses to load against it at all ("does
+      # not support TS 7.0"), and type-aware linting is worth more here
+      # than being early — see frontend/README.md for the reasoning and
+      # the rest of the decision. Without this, every weekly run
+      # proposes the bump again and the gate refuses it again. Drop this
+      # entry when `typescript-eslint` ships TypeScript 7 support.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]

@@ -138,6 +138,29 @@ export interface CommissioningCodes {
  */
 export type BuildState = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
+/** The four states one step of a build can be in. */
+export type BuildStepState = 'pending' | 'running' | 'done' | 'failed';
+
+/**
+ * One step of a build, and what it established.
+ *
+ * The list is stated when the build is accepted and every step in it is
+ * `pending` at that moment, because "how far along is this" needs the
+ * steps still to come. Two of the keys are the *builder's* own progress
+ * vocabulary and three are the dashboard's; both sides may grow one, so
+ * a key this build has never heard of is rendered by its bare name
+ * rather than dropped.
+ *
+ * `facts` is display material and nothing else — append-only, every
+ * value optional, and read defensively here. A line that describes a
+ * build must never be the thing that breaks rendering it.
+ */
+export interface BuildStep {
+  key: Open<'validate' | 'context' | 'compile' | 'artifacts' | 'sign'>;
+  state: Open<BuildStepState>;
+  facts: Record<string, unknown>;
+}
+
 /** One downloadable file a build left behind. */
 export interface BuildArtifact {
   /** `firmware`, `firmware-signed`, `ota`, … — what the file is for. */
@@ -203,6 +226,8 @@ export interface BuildRecord {
   image: string;
   /** The method's own word for the result — `success`/`failure`. */
   status: string;
+  /** What this build goes through, and how far it got. */
+  steps: BuildStep[];
   errors: Diagnostic[];
   artifacts: BuildArtifact[];
   signing: BuildSigning | null;

@@ -16,16 +16,18 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import '../src/components/mh-build-panel';
+import '../src/components/mh-build-steps';
 import '../src/components/mh-commissioning';
 import '../src/components/mh-device-list';
 import '../src/components/mh-diagnostics';
 import '../src/components/mh-validity-badge';
 import type { MhBuildPanel } from '../src/components/mh-build-panel';
+import type { MhBuildSteps } from '../src/components/mh-build-steps';
 import type { MhCommissioning } from '../src/components/mh-commissioning';
 import type { MhDeviceList } from '../src/components/mh-device-list';
 import type { MhDiagnostics } from '../src/components/mh-diagnostics';
 import type { MhValidityBadge } from '../src/components/mh-validity-badge';
-import type { BuildRecord, DeviceEntry } from '../src/api/types';
+import type { BuildRecord, BuildStep, DeviceEntry } from '../src/api/types';
 import { WsClient } from '../src/api/client';
 import { flush, socketRecorder } from './helpers';
 
@@ -378,6 +380,7 @@ describe('mh-build-panel', () => {
     context_id: 'ctx',
     image: 'builder:r6',
     status: 'success',
+    steps: [],
     errors: [],
     artifacts: [],
     signing: null,
@@ -547,6 +550,33 @@ describe('mh-build-panel', () => {
     expect(text(element)).not.toContain('is already running');
   });
 
+  it('shows how far along a running build is, above its output', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.record = record({
+        state: 'running',
+        finished: null,
+        steps: [
+          { key: 'validate', state: 'done', facts: { board: 'nrf7002dk/nrf5340/cpuapp' } },
+          { key: 'context', state: 'done', facts: { sdk: '0.1.0' } },
+          { key: 'compile', state: 'running', facts: {} },
+        ],
+      });
+    });
+
+    expect(element.shadowRoot?.querySelector('mh-build-steps')).not.toBeNull();
+    expect(text(element)).toContain('Progress');
+  });
+
+  it('leaves the progress section out for a build that never reported one', async () => {
+    const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
+      node.device = 'bench-node';
+      node.record = record();
+    });
+
+    expect(element.shadowRoot?.querySelector('mh-build-steps')).toBeNull();
+  });
+
   it('names the OTA image when the device can take one', async () => {
     const element = await mount<MhBuildPanel>('mh-build-panel', (node) => {
       node.device = 'bench-node';
@@ -556,5 +586,159 @@ describe('mh-build-panel', () => {
     });
 
     expect(text(element)).toContain('Matter OTA image for version 1.0.0');
+  });
+});
+
+describe('mh-build-steps', () => {
+  const step = (overrides: Partial<BuildStep> = {}): BuildStep => ({
+    key: 'compile',
+    state: 'pending',
+    facts: {},
+    ...overrides,
+  });
+
+  it('shows every step, including the ones still to come', async () => {
+    // Half of "how far along is this" is the part that has not happened.
+    const element = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+      node.method = 'local';
+      node.steps = [
+        step({ key: 'validate', state: 'done' }),
+        step({ key: 'context', state: 'done' }),
+        step({ key: 'compile', state: 'running' }),
+        step({ key: 'artifacts' }),
+        step({ key: 'sign' }),
+      ];
+    });
+
+    const items = [...(element.shadowRoot?.querySelectorAll('ol.bar li') ?? [])];
+    expect(items).toHaveLength(5);
+    expect(items[2]?.className).toBe('running');
+    expect(items[3]?.className).toBe('pending');
+  });
+
+  it('says where the compile happens, from the method and not from a guess', async () => {
+    const remote = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+      node.method = 'remote';
+      node.steps = [step({ key: 'compile', state: 'running' }), step({ key: 'sign' })];
+    });
+    expect(text(remote)).toContain('build server');
+    expect(text(remote)).toContain('(dashboard)');
+
+    const local = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+      node.method = 'local';
+      node.steps = [step({ key: 'compile', state: 'running' })];
+    });
+    expect(text(local)).toContain('build container');
+  });
+
+  it('states what the context turned out to be, once it knows', async () => {
+    const element = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+      node.method = 'local';
+      node.steps = [
+        step({
+          key: 'context',
+          state: 'done',
+          facts: {
+            sdk: '0.1.0',
+            zephyr: '4.4.0',
+            patches: ['chip-pigweed.patch'],
+            files: 214,
+            id: 'sha256:0123456789abcdef0123456789abcdef',
+          },
+        }),
+      ];
+    });
+
+    const shown = text(element);
+    expect(shown).toContain('SDK 0.1.0');
+    expect(shown).toContain('Zephyr 4.4.0');
+    expect(shown).toContain('patches: chip-pigweed.patch');
+    expect(shown).toContain('214 files');
+    // Twelve digits of the hex, never the algorithm prefix.
+    expect(shown).toContain('id 0123456789ab');
+    expect(shown).not.toContain('sha256:');
+  });
+
+  it('says "no patches" rather than leaving the question open', async () => {
+    const element = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+      node.steps = [step({ key: 'context', state: 'done', facts: { sdk: '0.1.0', patches: [] } })];
+    });
+    expect(text(element)).toContain('no patches');
+  });
+
+  it('renders a device with no network without inventing one', async () => {
+    const element = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+      node.steps = [
+        step({
+          key: 'validate',
+          state: 'done',
+          facts: {
+            board: 'nrf7002dk/nrf5340/cpuapp',
+            transport: null,
+            thread_role: null,
+            matter: false,
+            endpoints: 1,
+            channels: 0,
+          },
+        }),
+      ];
+    });
+
+    const shown = text(element);
+    expect(shown).toContain('no network');
+    expect(shown).toContain('Matter off');
+    expect(shown).toContain('1 endpoint');
+    expect(shown).toContain('0 channels');
+  });
+
+  it('skips a fact that arrived as the wrong kind of thing', async () => {
+    // `facts` is another repository's append-only vocabulary. A line
+    // describing a build must never be what stops it being rendered.
+    const element = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+      node.steps = [
+        step({
+          key: 'context',
+          state: 'done',
+          facts: { sdk: 42, zephyr: '4.4.0', patches: 'not-a-list', files: 'many' },
+        }),
+      ];
+    });
+
+    const shown = text(element);
+    expect(shown).toContain('Zephyr 4.4.0');
+    expect(shown).not.toContain('42');
+    expect(shown).not.toContain('not-a-list');
+  });
+
+  it('never looks a state up on a plain object', async () => {
+    // `state` is typed Open<> on purpose — both sides of the vocabulary
+    // may grow — so a value that happens to name an Object.prototype
+    // member has to be as harmless as any other unknown one. Read with a
+    // bare GLYPHS[state], "constructor" draws
+    // `function Object() { [native code] }` into the bar, and the ??
+    // fallback does not fire because what it found is truthy.
+    for (const hostile of ['constructor', 'toString', 'hasOwnProperty', '__proto__']) {
+      const element = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+        node.steps = [step({ key: 'compile', state: hostile })];
+      });
+      const item = element.shadowRoot?.querySelector('ol.bar li');
+      expect(text(element)).not.toContain('native code');
+      expect(item?.className).toBe('pending');
+      expect(item?.getAttribute('aria-label')).toBe('Compile: unknown');
+    }
+  });
+
+  it('labels a step it has never heard of by its own name', async () => {
+    const element = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+      node.steps = [step({ key: 'generate', state: 'running' })];
+    });
+    expect(text(element)).toContain('generate');
+  });
+
+  it('renders nothing at all when there are no steps', async () => {
+    const element = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+      node.steps = [];
+    });
+    expect(element.shadowRoot?.querySelector('ol.bar')).toBeNull();
   });
 });

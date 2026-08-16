@@ -24,6 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A build now shows how far along it is and where it is running** (ADR
+  0016 draft). The record carries `steps` — check configuration, collect
+  sources, compile, collect files, sign — with the state of each, and a
+  line saying what a step established: which SDK and Zephyr line the
+  build context pinned, which patches it carries, the context id, the
+  board and endpoint count of the device, the container image and the
+  number of parallel jobs. It comes from the workbench's `on_step` seam,
+  which the dashboard was passing `None` for, so it is the same progress
+  the command line renders rather than a second opinion about it. Facts
+  cross to the browser through an allowlist: a remote build announces the
+  build server's address, and this API still publishes only whether one
+  is configured. A build cancelled before it took its first step leaves
+  every step untouched — it did nothing, and blaming its first step
+  would say the configuration check failed about a build that never
+  looked at one.
+
 - **Continuous integration** (`.github/workflows/ci.yml`): `ruff` + REUSE,
   the backend `pytest` and the frontend `pnpm check`, on every push and
   pull request. The test gate installs the workbench and model from
@@ -49,6 +65,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `engines.node` said `>=22.12.0`, but pnpm 11.20.0 refuses to start
   below 22.13. The floor is now `>=22.13.0`, and CI runs exactly that
   version so the declaration cannot quietly stop being true again.
+- Two more flaky tests, of the same shape as the one below: the
+  retention rule of ADR 0013 decision 5 also runs in the window between
+  a record's terminal state and the slot being handed back, so a test
+  asserting on **what is left on disk** was racing a `rmtree` that had
+  not run yet. Present on `main` before this change (one failure in
+  twenty runs) and now waited for properly.
 - A flaky test: a build record reaches its terminal state a few
   statements before the registry hands the slot back, so a test asserting
   on the slot had to wait for the later of the two. No client could

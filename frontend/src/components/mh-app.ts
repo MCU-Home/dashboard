@@ -31,10 +31,17 @@ import { customElement, state } from 'lit/decorators.js';
 
 import { WsClient } from '../api/client';
 import type { ConnectionState } from '../api/client';
-import { buildSubscribe, configSubscribe, serverInfo } from '../api/commands';
+import {
+  buildSubscribe,
+  configSubscribe,
+  deviceBoards,
+  deviceNew,
+  serverInfo,
+} from '../api/commands';
+import { CommandError } from '../api/protocol';
 import { logout, serverReachable } from '../api/session';
-import type { ServerInfo } from '../api/types';
-import { watchRoute } from '../router';
+import type { BoardsResult, DeviceOutline, ServerInfo } from '../api/types';
+import { deviceHref, watchRoute } from '../router';
 import type { Route } from '../router';
 import { BuildStore, coalesced, fillLogGaps } from '../state/build-store';
 import { DeviceStore } from '../state/device-store';
@@ -54,9 +61,18 @@ import './mh-connection-status';
 import './mh-device-list';
 import './mh-device-page';
 import './mh-login';
+import './mh-new-device';
 
 /** One shared empty array, so a device with no build re-renders nothing. */
 const NO_LINES: readonly string[] = Object.freeze([]);
+
+function messageOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
+}
+
+function codeOf(cause: unknown): string | null {
+  return cause instanceof CommandError ? cause.code : null;
+}
 
 @customElement('mh-app')
 export class MhApp extends LitElement {
@@ -128,6 +144,12 @@ export class MhApp extends LitElement {
   @state() private info: ServerInfo | null = null;
   @state() private themePreference: ThemePreference = 'system';
   @state() private theme: ResolvedTheme = 'light';
+  /** The new-device form, when it is open. */
+  @state() private creating = false;
+  @state() private registry: BoardsResult | null = null;
+  @state() private createBusy = false;
+  @state() private createFailure: string | null = null;
+  @state() private createConflict: string | null = null;
   /** Bumped whenever the store or the validity tracker changed. */
   @state() private revision = 0;
 
@@ -197,6 +219,31 @@ export class MhApp extends LitElement {
 
         <footer>${this.#footer()}</footer>
       </div>
+      ${this.#newDeviceDialog()}
+    `;
+  }
+
+  /**
+   * The new-device form, in a dialog over whatever is on screen.
+   *
+   * A dialog and not a route: creating a device is one action with one
+   * outcome, and a URL for a half-filled form is a URL that promises to
+   * restore something it cannot.
+   */
+  #newDeviceDialog() {
+    if (!this.creating) return null;
+    return html`
+      <wa-dialog open label=${t.newDevice.title} @wa-hide=${this.#closeCreate}>
+        <mh-new-device
+          .registry=${this.registry}
+          .submitting=${this.createBusy}
+          .failure=${this.createFailure}
+          .conflict=${this.createConflict}
+          @device-requested=${this.#createDevice}
+          @new-device-cancelled=${this.#closeCreate}
+          @open-device=${this.#openDevice}
+        ></mh-new-device>
+      </wa-dialog>
     `;
   }
 
@@ -214,6 +261,7 @@ export class MhApp extends LitElement {
             .loaded=${this.#store.loaded}
             .ingress=${this.info?.deployment.trust === 'ingress'}
             .validityOf=${(name: string) => this.#validity.get(name)}
+            @new-device=${this.#openCreate}
           ></mh-device-list>
         `;
       case 'device': {
@@ -274,6 +322,73 @@ export class MhApp extends LitElement {
       <span>${t.footer.tree}: <span class="mono">${info?.tree.root ?? unknown}</span></span>
     `;
   }
+
+  // -- creating a device -------------------------------------------
+
+  /**
+   * Open the form, and fetch the registry it is made of.
+   *
+   * Fetched on opening rather than at startup: it is the same answer for
+   * the lifetime of the backend process, and most sessions never open
+   * this form at all. Kept afterwards, so a second attempt is instant.
+   */
+  #openCreate = (): void => {
+    this.creating = true;
+    this.createFailure = null;
+    this.createConflict = null;
+    if (this.registry !== null) return;
+    void deviceBoards(this.#client)
+      .then((registry) => {
+        this.registry = registry;
+      })
+      .catch((error: unknown) => {
+        this.createFailure = messageOf(error);
+      });
+  };
+
+  #closeCreate = (): void => {
+    this.creating = false;
+  };
+
+  #createDevice = (event: Event): void => {
+    const detail = (event as CustomEvent).detail as {
+      name: string;
+      board: string;
+      friendlyName: string;
+      outline: DeviceOutline;
+    };
+    this.createBusy = true;
+    this.createFailure = null;
+    this.createConflict = null;
+    void deviceNew(this.#client, detail.name, detail.board, {
+      friendlyName: detail.friendlyName,
+      outline: detail.outline,
+    })
+      .then((result) => {
+        this.creating = false;
+        // Straight into the editor on what was just written: the form
+        // asked for the shape of the device, and the file is where the
+        // rest of it is decided.
+        window.location.hash = deviceHref(result.device.name);
+      })
+      .catch((error: unknown) => {
+        if (codeOf(error) === 'conflict') {
+          this.createConflict = detail.name;
+        } else {
+          this.createFailure = messageOf(error);
+        }
+      })
+      .finally(() => {
+        this.createBusy = false;
+      });
+  };
+
+  #openDevice = (event: Event): void => {
+    const detail = (event as CustomEvent).detail as { name: string | null };
+    if (detail.name === null) return;
+    this.creating = false;
+    window.location.hash = deviceHref(detail.name);
+  };
 
   // -- wiring ------------------------------------------------------
 

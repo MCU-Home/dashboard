@@ -24,7 +24,13 @@ import { css, html, LitElement } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
 import type { WsClient } from '../api/client';
-import { deviceCommissioning, deviceGet, deviceSave, deviceValidate } from '../api/commands';
+import {
+  deviceCommissioning,
+  deviceGet,
+  deviceMatterPairing,
+  deviceSave,
+  deviceValidate,
+} from '../api/commands';
 import { CommandError } from '../api/protocol';
 import type { BuildRecord, CommissioningCodes, Diagnostic } from '../api/types';
 import { devicesHref } from '../router';
@@ -115,6 +121,10 @@ export class MhDevicePage extends LitElement {
   @state() private codesFailure: string | null = null;
   @state() private codesErrors: readonly Diagnostic[] = [];
 
+  @state() private drawing = false;
+  @state() private drawn: string | null = null;
+  @state() private drawFailure: string | null = null;
+
   override willUpdate(changed: Map<string, unknown>): void {
     if (changed.has('device') || (changed.has('client') && this.client !== null)) {
       this.#reset();
@@ -160,8 +170,12 @@ export class MhDevicePage extends LitElement {
           .loading=${this.codesLoading}
           .answered=${this.codesAnswered}
           .failure=${this.codesFailure}
+          .drawing=${this.drawing}
+          .drawn=${this.drawn}
+          .drawFailure=${this.drawFailure}
           @commissioning-requested=${this.#loadCodes}
           @commissioning-hidden=${this.#forgetCodes}
+          @pairing-requested=${this.#drawPairing}
         ></mh-commissioning>
       </section>
     `;
@@ -354,6 +368,42 @@ export class MhDevicePage extends LitElement {
       });
   };
 
+  /**
+   * Draw this device's commissioning identity.
+   *
+   * The write changes `main.yaml` — `!secret` references appear under
+   * `matter:` — so the editor is reloaded from disk afterwards. Anything
+   * else would leave the open document one save away from a conflict
+   * with a file the user never touched.
+   *
+   * The codes themselves are then fetched the ordinary way, through the
+   * one command that carries them. That round trip is the price of
+   * "passcodes come from exactly one place", and it is one frame on a
+   * socket that is already open.
+   */
+  #drawPairing = (event: Event): void => {
+    const client = this.client;
+    if (client === null) return;
+    const { force } = (event as CustomEvent<{ force: boolean }>).detail;
+    this.drawing = true;
+    this.drawn = null;
+    this.drawFailure = null;
+    void deviceMatterPairing(client, this.device, force)
+      .then(async (result) => {
+        this.drawn = result.replaced
+          ? t.pairing.replaced(result.secrets_file)
+          : t.pairing.written(result.secrets_file);
+        await this.#load();
+        this.#loadCodes();
+      })
+      .catch((cause: unknown) => {
+        this.drawFailure = messageOf(cause, this.device);
+      })
+      .finally(() => {
+        this.drawing = false;
+      });
+  };
+
   /** Drop the codes from memory the moment the view is closed. */
   #forgetCodes = (): void => {
     this.codes = null;
@@ -361,6 +411,8 @@ export class MhDevicePage extends LitElement {
     this.codesAnswered = false;
     this.codesFailure = null;
     this.codesLoading = false;
+    this.drawn = null;
+    this.drawFailure = null;
   };
 
   // -- editor wiring -----------------------------------------------

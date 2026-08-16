@@ -56,10 +56,13 @@ check the Supervisor has stripped and re-injected it, so
 **Ingress is admin-only** (ADR 0014). Dashboard access in Home Assistant
 is reserved for administrators: the site resolves the user's admin status
 from the Supervisor's authenticated `/auth/list` (over `SUPERVISOR_TOKEN`)
-and gates the mutating and secret-bearing verbs behind it — `device/save`,
-`device/commissioning`, `build/start`, `build/cancel` and the artifact
+and gates the mutating and secret-bearing verbs behind it — `device/new`,
+`device/save`, `device/matter-pairing`, `device/commissioning`,
+`build/start`, `build/cancel` and the artifact
 download route answer `unauthorized`/`403` for a non-admin, while the
-read-only views stay open. It fails closed: an unresolved user is
+read-only views stay open. `device/boards` is not among them: it is a
+catalogue of what the software supports, with nothing about this
+deployment in it. It fails closed: an unresolved user is
 non-admin, and a deployment with no token grants the admin verbs to
 nobody. The public (password) site is unchanged — its one password is the
 operator — and reports `identity.is_admin: true`. Its two password paths
@@ -113,9 +116,12 @@ negotiation went with the job protocol (ADR 0012 decision 3).
 | `ping` | — | `{"pong": true, "time": …}` |
 | `device/list` | — | every device in the tree, with a content hash and an unresolved summary |
 | `device/get` | `{"name"}` | the raw YAML as it is on disk, plus the summary |
+| `device/new` | `{"name", "board", "friendly_name"?, "outline"?}` | what `device/get` answers, for the device just created |
+| `device/boards` | — | the builder's registry: boards, drivers, clusters, device types, each with the planned ones |
 | `device/save` | `{"name", "content", "expected_hash"?}` | `{"name", "device": entry, "content_hash"}` |
 | `device/validate` | `{"name"}` | `{"ok", "errors": [...], "device": summary\|null}` |
 | `device/commissioning` | `{"name"}` | `{"ok", "errors": [...], "commissioning": codes\|null}` |
+| `device/matter-pairing` | `{"name", "force"?}` | `{"name", "replaced", "secrets_file"}` — never the codes |
 | `build/start` | `{"name", "method"?}` | `{"build": record}` — accepted, not finished |
 | `build/status` | `{"build_id"?}` | one `{"build": record}`, or `{"builds": [...], "running": id\|null}` |
 | `build/log` | `{"build_id", "from_offset"?}` | `{"offset", "lines", "next_offset", "first_offset", "truncated", "state"}` |
@@ -342,7 +348,7 @@ nor another editor ever sees a half-written configuration. Saving does
 **not** validate: half-finished YAML is the normal state of an open
 editor, and `device/validate` is the separate command that says whether
 what was saved is good. Creating a device is not this command's job —
-that is `mcuhome new` (ADR 0011).
+that is `device/new`.
 
 ### Commissioning codes
 
@@ -356,6 +362,61 @@ commissioning view is worth having and why the codes may not ride along
 on `device/list` or `device/validate`, which every open tab receives
 without asking. They cross the wire only when a user pressed a button
 (ADR 0007). `null` means the device has no Matter pairing tuple.
+
+### Creating a device
+
+`device/new` writes `devices/<name>/main.yaml` and answers with exactly
+what `device/get` would, so a client opens the editor on it without a
+second round trip.
+
+`outline` is optional and is what a form collected:
+
+```json
+{
+  "buses": [{"id": "i2c0", "controller": "arduino_i2c"}],
+  "peripherals": [{"id": "probe", "driver": "bosch,bmp180", "bus": "i2c0"}],
+  "endpoints": [
+    {
+      "device_type": "temperature_sensor",
+      "clusters": [{"cluster": "temperature_measurement", "source": "probe.temperature"}]
+    }
+  ]
+}
+```
+
+Given one, those sections are written as real configuration; without
+one, the file carries the commented example the command line writes.
+Every name in it comes from `device/boards`, and **every name in it is
+judged by the builder** — this side checks the shape of the frame and
+nothing else, because a second opinion about what a valid configuration
+is, is exactly what this dashboard does not keep. Refusals arrive as
+error frames carrying the builder's diagnostics under `errors`, with
+`conflict` reserved for "there is already a device called that", which a
+client can act on by offering to open it. Nothing is written when the
+command refuses.
+
+`device/boards` is the registry those choices come from: boards (each
+with the buses it breaks out), drivers (each with its channels and the
+bus kind it speaks), clusters (each with the quantity it measures) and
+device types (each with the clusters it makes mandatory), plus the
+`planned_*` list beside each — "not yet, because …" is a better answer
+than an absence. It reads no project, so it answers before one is open.
+
+### Drawing commissioning credentials
+
+`device/matter-pairing` draws a device's discriminator, passcode and
+salt — **once, ever**. The values go to the device's own secrets file and
+`main.yaml` gets `!secret` references, so the file a project commits
+never carries them. `force` replaces credentials that are already there
+and the builder refuses without it: every controller that knows the
+device would have to commission it again.
+
+It answers with `replaced` and the path written, and with **none of the
+codes**. Those come from `device/commissioning` and from nothing else.
+
+The write changes `main.yaml`, so the command re-scans before answering
+and an editor holding the old `content_hash` learns about it as a
+`device_changed` event rather than as a conflict on its next save.
 
 ### Validation diagnostics
 

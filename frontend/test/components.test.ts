@@ -20,14 +20,16 @@ import '../src/components/mh-build-steps';
 import '../src/components/mh-commissioning';
 import '../src/components/mh-device-list';
 import '../src/components/mh-diagnostics';
+import '../src/components/mh-new-device';
 import '../src/components/mh-validity-badge';
 import type { MhBuildPanel } from '../src/components/mh-build-panel';
 import type { MhBuildSteps } from '../src/components/mh-build-steps';
 import type { MhCommissioning } from '../src/components/mh-commissioning';
 import type { MhDeviceList } from '../src/components/mh-device-list';
 import type { MhDiagnostics } from '../src/components/mh-diagnostics';
+import type { MhNewDevice } from '../src/components/mh-new-device';
 import type { MhValidityBadge } from '../src/components/mh-validity-badge';
-import type { BuildRecord, BuildStep, DeviceEntry } from '../src/api/types';
+import type { BoardsResult, BuildRecord, BuildStep, DeviceEntry } from '../src/api/types';
 import { WsClient } from '../src/api/client';
 import { flush, socketRecorder } from './helpers';
 
@@ -740,5 +742,350 @@ describe('mh-build-steps', () => {
       node.steps = [];
     });
     expect(element.shadowRoot?.querySelector('ol.bar')).toBeNull();
+  });
+});
+
+/**
+ * The registry a wizard is made of, as one fixture.
+ *
+ * Deliberately *richer* than what MCUHome supports today: a second board
+ * with no bus, a part on a bus only one of them breaks out, and a device
+ * type whose cluster nothing measures. Those are the cases the form's
+ * filtering exists for, and a fixture that mirrored the real registry
+ * would not exercise any of them.
+ */
+const REGISTRY: BoardsResult = {
+  boards: [
+    {
+      name: 'devkit-a',
+      transports: ['thread'],
+      buses: [{ kind: 'i2c', controller: 'header_i2c', description: 'Header I2C' }],
+    },
+    { name: 'devkit-b', transports: ['thread'], buses: [] },
+  ],
+  planned_boards: [{ name: 'devkit-c', reason: 'not brought up yet' }],
+  drivers: [
+    {
+      compatible: 'acme,thermo',
+      bus: 'i2c',
+      channels: [
+        { name: 'temperature', quantity: 'temperature' },
+        { name: 'pressure', quantity: 'pressure' },
+      ],
+      fixed_address: 0x77,
+    },
+  ],
+  planned_drivers: [],
+  clusters: [
+    { name: 'temperature_measurement', quantity: 'temperature', unit: '°C' },
+    { name: 'humidity_measurement', quantity: 'humidity', unit: '%' },
+  ],
+  planned_clusters: [],
+  device_types: [
+    { name: 'temperature_sensor', mandatory_clusters: ['temperature_measurement'] },
+    { name: 'humidity_sensor', mandatory_clusters: ['humidity_measurement'] },
+  ],
+  planned_device_types: [],
+  registry_version: 1,
+};
+
+async function wizard(board = 'devkit-a'): Promise<MhNewDevice> {
+  const element = await mount<MhNewDevice>('mh-new-device', (node) => {
+    node.registry = REGISTRY;
+  });
+  set(element, 'wa-select', board);
+  await element.updateComplete;
+  return element;
+}
+
+/** Fire a value change on the nth matching control, the way the UI does. */
+function set(element: HTMLElement, selector: string, value: string, index = 0): void {
+  const node = [...(element.shadowRoot?.querySelectorAll(selector) ?? [])][index];
+  if (node === undefined) throw new Error(`no ${selector} at ${index}`);
+  (node as unknown as { value: string }).value = value;
+  node.dispatchEvent(new Event('change'));
+  node.dispatchEvent(new Event('input'));
+}
+
+function press(element: HTMLElement, label: string): void {
+  const button = [...(element.shadowRoot?.querySelectorAll('wa-button') ?? [])].find((node) =>
+    (node.textContent ?? '').includes(label),
+  );
+  if (button === undefined) throw new Error(`no button "${label}"`);
+  button.dispatchEvent(new Event('click'));
+}
+
+describe('mh-new-device', () => {
+  it('offers only parts the chosen board can carry', async () => {
+    // `devkit-b` breaks out no bus, and the one driver needs I2C.
+    const element = await wizard('devkit-b');
+    expect(text(element)).toContain('breaks out no bus');
+
+    element.registry = REGISTRY;
+    set(element, 'wa-select', 'devkit-a');
+    await element.updateComplete;
+    expect(text(element)).not.toContain('breaks out no bus');
+  });
+
+  it('names what is planned instead of leaving it out', async () => {
+    const element = await wizard();
+    expect(text(element)).toContain('devkit-c — not brought up yet');
+  });
+
+  it('turns the picks into buses, parts and endpoints', async () => {
+    const element = await wizard();
+    press(element, 'Add a part');
+    await element.updateComplete;
+    press(element, 'Add an entry');
+    await element.updateComplete;
+
+    expect(element.outline()).toEqual({
+      buses: [{ id: 'i2c0', controller: 'header_i2c' }],
+      peripherals: [{ id: 'sensor', driver: 'acme,thermo', bus: 'i2c0' }],
+      endpoints: [
+        {
+          device_type: 'temperature_sensor',
+          clusters: [{ cluster: 'temperature_measurement', source: 'sensor.temperature' }],
+        },
+      ],
+    });
+  });
+
+  it('offers no entry type nothing attached can feed', async () => {
+    // `humidity_sensor` needs a humidity reading, and the one part
+    // measures temperature and pressure. Offering it would produce a
+    // configuration the builder rejects, for a choice this form made.
+    const element = await wizard();
+    press(element, 'Add a part');
+    await element.updateComplete;
+    press(element, 'Add an entry');
+    await element.updateComplete;
+
+    const options = [...(element.shadowRoot?.querySelectorAll('wa-option') ?? [])].map((node) =>
+      node.getAttribute('value'),
+    );
+    expect(options).toContain('temperature_sensor');
+    expect(options).not.toContain('humidity_sensor');
+  });
+
+  it('will not add an entry before there is anything to read from', async () => {
+    const element = await wizard();
+    expect(text(element)).toContain('Add a part above');
+    expect(element.outline().endpoints).toEqual([]);
+  });
+
+  it('follows a renamed part rather than sending a dangling source', async () => {
+    const element = await wizard();
+    press(element, 'Add a part');
+    await element.updateComplete;
+    press(element, 'Add an entry');
+    await element.updateComplete;
+
+    // 0 is the device name, 1 its display name, 2 the part's.
+    set(element, 'wa-input', 'baro', 2);
+    await element.updateComplete;
+
+    const outline = element.outline();
+    expect(outline.peripherals[0]?.id).toBe('baro');
+    expect(outline.endpoints[0]?.clusters[0]?.source).toBe('baro.temperature');
+  });
+
+  it('starts the hardware over when the board changes', async () => {
+    // A part chosen for one board may not exist on the next, and an
+    // entry reading from it would name nothing.
+    const element = await wizard();
+    press(element, 'Add a part');
+    await element.updateComplete;
+    expect(element.outline().peripherals).toHaveLength(1);
+
+    set(element, 'wa-select', 'devkit-b');
+    await element.updateComplete;
+    expect(element.outline().peripherals).toEqual([]);
+  });
+
+  it('shows the part’s fixed address rather than asking for one', async () => {
+    const element = await wizard();
+    press(element, 'Add a part');
+    await element.updateComplete;
+
+    expect(text(element)).toContain('Fixed address 0x77');
+    expect(element.outline().peripherals[0]?.address).toBeUndefined();
+  });
+
+  it('asks for the device before it can be created', async () => {
+    const element = await wizard();
+    const requested = vi.fn();
+    element.addEventListener('device-requested', requested);
+
+    // No name yet: the form must not send anything.
+    element.shadowRoot?.querySelector('form')?.dispatchEvent(new Event('submit'));
+    expect(requested).not.toHaveBeenCalled();
+
+    set(element, 'wa-input', 'attic');
+    await element.updateComplete;
+    element.shadowRoot?.querySelector('form')?.dispatchEvent(new Event('submit'));
+
+    expect(requested).toHaveBeenCalledOnce();
+    const detail = (requested.mock.calls[0]?.[0] as CustomEvent).detail as { name: string };
+    expect(detail.name).toBe('attic');
+  });
+
+  it('offers to open the device that is already there', async () => {
+    const element = await mount<MhNewDevice>('mh-new-device', (node) => {
+      node.registry = REGISTRY;
+      node.conflict = 'bench-node';
+    });
+    const opened = vi.fn();
+    element.addEventListener('open-device', opened);
+
+    expect(text(element)).toContain('already a device called "bench-node"');
+    press(element, 'Open it');
+    expect(opened).toHaveBeenCalledOnce();
+  });
+
+  it('waits for the registry rather than offering an empty picker', async () => {
+    const element = await mount<MhNewDevice>('mh-new-device', () => {});
+    expect(element.shadowRoot?.querySelector('wa-spinner')).not.toBeNull();
+    expect(element.shadowRoot?.querySelector('form')).toBeNull();
+  });
+});
+
+describe('mh-commissioning: drawing the identity', () => {
+  async function revealed(apply: (node: MhCommissioning) => void): Promise<MhCommissioning> {
+    const element = await mount<MhCommissioning>('mh-commissioning', (node) => {
+      node.device = 'bench-node';
+      apply(node);
+    });
+    press(element, 'Show commissioning codes');
+    await element.updateComplete;
+    return element;
+  }
+
+  it('offers to draw them when the device has none', async () => {
+    const element = await revealed((node) => {
+      node.codes = null;
+      node.answered = true;
+    });
+    const requested = vi.fn();
+    element.addEventListener('pairing-requested', requested);
+
+    press(element, 'Draw commissioning codes');
+    expect(requested).toHaveBeenCalledOnce();
+    expect((requested.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ force: false });
+  });
+
+  it('offers to draw them even while the configuration does not resolve', async () => {
+    // A device that was just created cannot resolve *because* it has no
+    // credentials, so this is the case the button matters most in.
+    const element = await revealed((node) => {
+      node.errors = [
+        {
+          message: 'This device has no commissioning credentials.',
+          file: null,
+          line: null,
+          column: null,
+          key: null,
+          hint: null,
+          kind: 'config',
+        },
+      ];
+      node.answered = true;
+    });
+    expect(text(element)).toContain('Draw commissioning codes');
+  });
+
+  it('does not replace an identity without a second, explicit word', async () => {
+    const element = await revealed((node) => {
+      node.codes = CODES;
+      node.answered = true;
+    });
+    const requested = vi.fn();
+    element.addEventListener('pairing-requested', requested);
+
+    press(element, 'Draw new codes');
+    await element.updateComplete;
+    expect(requested).not.toHaveBeenCalled();
+    expect(text(element)).toContain('has to commission it again');
+
+    press(element, 'Replace them');
+    expect((requested.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ force: true });
+  });
+
+  it('lets the replacement be called off', async () => {
+    const element = await revealed((node) => {
+      node.codes = CODES;
+      node.answered = true;
+    });
+    const requested = vi.fn();
+    element.addEventListener('pairing-requested', requested);
+
+    press(element, 'Draw new codes');
+    await element.updateComplete;
+    press(element, 'Keep the current ones');
+    await element.updateComplete;
+
+    expect(requested).not.toHaveBeenCalled();
+    expect(text(element)).toContain('Draw new codes');
+  });
+
+  it('says where the values went, and never what they are', async () => {
+    const element = await revealed((node) => {
+      node.codes = null;
+      node.answered = true;
+      node.drawn = 'Written to secrets/devices/bench-node.yaml. That file is the only copy.';
+    });
+    const shown = text(element);
+    expect(shown).toContain('secrets/devices/bench-node.yaml');
+    expect(shown).not.toContain(CODES.manual_code);
+    expect(shown).not.toContain(CODES.qr_payload);
+  });
+});
+
+describe('mh-device-list: creating one', () => {
+  it('asks for a new device rather than naming a command', async () => {
+    const element = await mount<MhDeviceList>('mh-device-list', (node) => {
+      node.devices = [];
+      node.loaded = true;
+      node.tree = { root: '/config', available: true, device_count: 0 };
+    });
+    const requested = vi.fn();
+    element.addEventListener('new-device', requested);
+
+    press(element, 'New device');
+    expect(requested).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the action reachable once devices exist', async () => {
+    const element = await mount<MhDeviceList>('mh-device-list', (node) => {
+      node.devices = [
+        {
+          name: 'bench-node',
+          entry: 'devices/bench-node/main.yaml',
+          content_hash: 'h',
+          modified: 0,
+          size: 0,
+          summary: {},
+        },
+      ];
+      node.loaded = true;
+      node.tree = { root: '/config', available: true, device_count: 1 };
+    });
+
+    expect(text(element)).toContain('New device');
+  });
+
+  it('offers nothing to create when the project cannot be opened', async () => {
+    const element = await mount<MhDeviceList>('mh-device-list', (node) => {
+      node.devices = [];
+      node.loaded = true;
+      node.tree = {
+        root: '/config',
+        available: false,
+        device_count: 0,
+        problem: { code: 'project_upgrade_required', project_version: 0, expected_version: 1 },
+      };
+    });
+
+    expect(text(element)).not.toContain('New device');
   });
 });

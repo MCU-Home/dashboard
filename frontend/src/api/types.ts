@@ -308,6 +308,117 @@ export interface DeviceCommissioningResult {
   commissioning: CommissioningCodes | null;
 }
 
+/**
+ * The registry a new-device form offers, from `device/boards`.
+ *
+ * Every choice this dashboard can present is one of these rows, and none
+ * of them is written down here: which boards MCUHome builds for, which
+ * parts it drives, which clusters it can generate is bring-up knowledge
+ * the firmware repository owns, and a second copy would go stale the
+ * first time a board lands. The `planned_*` lists travel with them
+ * because "not yet, because …" is a better answer than an absence.
+ */
+export interface PlannedEntry {
+  name: string;
+  reason: string;
+}
+
+/** One bus a board breaks out — what a peripheral's `bus` can point at. */
+export interface BoardBus {
+  /** Matches a driver's `bus`; a part only sits on a bus it speaks. */
+  kind: string;
+  /** The devicetree node label, which is what `controller:` takes. */
+  controller: string;
+  description: string;
+}
+
+export interface BoardDef {
+  name: string;
+  transports: string[];
+  buses: BoardBus[];
+}
+
+export interface DriverChannel {
+  name: string;
+  quantity: string;
+}
+
+export interface DriverDef {
+  /** The devicetree compatible string — what the YAML key `driver:` holds. */
+  compatible: string;
+  /** The kind of bus it sits on, or `null` for a bus-less part. */
+  bus: string | null;
+  channels: DriverChannel[];
+  /** The only address this chip can have, when it has no address pins. */
+  fixed_address: number | null;
+}
+
+export interface ClusterDef {
+  name: string;
+  /** The physical quantity it measures — a channel has to match it. */
+  quantity: string;
+  unit: string;
+}
+
+export interface DeviceTypeDef {
+  name: string;
+  /** The clusters this device type requires an endpoint to carry. */
+  mandatory_clusters: string[];
+}
+
+export interface BoardsResult {
+  boards: BoardDef[];
+  planned_boards: PlannedEntry[];
+  drivers: DriverDef[];
+  planned_drivers: PlannedEntry[];
+  clusters: ClusterDef[];
+  planned_clusters: PlannedEntry[];
+  device_types: DeviceTypeDef[];
+  planned_device_types: PlannedEntry[];
+  registry_version: number;
+}
+
+/** What a form collected, in the shape `device/new` takes it. */
+export interface OutlineBus {
+  id: string;
+  controller: string;
+}
+
+export interface OutlinePeripheral {
+  id: string;
+  driver: string;
+  bus?: string;
+  address?: number;
+}
+
+export interface OutlineCluster {
+  cluster: string;
+  source: string;
+  sampling?: string;
+}
+
+export interface OutlineEndpoint {
+  device_type: string;
+  clusters: OutlineCluster[];
+}
+
+export interface DeviceOutline {
+  buses: OutlineBus[];
+  peripherals: OutlinePeripheral[];
+  endpoints: OutlineEndpoint[];
+}
+
+/** `device/new` answers with what `device/get` would, for the new device. */
+export type DeviceNewResult = DeviceGetResult;
+
+export interface MatterPairingResult {
+  name: string;
+  /** True when credentials were already there and `force` replaced them. */
+  replaced: boolean;
+  /** Where the values went — never the values themselves. */
+  secrets_file: string;
+}
+
 export interface SubscribeResult extends DeviceListResult {
   topic: string;
 }

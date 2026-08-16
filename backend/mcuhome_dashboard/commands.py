@@ -57,6 +57,7 @@ from mcuhome_dashboard import builder, versions
 from mcuhome_dashboard.builds import BuildBusy, UnknownBuild
 from mcuhome_dashboard.events import TOPIC_BUILDS, TOPIC_DEVICES
 from mcuhome_dashboard.protocol import (
+    ERROR_BAD_REQUEST,
     ERROR_CONFLICT,
     ERROR_NOT_FOUND,
     ERROR_UNAUTHORIZED,
@@ -351,12 +352,9 @@ async def device_save(context: CommandContext, command: Command) -> dict[str, An
     force-overwrite and is how a client that has just resolved the
     conflict retries.
 
-    TODO(new-device): this writes an existing device's entry file only.
-    Creating one is ``mcuhome new``, which Block 0 implemented as a CLI
-    command but not (yet) as a ``mcuhome.api`` entry point — a
-    new-device command here needs one or the other. Editing a device's
-    *other* YAML files needs a ``file`` field once something offers a
-    way to open them.
+    This writes an existing device's entry file only — creating one is
+    ``device/new``. Editing a device's *other* YAML files needs a
+    ``file`` field once something offers a way to open them.
     """
     _require_admin(context, command)
     name = command.require_str("name")
@@ -414,6 +412,181 @@ async def device_save(context: CommandContext, command: Command) -> dict[str, An
             frame_id=command.id,
         )
     return {"name": name, "device": saved.to_dict(), "content_hash": saved.content_hash}
+
+
+async def device_boards(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``device/boards`` — the hardware a device can be described with.
+
+    Payload: none. Result: the registry's boards, drivers, clusters and
+    device types, each with the *planned* entries beside them.
+
+    **The answer comes from the builder's registry and from nothing
+    else.** Which boards MCUHome can build for is knowledge about
+    bring-up — partitions, entropy, radio, which bus the board breaks out
+    — that the firmware repository owns; a list maintained here would be
+    a second opinion that goes stale the first time a board lands. This
+    is the same data ``mcuhome device boards`` prints.
+
+    Not admin-gated: it is a catalogue of what the software supports,
+    with nothing about *this* deployment in it. It reads no project, so
+    it also answers before one is open — which is what a form needs to
+    populate itself while the tree is still being resolved.
+    """
+    del command
+    return await asyncio.to_thread(builder.boards)
+
+
+def _new_device_blocking(root: Path, name: str, board: str, friendly: str | None, outline) -> Path:
+    """Create the device, on a worker thread. Raises what the builder raises."""
+    tree = builder.open_config_tree(root)
+    created = builder.new_device(
+        name,
+        board=board,
+        env={},
+        cwd=tree.root,
+        project_dir=tree.root,
+        friendly_name=friendly,
+        outline=outline,
+    )
+    return created.entry
+
+
+async def device_new(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``device/new`` — create a device's first configuration file.
+
+    Payload: ``{"name", "board", "friendly_name"?, "outline"?}``.
+    Result: the same shape ``device/get`` answers with —
+    ``{"device", "content", "summary"}`` — so the client opens the editor
+    on what it just created without a second round trip.
+
+    *outline* is what a form collected: ``buses``, ``peripherals`` and
+    ``endpoints``, each a list of objects over the names ``device/boards``
+    offered. Left out, the file carries the commented example instead,
+    which is what the command line writes.
+
+    **Every refusal here is the builder's**, including the ones a form
+    should have prevented: a name that cannot become a hostname, a board
+    nobody has brought up, a driver that is planned rather than
+    supported, a source naming a peripheral that is not in the outline.
+    They arrive as ordinary diagnostics with the fix hint the command
+    line prints, because the alternative — checking the same things
+    again here — is the second opinion this dashboard does not keep
+    (AGENTS.md). It refuses **before writing anything**, so a rejected
+    form leaves no half-made device behind.
+
+    **A device that already exists is a conflict, never an overwrite.**
+    That is the builder's rule and this reports it as one, so a client
+    can offer to open the existing device rather than only saying no.
+
+    **Admin-only** (ADR 0014): it creates files in the configuration
+    tree.
+    """
+    _require_admin(context, command)
+    name = command.require_str("name")
+    board = command.require_str("board")
+    friendly = command.optional_str("friendly_name")
+    root = _tree_required(context)
+
+    try:
+        outline = builder.outline_from(command.optional_dict("outline"))
+    except builder.OutlineError as exc:
+        raise ProtocolError(str(exc), frame_id=command.id) from exc
+
+    try:
+        async with context.state.builder_gate:
+            await asyncio.to_thread(_new_device_blocking, root, name, board, friendly, outline)
+    except MCUHomeError as exc:
+        errors = builder.errors_from_exception(exc, root=root)
+        raise ProtocolError(
+            errors[0]["message"] if errors else str(exc),
+            # "already a device" is the one refusal a client acts on
+            # differently — it has somewhere to send the user.
+            code=ERROR_CONFLICT if "already a device" in str(exc) else ERROR_BAD_REQUEST,
+            frame_id=command.id,
+            errors=errors,
+        ) from exc
+
+    await context.devices.refresh()
+    created = context.devices.get(name)
+    path = context.devices.entry_path(name)
+    if created is None or path is None:  # pragma: no cover - only if the tree vanished
+        raise ProtocolError(
+            f'"{name}" was created but is not in the configuration tree.',
+            code=ERROR_UNAVAILABLE,
+            frame_id=command.id,
+        )
+    content = await asyncio.to_thread(path.read_text, encoding="utf-8")
+    return {"device": created.to_dict(), "content": content, "summary": created.summary}
+
+
+def _pairing_blocking(root: Path, name: str, force: bool) -> dict[str, Any]:
+    """Draw the credentials, on a worker thread."""
+    tree = builder.open_config_tree(root)
+    entry = tree.device_entry(name)
+    result = builder.init_pairing(entry, secrets_file=tree.secrets_file, force=force)
+    return {"replaced": result.replaced, "secrets_file": str(result.secrets_file)}
+
+
+async def device_matter_pairing(context: CommandContext, command: Command) -> dict[str, Any]:
+    """``device/matter-pairing`` — draw this device's commissioning identity.
+
+    Payload: ``{"name", "force"?}``. Result:
+    ``{"name", "replaced", "secrets_file"}``.
+
+    A device's discriminator, passcode and salt are drawn **once, ever**,
+    and are then ordinary configuration: that is what makes a build
+    reproducible and a device's identity stable, and it is why this is a
+    command somebody gives rather than a step a build takes on the way
+    past. The values go to the device's own secrets file and ``main.yaml``
+    gets ``!secret`` references, so the file a project commits never
+    carries them.
+
+    ``force`` replaces credentials that are already there, and the
+    builder refuses without it. **Replacing is not editing**: every
+    controller that already knows this device would have to commission it
+    again, which is why saying so takes a second, explicit word.
+
+    **It answers with none of the codes.** They travel through
+    ``device/commissioning`` and through nothing else — one command
+    carries passcodes and it is the one built for the purpose (ADR 0007).
+    A second door here would be one more place to get that wrong, for a
+    round trip on an open socket.
+
+    **Admin-only** (ADR 0014).
+    """
+    _require_admin(context, command)
+    name = command.require_str("name")
+    force = command.payload.get("force", False)
+    if not isinstance(force, bool):
+        raise ProtocolError(
+            '"device/matter-pairing" wants "force" as true or false.', frame_id=command.id
+        )
+    root = _tree_required(context)
+    await context.devices.refresh()
+    if context.devices.get(name) is None:
+        raise ProtocolError(
+            f'There is no device called "{name}" in this configuration tree.',
+            code=ERROR_NOT_FOUND,
+            frame_id=command.id,
+        )
+
+    try:
+        async with context.state.builder_gate:
+            result = await asyncio.to_thread(_pairing_blocking, root, name, force)
+    except MCUHomeError as exc:
+        errors = builder.errors_from_exception(exc, root=root)
+        raise ProtocolError(
+            errors[0]["message"] if errors else str(exc),
+            code=ERROR_CONFLICT,
+            frame_id=command.id,
+            errors=errors,
+        ) from exc
+
+    # The write changed main.yaml, so the hash every open editor holds is
+    # stale. Re-scanning here is what turns that into a `device_changed`
+    # event rather than into a conflict on somebody's next save.
+    await context.devices.refresh()
+    return {"name": name, **result}
 
 
 def _commissioning_blocking(root, entry) -> dict[str, Any]:
@@ -712,6 +885,9 @@ COMMANDS: dict[str, Handler] = {
     "ping": ping,
     "device/list": device_list,
     "device/get": device_get,
+    "device/new": device_new,
+    "device/boards": device_boards,
+    "device/matter-pairing": device_matter_pairing,
     "device/save": device_save,
     "device/validate": device_validate,
     "device/commissioning": device_commissioning,

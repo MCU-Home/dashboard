@@ -11,6 +11,7 @@
 
 import type { WsClient } from './client';
 import type {
+  BoardsResult,
   BuildLogResult,
   BuildStartResult,
   BuildStatusResult,
@@ -18,8 +19,11 @@ import type {
   DeviceCommissioningResult,
   DeviceGetResult,
   DeviceListResult,
+  DeviceNewResult,
+  DeviceOutline,
   DeviceSaveResult,
   DeviceValidateResult,
+  MatterPairingResult,
   ServerInfo,
   SubscribeResult,
 } from './types';
@@ -67,6 +71,66 @@ export function deviceSave(
     payload.expected_hash = expectedHash;
   }
   return client.send<DeviceSaveResult>('device/save', payload);
+}
+
+/**
+ * The hardware a device can be described with.
+ *
+ * The builder's registry, verbatim: boards, drivers, clusters and device
+ * types, each beside the ones that are planned rather than supported.
+ * Nothing here is cached, because it changes only when the installed
+ * builder does and a form asks for it once.
+ */
+export function deviceBoards(client: WsClient): Promise<BoardsResult> {
+  return client.send<BoardsResult>('device/boards');
+}
+
+/**
+ * Create a device's first configuration file.
+ *
+ * `outline` is what a form collected — buses, peripherals and endpoints
+ * over the names `deviceBoards` offered. Left out, the file carries the
+ * commented example the command line writes instead.
+ *
+ * Every refusal comes back as an error frame carrying the builder's own
+ * diagnostics, including the ones a form should have prevented: nothing
+ * is checked twice on this side, and a device that already exists is a
+ * `conflict` rather than an overwrite.
+ */
+export function deviceNew(
+  client: WsClient,
+  name: string,
+  board: string,
+  options: { friendlyName?: string; outline?: DeviceOutline } = {},
+): Promise<DeviceNewResult> {
+  const payload: Record<string, unknown> = { name, board };
+  if (options.friendlyName !== undefined && options.friendlyName !== '') {
+    payload.friendly_name = options.friendlyName;
+  }
+  if (options.outline !== undefined) {
+    payload.outline = options.outline;
+  }
+  return client.send<DeviceNewResult>('device/new', payload);
+}
+
+/**
+ * Draw this device's commissioning identity, once.
+ *
+ * Writes `!secret` references into `main.yaml` and the values into the
+ * device's own secrets file. It answers with **none of the codes** —
+ * those come from `deviceCommissioning` and from nothing else, so that
+ * "one command carries passcodes" stays a rule rather than a habit.
+ *
+ * `force` replaces credentials that are already there. Every controller
+ * that knows the device would have to commission it again, which is why
+ * the backend refuses without it.
+ */
+export function deviceMatterPairing(
+  client: WsClient,
+  name: string,
+  force = false,
+): Promise<MatterPairingResult> {
+  return client.send<MatterPairingResult>('device/matter-pairing', { name, force });
 }
 
 export function deviceValidate(client: WsClient, name: string): Promise<DeviceValidateResult> {

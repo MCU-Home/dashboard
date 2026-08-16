@@ -66,6 +66,10 @@ export class MhDeviceList extends LitElement {
         color: var(--wa-color-text-quiet);
         font-size: var(--wa-font-size-s);
       }
+
+      .add {
+        margin-top: var(--wa-space-m);
+      }
     `,
   ];
 
@@ -104,6 +108,7 @@ export class MhDeviceList extends LitElement {
           <p>
             ${this.tree?.root == null ? t.devices.createHint : t.devices.emptyHint(this.tree.root)}
           </p>
+          ${this.#createButton('brand')}
         </wa-callout>
       `;
     }
@@ -116,8 +121,33 @@ export class MhDeviceList extends LitElement {
           (device) => this.#row(device),
         )}
       </ul>
+      <div class="add">${this.#createButton('outlined')}</div>
     `;
   }
+
+  /**
+   * The one action that is not about a device that already exists.
+   *
+   * Offered whether or not this identity may use it: the refusal for a
+   * non-admin is the backend's (ADR 0014) and arrives as a sentence
+   * saying which permission is missing, which is a better answer than a
+   * button that is not there and explains nothing.
+   */
+  #createButton(appearance: 'brand' | 'outlined') {
+    return html`
+      <wa-button
+        variant=${appearance === 'brand' ? 'brand' : 'neutral'}
+        appearance=${appearance === 'brand' ? 'filled' : 'outlined'}
+        @click=${this.#create}
+      >
+        ${t.devices.create}
+      </wa-button>
+    `;
+  }
+
+  #create = (): void => {
+    this.dispatchEvent(new CustomEvent('new-device', { bubbles: true, composed: true }));
+  };
 
   #row(device: DeviceEntry) {
     const summary = device.summary;

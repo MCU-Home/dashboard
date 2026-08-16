@@ -122,9 +122,10 @@ jobs:
         # out here while every `run` below is already inside `frontend`.
         #
         # Not `corepack enable`, which reads the same pin: the corepack
-        # bundled with Node 22.12 carries npm registry signing keys that
-        # have since been rotated, so it dies on "Cannot find matching
-        # keyid" before it ever installs anything.
+        # bundled with Node at this floor carries npm registry signing
+        # keys that have since been rotated, so it dies on "Cannot find
+        # matching keyid" before it ever installs anything (observed
+        # here on 22.12).
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           package_json_file: frontend/package.json
@@ -135,7 +136,7 @@ jobs:
         # rot without anyone noticing.
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "22.12"
+          node-version: "22.13"
 
       - name: Install
         run: pnpm install --frozen-lockfile

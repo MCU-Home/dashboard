@@ -10,8 +10,12 @@ only contract.
 
 ## Getting started
 
-Node ≥ 22.12 and pnpm. `corepack enable` picks up the pinned pnpm from
-`package.json`.
+Node ≥ 22.13 and pnpm. The pnpm version is pinned by `packageManager` in
+`package.json`; `corepack enable` picks it up from there. (The floor is
+22.13 because the pinned pnpm refuses to start below it — CI runs exactly
+this floor so it cannot quietly stop being true. If corepack fails with
+"Cannot find matching keyid", its bundled signing keys are older than the
+registry's: update corepack, or install pnpm directly.)
 
 ```sh
 pnpm install

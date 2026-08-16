@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   across both, as the command line does. Each build already owns its
   directory, so this is what makes the later operations on an existing
   one — flashing it, cleaning it — safe to add.
+- **The declared Node floor was below what the pinned pnpm accepts.**
+  `engines.node` said `>=22.12.0`, but pnpm 11.20.0 refuses to start
+  below 22.13. The floor is now `>=22.13.0`, and CI runs exactly that
+  version so the declaration cannot quietly stop being true again.
 - A flaky test: a build record reaches its terminal state a few
   statements before the registry hands the slot back, so a test asserting
   on the slot had to wait for the later of the two. No client could

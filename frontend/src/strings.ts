@@ -42,7 +42,7 @@ export const t = {
   devices: {
     title: 'Devices',
     empty: 'No devices yet.',
-    emptyHint: (root: string) => `Nothing in ${root}/devices. Create one with \`mcuhome new\`.`,
+    emptyHint: (root: string) => `Nothing in ${root}/devices yet.`,
     noTree: 'No configuration tree',
     noTreeHint: (root: string | null) =>
       root === null
@@ -77,10 +77,81 @@ export const t = {
     board: 'Board',
     endpoints: (count: number) => (count === 1 ? '1 endpoint' : `${count} endpoints`),
     unknownBoard: 'no board set',
-    // TODO(block-0): a "New device" action needs `mcuhome new` behind
-    // `device/create` (ADR 0011 decision 4). Until then the CLI is the
-    // only way to add one, and saying so beats a button that cannot work.
-    createHint: 'New devices are created with `mcuhome new <name>` for now.',
+    create: 'New device',
+    createHint: 'Add the first one, or create it with the MCUHome command line.',
+  },
+
+  /**
+   * The new-device form.
+   *
+   * Every list it offers comes from the builder's registry, so the
+   * wording here never names a board, a part or a cluster — a string
+   * that did would be a second, slowly wrong copy of what
+   * `device/boards` answers.
+   */
+  newDevice: {
+    title: 'New device',
+    lead: 'Describe the device. Everything here can be changed afterwards by editing its configuration.',
+
+    nameLabel: 'Name',
+    nameHint: 'Becomes the folder and the hostname: lowercase letters, digits and dashes.',
+    friendlyLabel: 'Display name',
+    friendlyHint: 'What a controller shows. Optional — the name is title-cased if it is left out.',
+    boardLabel: 'Board',
+    boardHint: 'The hardware this runs on.',
+    boardPlaceholder: 'Pick a board',
+    plannedBoards: 'Planned, not usable yet',
+    planned: (name: string, reason: string) => `${name} — ${reason}`,
+
+    hardwareTitle: 'Hardware',
+    hardwareLead: 'What is wired up. A device with nothing attached is a valid device.',
+    addPeripheral: 'Add a part',
+    removePeripheral: 'Remove',
+    peripheralName: 'Name',
+    peripheralNameHint: 'How the endpoints below refer to it.',
+    peripheralDriver: 'Part',
+    peripheralBus: 'Connected to',
+    noDrivers: 'This version of MCUHome drives no parts yet.',
+    noBuses: 'This board breaks out no bus a supported part can sit on.',
+    fixedAddress: (address: string) => `Fixed address ${address}`,
+
+    endpointsTitle: 'What a controller sees',
+    endpointsLead:
+      'One entry per thing the device reports. Each needs a part to read from, so add the hardware first.',
+    addEndpoint: 'Add an entry',
+    removeEndpoint: 'Remove',
+    endpointType: 'Type',
+    endpointSource: (cluster: string) => `Reading for ${cluster}`,
+    noSource: 'No attached part measures this.',
+    needHardwareFirst: 'Add a part above before adding an entry here.',
+
+    previewTitle: 'This is what gets written',
+    previewLead: 'devices/<name>/main.yaml',
+
+    cancel: 'Cancel',
+    submit: 'Create device',
+    submitting: 'Creating…',
+    nextStep:
+      'Created. Draw its commissioning codes next — a device needs them before it can be built.',
+    failed: (message: string) => `The device could not be created: ${message}`,
+    exists: (name: string) => `There is already a device called "${name}".`,
+    openExisting: 'Open it',
+  },
+
+  pairing: {
+    title: 'Commissioning identity',
+    draw: 'Draw commissioning codes',
+    drawing: 'Drawing…',
+    missing:
+      'This device has no commissioning identity yet. It is drawn once and never changes — a build needs it.',
+    redraw: 'Draw new codes',
+    redrawWarning:
+      'Replacing them changes what this device is: every controller that already knows it has to commission it again, and the old codes stop working.',
+    redrawConfirm: 'Replace them',
+    redrawCancel: 'Keep the current ones',
+    written: (file: string) => `Written to ${file}. That file is the only copy — keep it safe.`,
+    replaced: (file: string) => `Replaced in ${file}. Commission this device again.`,
+    failed: (message: string) => `The codes could not be drawn: ${message}`,
   },
 
   validity: {

@@ -25,6 +25,7 @@ import '@home-assistant/webawesome/dist/components/button/button.js';
 import '@home-assistant/webawesome/dist/components/callout/callout.js';
 import '@home-assistant/webawesome/dist/components/card/card.js';
 import '@home-assistant/webawesome/dist/components/copy-button/copy-button.js';
+import '@home-assistant/webawesome/dist/components/dialog/dialog.js';
 import '@home-assistant/webawesome/dist/components/divider/divider.js';
 import '@home-assistant/webawesome/dist/components/input/input.js';
 import '@home-assistant/webawesome/dist/components/option/option.js';

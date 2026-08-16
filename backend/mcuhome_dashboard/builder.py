@@ -73,13 +73,24 @@ from mcuhome.workbench.api import (
     BuildDirectoryBusy,
     BuildOutcome,
     BuildRequest,
+    BusChoice,
+    ClusterChoice,
     DeviceModel,
+    DeviceOutline,
+    EndpointChoice,
     MCUHomeError,
+    NewDevice,
+    PairingResult,
+    PeripheralChoice,
     Project,
     build_lock,
     error_dicts,
+    init_pairing,
     is_project_root,
     is_upgrading,
+    new_device,
+    registry_data,
+    render_starter,
     resolve_method,
     resolve_project,
     run_build,
@@ -110,20 +121,34 @@ __all__ = [
     "BuildDirectoryBusy",
     "BuildOutcome",
     "BuildRequest",
+    "BusChoice",
+    "ClusterChoice",
     "DeviceModel",
+    "DeviceOutline",
+    "EndpointChoice",
     "MCUHomeError",
+    "NewDevice",
+    "OutlineError",
+    "PairingResult",
+    "PeripheralChoice",
     "Project",
+    "boards",
     "build_lock",
     "commissioning_codes",
     "device_summary",
     "errors_from_exception",
+    "init_pairing",
     "is_project_root",
     "is_upgrading",
     "load_model",
+    "new_device",
     "open_config_tree",
+    "outline_from",
     "project_problem",
     "public_facts",
     "raw_summary",
+    "registry_data",
+    "render_starter",
     "resolve_method",
     "resolve_project",
     "run_build",
@@ -449,6 +474,118 @@ def commissioning_codes(model: DeviceModel) -> dict[str, Any] | None:
         "discriminator": credentials.discriminator,
         "test_credentials": credentials.test_credentials,
     }
+
+
+# --------------------------------------------------------------------------
+# Creating a device: the registry a form offers, and the picks it collects
+# --------------------------------------------------------------------------
+
+
+def boards() -> dict[str, Any]:
+    """What MCUHome can build for, and what it cannot build for yet.
+
+    A slice of ``registry_data`` rather than the whole of it. The full
+    export carries clusters, attribute sizes and per-board flash layouts
+    — data an editor's autocomplete will want and a board picker will
+    not — and this is the answer to one question, which is what makes it
+    cheap enough to ask on the way into a form.
+
+    The planned list travels with it on purpose: "not yet, because …" is
+    a better answer than an absence, and it is the same answer the
+    command line gives.
+    """
+    data = registry_data()
+    return {
+        "boards": data["boards"],
+        "planned_boards": data["planned_boards"],
+        "drivers": data["drivers"],
+        "planned_drivers": data["planned_drivers"],
+        "clusters": [
+            {"name": entry["name"], "quantity": entry["quantity"], "unit": entry["unit"]}
+            for entry in data["clusters"]
+        ],
+        "planned_clusters": data["planned_clusters"],
+        "device_types": data["device_types"],
+        "planned_device_types": data["planned_device_types"],
+        "registry_version": data["registry_version"],
+    }
+
+
+class OutlineError(ValueError):
+    """A new-device payload that is not shaped like an outline."""
+
+
+def _entries(data: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    value = data.get(key, [])
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise OutlineError(f'"{key}" has to be a list of objects.')
+    return value
+
+
+def _field(entry: dict[str, Any], key: str, *, where: str, required: bool = True) -> str | None:
+    value = entry.get(key)
+    if value is None and not required:
+        return None
+    if not isinstance(value, str) or not value:
+        raise OutlineError(f'Every {where} needs a non-empty "{key}".')
+    return value
+
+
+def outline_from(data: dict[str, Any]) -> DeviceOutline:
+    """Turn a browser's picks into the builder's own outline type.
+
+    Shape only — every *name* in here is judged by the builder, which
+    owns the registry, and every relationship between them by
+    ``new_device``, which refuses before it writes anything. This
+    function's whole job is that a malformed frame is answered as a
+    malformed frame instead of arriving inside the builder as a
+    ``TypeError``.
+    """
+    if not isinstance(data, dict):  # pragma: no cover - the protocol layer checks first
+        raise OutlineError("The outline has to be a JSON object.")
+
+    buses = tuple(
+        BusChoice(
+            id=_field(entry, "id", where="bus"),
+            controller=_field(entry, "controller", where="bus"),
+        )
+        for entry in _entries(data, "buses")
+    )
+    peripherals = tuple(
+        PeripheralChoice(
+            id=_field(entry, "id", where="peripheral"),
+            driver=_field(entry, "driver", where="peripheral"),
+            bus=_field(entry, "bus", where="peripheral", required=False),
+            address=_address(entry),
+        )
+        for entry in _entries(data, "peripherals")
+    )
+    endpoints = tuple(
+        EndpointChoice(
+            device_type=_field(entry, "device_type", where="endpoint"),
+            clusters=tuple(
+                ClusterChoice(
+                    cluster=_field(item, "cluster", where="cluster"),
+                    source=_field(item, "source", where="cluster"),
+                    sampling=_field(item, "sampling", where="cluster", required=False),
+                )
+                for item in _entries(entry, "clusters")
+            ),
+        )
+        for entry in _entries(data, "endpoints")
+    )
+    return DeviceOutline(buses=buses, peripherals=peripherals, endpoints=endpoints)
+
+
+def _address(entry: dict[str, Any]) -> int | None:
+    value = entry.get("address")
+    if value is None:
+        return None
+    # `bool` is an `int` in Python and `true` is not an I2C address; the
+    # same rule the protocol's own integer reader applies.
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise OutlineError('A peripheral\'s "address" has to be a whole number, zero or more.')
+    return value
 
 
 def _plain(value: Any) -> Any:

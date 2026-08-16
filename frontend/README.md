@@ -86,6 +86,24 @@ including inside a comment — is matched first and the injection lands
 somewhere inert. `index.html` says so where it matters; if you edit it,
 keep prose about that tag *inside* the element.
 
+### The new-device form knows no hardware
+
+`mh-new-device` offers boards, parts, buses, clusters and device types,
+and not one of them is written down in this repository. They arrive from
+`device/boards` — the builder's registry — and the form constrains the
+choices against each other from that same data: a part is only offered a
+bus of the kind its driver speaks, and an entry is only offered a
+reading whose quantity matches the cluster. That is what makes the form
+correct rather than merely convenient, and it is why it grows when the
+registry does without anybody editing it. It is also why it looks thin
+today: MCUHome supports one board and one part.
+
+Nothing is pre-validated. A name that cannot become a hostname, a board
+nobody brought up, a device that already exists — all of those are
+refusals the builder gives, with the fix hint the command line prints,
+because a check here would be a second opinion about a rule that lives
+in another repository.
+
 ### The theme is self-detected
 
 No theme crosses the ingress iframe boundary — there is no mechanism,
@@ -113,6 +131,7 @@ a theme exists.
 | `src/state/build-store.ts` | the builds, and the log offsets that make a lost batch of output recoverable |
 | `src/state/validity.ts` | the per-device validity badges, and their queue |
 | `src/state/theme.ts` | light/dark |
+| `src/components/mh-new-device.ts` | the new-device form, made entirely out of `device/boards` |
 | `src/components/` | the Lit elements |
 | `test/` | vitest |
 
@@ -157,9 +176,6 @@ a theme exists.
 
 ## What is not here yet
 
-- **Creating a device** — needs `mcuhome new` behind a command (ADR 0011
-  decision 4, "Block 0"). The list says so instead of offering a button
-  that cannot work.
 - **Schema-aware autocomplete and inline lint while typing** — needs the
   registry and JSON-Schema export from the firmware repository. The
   editor has the autocompletion extension mounted with no schema source;

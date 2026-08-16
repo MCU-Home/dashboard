@@ -24,6 +24,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A device can be created from the browser** (ADR 0017 draft). A form
+  that offers boards, parts and endpoints — and knows none of them:
+  every list comes from the builder's registry over the new
+  `device/boards`, and the choices are constrained against each other
+  from that same data, so a part is only offered a bus its driver
+  speaks and an entry only a reading whose quantity fits the cluster.
+  What it collects is written as real configuration by
+  `mcuhome.workbench.api.new_device`; nothing is checked twice, so a
+  name that cannot become a hostname or a device that already exists is
+  refused by the builder, with the hint the command line prints, and
+  nothing is written. `device/matter-pairing` draws the device's
+  commissioning identity — once, into its secrets file — and answers
+  with **none of the codes**: those still come from
+  `device/commissioning` and from nothing else.
+
 - **A build now shows how far along it is and where it is running** (ADR
   0016 draft). The record carries `steps` — check configuration, collect
   sources, compile, collect files, sign — with the state of each, and a

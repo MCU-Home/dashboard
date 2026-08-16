@@ -71,8 +71,14 @@ configuration** (`--build-method`): a build container on this machine, a
 build server, or a west workspace. `backend/mcuhome_dashboard/builds.py`
 is the registry; `builder.py` holds the one seam.
 
-Still missing: flash views in the browser, creating a device from the
-browser (needs `mcuhome new` as API, ADR 0011), and app packaging.
+A device can also be **created** from the browser (ADR 0017 draft):
+`device/boards` hands the builder's registry to a form that offers
+nothing MCUHome has not brought up, `device/new` writes the first
+`main.yaml` through `mcuhome.workbench.api.new_device`, and
+`device/matter-pairing` draws the device's commissioning identity once.
+None of those verbs judges a name — every refusal is the builder's.
+
+Still missing: flash views in the browser, and app packaging.
 
 The architecture in one line: the dashboard never compiles (ADR 0003) —
 it carries no toolchain, and `mcuhome-compiler` is deliberately not

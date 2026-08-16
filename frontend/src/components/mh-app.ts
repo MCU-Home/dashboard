@@ -212,6 +212,7 @@ export class MhApp extends LitElement {
             .devices=${this.#store.devices}
             .tree=${this.#store.tree}
             .loaded=${this.#store.loaded}
+            .ingress=${this.info?.deployment.trust === 'ingress'}
             .validityOf=${(name: string) => this.#validity.get(name)}
           ></mh-device-list>
         `;

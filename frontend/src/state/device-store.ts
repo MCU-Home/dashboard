@@ -17,7 +17,7 @@
  * snapshot rather than pretending otherwise.
  */
 
-import type { DeviceEntry, TreeState } from '../api/types';
+import type { DeviceEntry, TreeProblem, TreeState } from '../api/types';
 
 export type StoreListener = () => void;
 
@@ -100,7 +100,8 @@ export class DeviceStore {
       case 'tree_state': {
         const root = (payload.root ?? null) as string | null;
         const available = payload.available === true;
-        this.#tree = { root, available, device_count: this.#devices.size };
+        const problem = (payload.problem ?? null) as TreeProblem | null;
+        this.#tree = { root, available, device_count: this.#devices.size, problem };
         this.#notify();
         return true;
       }

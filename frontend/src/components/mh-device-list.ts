@@ -13,11 +13,12 @@
  * testable without a server.
  */
 
-import { html, LitElement, css } from 'lit';
+import { html, LitElement, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 
 import type { DeviceEntry, TreeState } from '../api/types';
+import { links } from '../links';
 import { deviceHref } from '../router';
 import type { Validity } from '../state/validity';
 import { t } from '../strings';
@@ -77,18 +78,21 @@ export class MhDeviceList extends LitElement {
   @property({ type: Boolean })
   loaded = false;
 
+  /**
+   * Whether this is the Home Assistant App rather than a standalone
+   * deployment. It changes who repairs an unusable project, and that is
+   * the only thing it is used for here.
+   */
+  @property({ type: Boolean })
+  ingress = false;
+
   /** Looked up per row, so a verdict arriving late redraws one badge. */
   @property({ attribute: false })
   validityOf: (name: string) => Validity = () => ({ status: 'unknown', errorCount: 0, errors: [] });
 
   override render() {
     if (this.tree !== null && !this.tree.available) {
-      return html`
-        <wa-callout variant="warning">
-          <strong>${t.devices.noTree}</strong>
-          <p>${t.devices.noTreeHint(this.tree.root)}</p>
-        </wa-callout>
-      `;
+      return this.#renderUnusable(this.tree);
     }
     if (!this.loaded) {
       return html`<p class="quiet">${t.devices.loading}</p>`;
@@ -132,6 +136,78 @@ export class MhDeviceList extends LitElement {
           <mh-validity-badge .validity=${this.validityOf(device.name)}></mh-validity-badge>
         </a>
       </li>
+    `;
+  }
+
+  /**
+   * An unusable tree, and what the person looking at it can do.
+   *
+   * No device is listed in any of these cases on purpose: every command
+   * touching one would be refused, and a list of devices that cannot be
+   * opened is a worse answer than none.
+   */
+  #renderUnusable(tree: TreeState) {
+    const problem = tree.problem ?? null;
+    const { root } = tree;
+
+    if (problem === null || problem.code === 'no_project') {
+      return html`
+        <wa-callout variant="warning">
+          <strong>${t.devices.noTree}</strong>
+          <p>${t.devices.noTreeHint(root)}</p>
+        </wa-callout>
+      `;
+    }
+
+    switch (problem.code) {
+      case 'project_upgrade_required':
+        return this.#callout(
+          'warning',
+          t.devices.projectUnusable,
+          t.devices.upgradeRequired(problem.project_version ?? 0, problem.expected_version ?? 0),
+          t.devices.upgradeHow(root, this.ingress),
+          links.projectUpgrade,
+          t.devices.upgradeLink,
+        );
+      case 'project_version_unsupported':
+        return this.#callout(
+          'warning',
+          t.devices.projectUnusable,
+          t.devices.versionUnsupported(problem.project_version ?? 0, problem.expected_version ?? 0),
+          t.devices.versionUnsupportedHow(this.ingress),
+        );
+      case 'project_upgrading':
+        return this.#callout('neutral', t.devices.projectUpgrading, t.devices.projectUpgradingHow);
+      default:
+        // `project_file_unreadable`, and anything a newer backend
+        // invents: say the honest general thing rather than nothing.
+        return this.#callout(
+          'danger',
+          t.devices.projectUnreadable,
+          t.devices.projectUnreadableHow(root),
+        );
+    }
+  }
+
+  #callout(
+    variant: 'warning' | 'neutral' | 'danger',
+    title: string,
+    body: string,
+    how?: string,
+    href?: string,
+    linkText?: string,
+  ) {
+    return html`
+      <wa-callout variant=${variant}>
+        <strong>${title}</strong>
+        <p>${body}</p>
+        ${how ? html`<p>${how}</p>` : nothing}
+        ${
+          href && linkText
+            ? html`<p><a href=${href} target="_blank" rel="noreferrer noopener">${linkText}</a></p>`
+            : nothing
+        }
+      </wa-callout>
     `;
   }
 }

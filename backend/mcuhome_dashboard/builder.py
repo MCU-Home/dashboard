@@ -66,6 +66,7 @@ from mcuhome.workbench.api import (
     DEVICE_ENTRY,
     DEVICES_DIR,
     METHODS,
+    PROJECT_VERSION,
     BuildDirectoryBusy,
     BuildOutcome,
     BuildRequest,
@@ -75,6 +76,7 @@ from mcuhome.workbench.api import (
     build_lock,
     error_dicts,
     is_project_root,
+    is_upgrading,
     resolve_method,
     resolve_project,
     run_build,
@@ -87,6 +89,12 @@ __all__ = [
     "DEVICES_DIR",
     "DEVICE_ENTRY",
     "MCUHOME_VERSION",
+    "PROBLEM_NO_PROJECT",
+    "PROBLEM_UNREADABLE",
+    "PROBLEM_UPGRADE_REQUIRED",
+    "PROBLEM_UPGRADING",
+    "PROBLEM_VERSION_UNSUPPORTED",
+    "PROJECT_VERSION",
     "BuildDirectoryBusy",
     "BuildOutcome",
     "BuildRequest",
@@ -98,8 +106,10 @@ __all__ = [
     "device_summary",
     "errors_from_exception",
     "is_project_root",
+    "is_upgrading",
     "load_model",
     "open_config_tree",
+    "project_problem",
     "raw_summary",
     "resolve_method",
     "resolve_project",
@@ -136,6 +146,80 @@ _PLAIN_TYPES = (str, int, float, bool)
 def open_config_tree(root: Path) -> Project:
     """Open *root* as a project, or raise ``ConfigError``."""
     return resolve_project(explicit=root, env={}, cwd=root)
+
+
+#: Why a directory is not a usable project. These travel to the browser
+#: as codes, never as sentences — see :func:`project_problem`.
+PROBLEM_NO_PROJECT = "no_project"
+PROBLEM_UPGRADE_REQUIRED = "project_upgrade_required"
+PROBLEM_VERSION_UNSUPPORTED = "project_version_unsupported"
+PROBLEM_UPGRADING = "project_upgrading"
+PROBLEM_UNREADABLE = "project_file_unreadable"
+
+
+def project_problem(root: Path | None) -> dict[str, Any] | None:
+    """What stands between *root* and being a usable project, or ``None``.
+
+    The dashboard does not manage projects: it is pointed at one that
+    already exists, and creating or upgrading it is somebody else's job.
+    What it owes the user is to say so *before* they start working,
+    rather than listing devices from a project every command will then
+    refuse — which is what happened while only the marker's presence was
+    checked and not the version it states.
+
+    The answer is **facts, never a sentence**. Both sites publish onto
+    one event bus, and the sentence differs between them: in a standalone
+    deployment a person can install the command line and run the upgrade,
+    while in the Home Assistant App the container is what keeps the
+    project current and a user seeing this at all means something went
+    wrong upstream of them. The browser knows which site answered
+    (``server/info`` reports it) and does the wording.
+    """
+    # Every filesystem question below is asked inside the guard, not
+    # before it. On Python 3.13 ``Path.is_file`` re-raises anything it
+    # cannot read past — a directory whose permissions changed, an
+    # unmounted network share — and this runs in the poll loop's worker
+    # thread, where an escaping error means the browser is told nothing
+    # at all rather than told what is wrong. (Python 3.14 swallows the
+    # same errors, so the difference is invisible on a newer host and
+    # not on the one this ships with.)
+    try:
+        if root is None or not root.is_dir():
+            return {"code": PROBLEM_NO_PROJECT}
+        if is_upgrading(root):
+            # The marker is renamed for exactly as long as an upgrade
+            # holds the project, so this is either one in flight or one
+            # that was killed halfway. Both mean: nothing here may be
+            # touched yet.
+            return {"code": PROBLEM_UPGRADING}
+        if not is_project_root(root):
+            # Asked a second time, and this is the order that matters: an
+            # upgrade *renames* the marker, so the two states swap under
+            # a scan that is already looking at one of them. Without this,
+            # an upgrade starting between the two questions reads as
+            # "there is no project here" — the one answer that sends a
+            # user looking for a project that is merely busy.
+            if is_upgrading(root):
+                return {"code": PROBLEM_UPGRADING}
+            return {"code": PROBLEM_NO_PROJECT}
+        # The one call that reads the marker without judging it: the
+        # version check is what this function is *for*, so it must not
+        # happen inside the resolution and arrive as an exception.
+        file = resolve_project(explicit=root, env={}, cwd=root, require_version=False).file
+    except (MCUHomeError, OSError):
+        return {"code": PROBLEM_UNREADABLE}
+    if file is None:  # pragma: no cover - the marker is there, so is the file
+        return {"code": PROBLEM_UNREADABLE}
+    if file.current:
+        return None
+    code = (
+        PROBLEM_UPGRADE_REQUIRED if file.version < PROJECT_VERSION else PROBLEM_VERSION_UNSUPPORTED
+    )
+    return {
+        "code": code,
+        "project_version": file.version,
+        "expected_version": PROJECT_VERSION,
+    }
 
 
 def errors_from_exception(exc: MCUHomeError, *, root: Path | None = None) -> list[dict[str, Any]]:

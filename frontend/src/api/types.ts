@@ -14,10 +14,33 @@
 
 import type { Open } from './protocol';
 
+/**
+ * Why the configuration tree cannot be used, when it cannot.
+ *
+ * The backend sends codes and numbers rather than a sentence, because
+ * the sentence differs by deployment: standalone, a person can install
+ * the command line and repair the project; in the Home Assistant App the
+ * container keeps it current, so seeing this at all means something
+ * upstream went wrong. Both sites share one event bus, so the wording
+ * has to happen here, where the deployment is known.
+ */
+export interface TreeProblem {
+  code: Open<
+    | 'no_project'
+    | 'project_upgrade_required'
+    | 'project_version_unsupported'
+    | 'project_upgrading'
+    | 'project_file_unreadable'
+  >;
+  project_version?: number;
+  expected_version?: number;
+}
+
 export interface TreeState {
   root: string | null;
   available: boolean;
   device_count: number;
+  problem?: TreeProblem | null;
 }
 
 /** `builder.raw_summary` — parsed YAML, nothing resolved, no secret looked up. */

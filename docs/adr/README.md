@@ -49,3 +49,4 @@ Numbers missing above live here — they are the same sequence.
 |---|---|
 | [0008](draft/0008-state-layout-signing-key-and-backups.md) | State layout: config tree, signing key, retention, backups |
 | [0010](draft/0010-flash-flow-ladder.md) | The flash-flow ladder; v0.1 stops at rung 1 |
+| [0015](draft/0015-the-dashboard-opens-projects-it-does-not-manage-them.md) | The dashboard opens a project; it does not manage one |

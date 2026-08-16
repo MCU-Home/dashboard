@@ -98,8 +98,18 @@ def device_removed(name: str) -> Event:
     return Event(TOPIC_DEVICES, "device_removed", {"name": name})
 
 
-def tree_state(root: str | None, *, available: bool) -> Event:
-    return Event(TOPIC_DEVICES, "tree_state", {"root": root, "available": available})
+def tree_state(
+    root: str | None, *, available: bool, problem: dict[str, Any] | None = None
+) -> Event:
+    """The tree's usability, and — when it is not usable — why.
+
+    ``problem`` carries codes and numbers, never a rendered sentence:
+    both sites publish onto this one bus and the sentence differs
+    between them (:func:`mcuhome_dashboard.builder.project_problem`).
+    """
+    return Event(
+        TOPIC_DEVICES, "tree_state", {"root": root, "available": available, "problem": problem}
+    )
 
 
 def build_started(build: dict[str, Any]) -> Event:

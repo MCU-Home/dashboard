@@ -48,6 +48,31 @@ export const t = {
       root === null
         ? 'The dashboard was started without a configuration tree. Point it at one with --config-root.'
         : `${root} is not an MCUHome configuration tree.`,
+
+    // The project is there but unusable. The dashboard is pointed at a
+    // project somebody else created and does not manage one itself, so
+    // every answer here ends with who does — and that differs by
+    // deployment, which is why these take `ingress`.
+    projectUnusable: 'This project cannot be opened',
+    upgradeRequired: (from: number, to: number) =>
+      `The project was written by older tools (project version ${from}; these tools need ${to}).`,
+    upgradeHow: (root: string | null, ingress: boolean) =>
+      ingress
+        ? 'The Home Assistant App upgrades the project when it starts, so this should not appear. Restarting the App is the first thing to try.'
+        : `Back the project up, then upgrade it with the MCUHome command line: \`mcuhome project upgrade ${root ?? ''}\`.`.trim(),
+    upgradeLink: 'What the upgrade changes',
+    versionUnsupported: (from: number, to: number) =>
+      `The project was written by newer tools than these (project version ${from}; these tools understand ${to}).`,
+    versionUnsupportedHow: (ingress: boolean) =>
+      ingress
+        ? 'Update the Home Assistant App to a version that understands this project.'
+        : 'Update the dashboard to a version that understands this project. Downgrading the project is not possible.',
+    projectUpgrading: 'An upgrade is working on this project',
+    projectUpgradingHow:
+      'The project is held until it finishes. If nothing is running, the upgrade was interrupted and the project has to be restored from its backup.',
+    projectUnreadable: 'The project file cannot be read',
+    projectUnreadableHow: (root: string | null) =>
+      `Check ${root ?? 'the project directory'} — its marker file is missing, unreadable or not valid.`,
     loading: 'Loading…',
     board: 'Board',
     endpoints: (count: number) => (count === 1 ? '1 endpoint' : `${count} endpoints`),

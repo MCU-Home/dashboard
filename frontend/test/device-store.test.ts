@@ -78,6 +78,32 @@ describe('events', () => {
     expect(store.tree).toMatchObject({ available: false, root: '/config' });
   });
 
+  it('carries why the tree is unusable, so the interface can say it', () => {
+    const store = new DeviceStore();
+    store.applyEvent('tree_state', {
+      root: '/config',
+      available: false,
+      problem: { code: 'project_upgrade_required', project_version: 0, expected_version: 1 },
+    });
+    expect(store.tree?.problem).toEqual({
+      code: 'project_upgrade_required',
+      project_version: 0,
+      expected_version: 1,
+    });
+  });
+
+  it('clears the reason when the tree becomes usable again', () => {
+    // An upgrade finishing must not leave the old explanation on screen.
+    const store = new DeviceStore();
+    store.applyEvent('tree_state', {
+      root: '/config',
+      available: false,
+      problem: { code: 'project_upgrading' },
+    });
+    store.applyEvent('tree_state', { root: '/config', available: true, problem: null });
+    expect(store.tree?.problem).toBeNull();
+  });
+
   it('ignores an event this build has never heard of', () => {
     // A newer backend is not a reason to stop rendering the list.
     const store = new DeviceStore();

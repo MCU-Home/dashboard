@@ -103,6 +103,10 @@ class DeviceStore:
         self._entries: dict[str, DeviceEntry] = {}
         self._scans: dict[str, _Scan] = {}
         self._available = False
+        #: Why the tree is unusable, as facts (:func:`builder.project_problem`).
+        #: ``None`` while it is usable — and before the first scan, when
+        #: nothing is claimed either way.
+        self._problem: dict[str, Any] | None = None
         self._task: asyncio.Task[None] | None = None
         self._lock = asyncio.Lock()
 
@@ -130,11 +134,17 @@ class DeviceStore:
             return None
         return self._root / entry.entry
 
+    @property
+    def problem(self) -> dict[str, Any] | None:
+        """Why the tree is unusable, or ``None``. Facts, not a sentence."""
+        return self._problem
+
     def tree_state(self) -> dict[str, Any]:
         return {
             "root": str(self._root) if self._root else None,
             "available": self._available,
             "device_count": len(self._entries),
+            "problem": self._problem,
         }
 
     # -- lifecycle --------------------------------------------------
@@ -174,20 +184,31 @@ class DeviceStore:
         """
         async with self._lock:
             was_available = self._available
-            available, scans = await asyncio.to_thread(self._scan_stamps)
+            was_problem = self._problem
+            available, scans, problem = await asyncio.to_thread(self._scan_stamps)
             entries, changed_names, new_names = await asyncio.to_thread(self._materialize, scans)
 
             removed = sorted(set(self._entries) - set(entries))
             self._entries = entries
             self._scans = scans
             self._available = available
+            self._problem = problem
 
             if not announce:
                 return bool(changed_names or new_names or removed)
 
-            if available != was_available:
+            # The problem is announced as well as the availability: a
+            # tree can stay unusable while the reason changes under it
+            # (an upgrade starts, finishes, or dies halfway), and a
+            # browser showing the old reason would be telling the user
+            # to do something that is already happening.
+            if available != was_available or problem != was_problem:
                 self._bus.publish(
-                    events.tree_state(str(self._root) if self._root else None, available=available)
+                    events.tree_state(
+                        str(self._root) if self._root else None,
+                        available=available,
+                        problem=problem,
+                    )
                 )
             for name in removed:
                 self._bus.publish(events.device_removed(name))
@@ -197,23 +218,32 @@ class DeviceStore:
                 self._bus.publish(events.device_changed(entries[name].to_dict()))
             return bool(changed_names or new_names or removed)
 
-    def _scan_stamps(self) -> tuple[bool, dict[str, _Scan]]:
-        """The cheap half: which device folders exist, and their stamps."""
-        root = self._root
-        if root is None or not root.is_dir() or not builder.is_project_root(root):
-            return False, {}
+    def _scan_stamps(self) -> tuple[bool, dict[str, _Scan], dict[str, Any] | None]:
+        """The cheap half: which device folders exist, and their stamps.
 
+        The third value is why the tree cannot be used, when it cannot.
+        The project's *version* belongs to that question and not to the
+        individual commands: checking only that the marker exists let a
+        too-old project list its devices normally and then refuse every
+        single thing done to one of them.
+        """
+        root = self._root
+        problem = builder.project_problem(root)
+        if problem is not None:
+            return False, {}, problem
+
+        assert root is not None  # project_problem said so
         devices_dir = root / builder.DEVICES_DIR
         if not devices_dir.is_dir():
             # A project root with no devices/ is a valid, empty project.
-            return True, {}
+            return True, {}, None
 
         scans: dict[str, _Scan] = {}
         try:
             candidates = sorted(devices_dir.iterdir())
         except OSError as exc:
             logger.warning("cannot read %s: %s", devices_dir, exc)
-            return False, {}
+            return False, {}, {"code": builder.PROBLEM_UNREADABLE}
 
         for folder in candidates:
             entry = folder / builder.DEVICE_ENTRY
@@ -222,7 +252,7 @@ class DeviceStore:
             scan = self._stamp_folder(folder, entry)
             if scan is not None:
                 scans[folder.name] = scan
-        return True, scans
+        return True, scans, None
 
     def _stamp_folder(self, folder: Path, entry: Path) -> _Scan | None:
         stamps: list[_Stamp] = []

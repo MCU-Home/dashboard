@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A project the dashboard cannot open now says so, and lists nothing**
+  (ADR 0015 draft). Only the project marker's *presence* was checked, so
+  a project written by older tools listed its devices as though all were
+  well and then refused every action on one of them — validating,
+  saving, building. The project's version is now part of the same
+  question the rest of the tree scan answers, and `tree_state` carries a
+  `problem` code saying which of the five reasons it is. The wording
+  happens in the browser, because it differs by deployment: standalone
+  it names the command line and links the documentation, under Home
+  Assistant ingress it says the App should have upgraded the project
+  before the dashboard ever saw it.
+
 ### Added
 
 - **Continuous integration** (`.github/workflows/ci.yml`): `ruff` + REUSE,

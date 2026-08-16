@@ -198,6 +198,115 @@ describe('mh-device-list', () => {
     });
     expect(text(element)).toContain('not an MCUHome configuration tree');
   });
+
+  it('lists nothing when the project cannot be opened, whatever arrived with it', async () => {
+    // The backend sends no devices for an unusable project; this asserts
+    // the interface would not show them even if one slipped through,
+    // because every action on such a device is refused anyway.
+    const element = await mount<MhDeviceList>('mh-device-list', (node) => {
+      node.loaded = true;
+      node.tree = {
+        root: '/config',
+        available: false,
+        device_count: 1,
+        problem: { code: 'project_upgrade_required', project_version: 0, expected_version: 1 },
+      };
+      node.devices = [device('bench-node', 'x')];
+    });
+
+    expect(element.shadowRoot?.querySelectorAll('li')).toHaveLength(0);
+    expect(text(element)).toContain('cannot be opened');
+    expect(text(element)).toContain('project version 0');
+  });
+
+  it('names who repairs an old project, and that differs by deployment', async () => {
+    const tree = {
+      root: '/config',
+      available: false,
+      device_count: 0,
+      problem: { code: 'project_upgrade_required', project_version: 0, expected_version: 1 },
+    } as const;
+
+    const standalone = await mount<MhDeviceList>('mh-device-list', (node) => {
+      node.loaded = true;
+      node.tree = { ...tree };
+      node.ingress = false;
+    });
+    expect(text(standalone)).toContain('mcuhome project upgrade /config');
+    expect(text(standalone)).not.toContain('Home Assistant App');
+
+    const app = await mount<MhDeviceList>('mh-device-list', (node) => {
+      node.loaded = true;
+      node.tree = { ...tree };
+      node.ingress = true;
+    });
+    expect(text(app)).toContain('Home Assistant App');
+    expect(text(app)).not.toContain('mcuhome project upgrade');
+  });
+
+  it('offers the page that explains the upgrade, and only where it helps', async () => {
+    const element = await mount<MhDeviceList>('mh-device-list', (node) => {
+      node.loaded = true;
+      node.tree = {
+        root: '/config',
+        available: false,
+        device_count: 0,
+        problem: { code: 'project_upgrade_required', project_version: 0, expected_version: 1 },
+      };
+    });
+
+    const link = element.shadowRoot?.querySelector('a');
+    expect(link?.getAttribute('href')).toBe(
+      'https://t.mcuhome.org/dashboard/docs/project-upgrade/0.1/',
+    );
+    // Opening a documentation site must not hand it this window.
+    expect(link?.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('tells a project that is too new from one that is too old', async () => {
+    const element = await mount<MhDeviceList>('mh-device-list', (node) => {
+      node.loaded = true;
+      node.tree = {
+        root: '/config',
+        available: false,
+        device_count: 0,
+        problem: { code: 'project_version_unsupported', project_version: 2, expected_version: 1 },
+      };
+    });
+
+    const said = text(element);
+    expect(said).toContain('newer tools');
+    expect(said).toContain('Update the dashboard');
+    // Nothing here may suggest an upgrade: projects do not go backwards.
+    expect(said).not.toContain('project upgrade');
+  });
+
+  it('says to wait while an upgrade holds the project', async () => {
+    const element = await mount<MhDeviceList>('mh-device-list', (node) => {
+      node.loaded = true;
+      node.tree = {
+        root: '/config',
+        available: false,
+        device_count: 0,
+        problem: { code: 'project_upgrading' },
+      };
+    });
+    expect(text(element)).toContain('upgrade is working on this project');
+  });
+
+  it('falls back to something honest for a code it does not know', async () => {
+    const element = await mount<MhDeviceList>('mh-device-list', (node) => {
+      node.loaded = true;
+      node.tree = {
+        root: '/config',
+        available: false,
+        device_count: 0,
+        // What a newer backend inventing a reason looks like from here.
+        problem: { code: 'something_the_future_added' },
+      };
+    });
+    expect(text(element)).toContain('/config');
+  });
 });
 
 describe('mh-validity-badge', () => {

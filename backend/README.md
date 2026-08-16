@@ -136,6 +136,23 @@ Events on the `devices` topic: `device_added`, `device_changed`,
 server discarded events for it — the cue to re-subscribe rather than
 trust what is held.
 
+`tree_state` carries `{root, available, problem}`, and `problem` is why
+the tree cannot be used when `available` is false: `{"code": …}` plus,
+for a version mismatch, `project_version` and `expected_version`. The
+codes are `no_project`, `project_upgrade_required`,
+`project_version_unsupported`, `project_upgrading` and
+`project_file_unreadable`.
+
+It is a **code and never a sentence**, for two reasons. The project's
+version is checked here rather than in each command — a project written
+by older tools used to list its devices normally and then refuse
+everything done to one of them — and the sentence that belongs with a
+refusal differs by deployment: standalone, a person installs the command
+line and repairs the project; in the Home Assistant App the container
+keeps it current, so a user seeing this at all means something upstream
+failed. Both sites publish onto one bus, so the wording belongs to the
+client, which knows from `server/info` which site answered it.
+
 ## Building (ADR 0013)
 
 A build is `mcuhome.workbench.api.run_build`: one awaitable over the

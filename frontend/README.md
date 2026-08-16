@@ -143,9 +143,17 @@ a theme exists.
   ecosystem is heading, but `typescript-eslint` 8 still caps at `<6.1`.
   Type-aware linting is worth more here than being on the newest
   compiler; revisit when `typescript-eslint` ships TypeScript 7 support.
-- **Vite 7, not 8.** Vite 8 replaces esbuild with Rolldown. The build is
-  not where this project wants novelty, and the decorator dialect above
-  is exactly the kind of thing a bundler swap breaks quietly.
+- **Vite 8, and the decorator dialect has exactly one source.** Vite 8
+  replaced esbuild with Rolldown, and this pin used to say "7, not 8"
+  because the decorator dialect above is the kind of thing a bundler swap
+  breaks quietly. It half did: `vitest.config.ts` carried an
+  `esbuild.tsconfigRaw` override of that dialect, and Vite 8 ignores it
+  in favour of Oxc — with a warning, and with nothing broken, because
+  Oxc reads `tsconfig.app.json` for both the test transform and the
+  build. So the override is gone rather than translated, and the
+  tsconfig is the only place the dialect is written. Both halves of that
+  are checked rather than believed: flipping `useDefineForClassFields`
+  there turns 45 component tests red and changes the emitted bundle.
 
 ## What is not here yet
 

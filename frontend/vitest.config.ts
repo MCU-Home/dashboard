@@ -3,16 +3,6 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  esbuild: {
-    // The same decorator dialect the build uses; vitest does not read
-    // tsconfig for this.
-    tsconfigRaw: {
-      compilerOptions: {
-        experimentalDecorators: true,
-        useDefineForClassFields: false,
-      },
-    },
-  },
   test: {
     environment: 'jsdom',
     include: ['test/**/*.test.ts'],

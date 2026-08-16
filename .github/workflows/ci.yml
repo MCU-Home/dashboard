@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# CI for the MCUHome dashboard. Three gates, because this repository
+# holds two programs in two languages:
+#
+#   lint     — ruff (check + format) over the backend and REUSE over the
+#              whole tree, pinned to the same versions the other MCUHome
+#              repositories use; bump them together.
+#   test     — pytest over the backend: the /ws vocabulary, the build
+#              orchestration, signing and the two sites.
+#   frontend — the same `pnpm check` a commit has to pass locally:
+#              prettier, eslint, tsc and vitest.
+#
+# The test gate checks out two public siblings, `mcu-home/mcuhome-sdk`
+# (the model) and `mcu-home/mcuhome` (the workbench): the dashboard
+# imports the workbench in-process and neither package is published yet,
+# so plain checkouts stand in for the sibling paths that
+# `backend/requirements-dev.txt` uses in a west workspace. Once the
+# packages are published this becomes a plain pip install.
+#
+# What is deliberately NOT installed is `mcuhome-compiler`. "The
+# dashboard never compiles" is enforced by the dependency rather than by
+# a missing code path, and leaving the compiler out here is what keeps
+# that checkable in the very environment the tests run in — one test
+# asserts the resulting refusal.
+#
+# All actions are pinned to commit SHAs, not tags (see dependabot.yml,
+# whose github-actions entry keeps the pins current).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff + REUSE)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install lint tools
+        run: python -m pip install --disable-pip-version-check ruff==0.16.1 reuse==5.0.2
+
+      - name: ruff check
+        run: ruff check backend
+
+      - name: ruff format --check
+        run: ruff format --check backend
+
+      - name: REUSE lint
+        run: reuse lint
+
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Checkout mcu-home/mcuhome-sdk
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mcu-home/mcuhome-sdk
+          path: .deps/mcuhome-sdk
+
+      - name: Checkout mcu-home/mcuhome
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mcu-home/mcuhome
+          path: .deps/mcuhome
+
+      - name: Set up Python
+        # ADR 0004 decision 2 sets this repository's floor above the
+        # workbench's: it may sit higher and never lower.
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install
+        # One namespace, two repositories since the ADR 0024 split. One
+        # invocation, so pip resolves the sibling pins against the
+        # copies being installed rather than against an index. No
+        # extras on the workbench, and no compiler: this reproduces
+        # exactly what `requirements-dev.txt` builds locally.
+        run: |
+          python -m pip install --disable-pip-version-check \
+            ./.deps/mcuhome-sdk/packaging/model \
+            ./.deps/mcuhome
+          python -m pip install --disable-pip-version-check -e './backend[dev]'
+
+      - name: pytest
+        working-directory: backend
+        run: pytest
+
+  frontend:
+    name: pnpm check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        # The floor `package.json` declares, not the newest release: a
+        # gate that only ever runs a newer Node lets the declared floor
+        # rot without anyone noticing.
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22.12"
+
+      - name: Enable corepack
+        # `packageManager` in package.json pins pnpm; corepack is what
+        # reads that pin, so the version is never stated twice.
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm check
+        # format:check, lint, typecheck and test — what a commit must
+        # pass locally, run the same way here.
+        run: pnpm check

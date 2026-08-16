@@ -19,6 +19,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from mcuhome.workbench import api as workbench_api
 
 from mcuhome_dashboard.app import AppState, create_app
 from mcuhome_dashboard.config import Config
@@ -76,13 +77,17 @@ def write_device(root: Path, name: str, config: str) -> Path:
 
 
 def make_tree(root: Path, devices: dict[str, str] | None = None) -> Path:
-    """Build a project directory at *root*."""
-    (root / "devices").mkdir(parents=True, exist_ok=True)
-    # Mark the root as a project (ADR 0022)
-    (root / ".mcuhome-project-root").write_text(
-        "# This file marks the root of an MCUHome project (ADR 0022).\n"
-        "# Its presence is its meaning; configuration lives in mcuhome.yaml.\n"
-    )
+    """Build a project directory at *root*.
+
+    The project is created by the workbench's own ``init_project``
+    rather than by writing the marker here. A fixture that writes the
+    marker by hand states the project format a second time, and the
+    second statement is the one that goes stale: this suite spent the
+    freeze red because the hand-written marker stayed at version 0
+    after the workbench moved to version 1. Calling the real thing
+    means the fixture follows the format wherever it goes.
+    """
+    workbench_api.init_project(root)
     for name, config in (devices or {}).items():
         write_device(root, name, config)
     return root

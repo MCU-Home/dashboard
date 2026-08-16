@@ -27,12 +27,14 @@ handling, which is the part worth being sure about, is exercised.
 from __future__ import annotations
 
 import asyncio
+import os
 from importlib import metadata
 from pathlib import Path
 from typing import Any
 
 import pytest
 from mcuhome.model.artifacts import Artifact
+from mcuhome.workbench import buildlock
 
 from mcuhome_dashboard import builder, builds, signing, versions
 from mcuhome_dashboard.app import AppState, create_app
@@ -163,6 +165,12 @@ async def slot_free(state: AppState, *, timeout: float = 5.0) -> None:
 
     Not the same as :func:`finished`: a cancelled record is finished
     while the work it started is not, and the slot belongs to the work.
+    It is not the same for an ordinary build either — a record reaches
+    its terminal state a few statements before the registry lets go of
+    the slot. No client can observe that gap, because the registry
+    publishes the finished record only after clearing the slot, but a
+    test reading the registry directly can, so anything asserting on
+    ``running`` waits for the later of the two events, not the earlier.
     """
     async with asyncio.timeout(timeout):
         while state.builds.running is not None:
@@ -260,6 +268,7 @@ async def test_only_one_build_runs_at_a_time(
 async def test_the_slot_is_free_again_afterwards(state: AppState, fake_build: FakeBuild) -> None:
     first = await state.builds.begin("bench-node")
     await finished(state, first.id)
+    await slot_free(state)
     assert state.builds.running is None
     second = await state.builds.begin("bench-node")
     await finished(state, second.id)
@@ -700,6 +709,35 @@ async def test_the_build_is_signed_afterwards_and_the_key_is_created_once(
     await finished(state, second.id)
     # A *second* generation is what must never happen quietly.
     assert second.signing["created_key"] is False
+
+
+async def test_the_directory_is_held_while_the_image_is_signed(
+    state: AppState, fake_build: FakeBuild, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One build directory, one operation at a time (PO 2026-08-16).
+
+    ``run_build`` gives the directory back when the compile ends, so the
+    host-side signing that follows it is the window this side has to
+    cover — the same span the command line holds across ``device
+    build``. The holder record is the observable: it names the process
+    and what it is doing, and it is what another run's refusal quotes.
+    """
+    seen: dict[str, str] = {}
+    real = signing.sign_build
+
+    async def watching(out_dir: Path, **kwargs: Any) -> Any:
+        seen.update(buildlock.holder_of(out_dir))
+        return await real(out_dir, **kwargs)
+
+    monkeypatch.setattr(builds.signing, "sign_build", watching)
+
+    record = await state.builds.begin("bench-node")
+    await finished(state, record.id)
+
+    assert record.state == "succeeded"
+    assert seen.get("pid") == str(os.getpid())
+    assert seen.get("operation") == "sign"
+    assert seen.get("device") == "bench-node"
 
 
 async def test_the_signer_never_invents_a_key(tmp_path: Path) -> None:

@@ -641,31 +641,47 @@ class BuildRegistry:
             self._finish(record, STATE_FAILED)
             return
 
-        record.artifacts = await asyncio.to_thread(_collect_artifacts, outcome, out_dir)
+        # `run_build` holds the directory for the compile and gives it
+        # back before returning, so the host-side signing that follows
+        # is outside its guard. The command line closes that window by
+        # holding the directory across both, and so does this: the lock
+        # is per directory and every operation on one takes it, naming
+        # itself. Not the compile as well, because a cancel leaves the
+        # shielded work running in this process — the outermost holder
+        # would hand the directory back while its own build is still in
+        # it. This build's directory is its own (one per build id), so
+        # what the guard is really for is the operations that come to an
+        # existing directory later: flashing it, cleaning it.
+        with builder.build_lock(out_dir, device=record.device, operation="sign"):
+            record.artifacts = await asyncio.to_thread(_collect_artifacts, outcome, out_dir)
 
-        # No stale signed image can be sitting here: this directory is
-        # this build's own, and the signing step below is the only thing
-        # that ever writes a `.signed.` name or an `.ota` into it. What
-        # used to be a delete-first is now the shape of the directory.
-        result = await signing.sign_build(out_dir, key=key, report=outcome.report, env=environment)
-        # Assembled field by field, never from ``SigningResult.to_dict``:
-        # that carries ``key``, the path of the private key, and this
-        # object goes to every subscribed browser tab. What a client may
-        # know is *that* it was signed and *what* was written.
-        record.signing = {
-            "signed": True,
-            "created_key": result.created_key or created_key,
-            "outputs": list(result.outputs),
-        }
-
-        signed_bin = next(
-            (out_dir / name for name in result.outputs if name.endswith(".bin")), None
-        )
-        if signed_bin is not None:
-            record.ota = await asyncio.to_thread(
-                builder.write_ota_image, model, out_dir=out_dir, signed=signed_bin
+            # No stale signed image can be sitting here: this directory
+            # is this build's own, and the signing step below is the
+            # only thing that ever writes a `.signed.` name or an `.ota`
+            # into it. What used to be a delete-first is now the shape
+            # of the directory.
+            result = await signing.sign_build(
+                out_dir, key=key, report=outcome.report, env=environment
             )
-        record.artifacts = await asyncio.to_thread(_measure_outputs, out_dir, record)
+            # Assembled field by field, never from
+            # ``SigningResult.to_dict``: that carries ``key``, the path
+            # of the private key, and this object goes to every
+            # subscribed browser tab. What a client may know is *that*
+            # it was signed and *what* was written.
+            record.signing = {
+                "signed": True,
+                "created_key": result.created_key or created_key,
+                "outputs": list(result.outputs),
+            }
+
+            signed_bin = next(
+                (out_dir / name for name in result.outputs if name.endswith(".bin")), None
+            )
+            if signed_bin is not None:
+                record.ota = await asyncio.to_thread(
+                    builder.write_ota_image, model, out_dir=out_dir, signed=signed_bin
+                )
+            record.artifacts = await asyncio.to_thread(_measure_outputs, out_dir, record)
         self._finish(record, STATE_SUCCEEDED)
 
 

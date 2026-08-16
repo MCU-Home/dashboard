@@ -8,6 +8,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Continuous integration** (`.github/workflows/ci.yml`): `ruff` + REUSE,
+  the backend `pytest` and the frontend `pnpm check`, on every push and
+  pull request. The test gate installs the workbench and model from
+  public sibling checkouts and leaves `mcuhome-compiler` out, so "the
+  dashboard never compiles" is verified in the environment the tests run
+  in. `dependabot.yml` gained the `github-actions` entry that keeps the
+  SHA pins current.
+
+### Fixed
+
+- **The test suite follows the project format instead of restating it.**
+  The fixture wrote the project marker by hand, so it stayed at version 0
+  when the workbench moved to version 1 and 47 tests failed on a project
+  the workbench would not resolve. It now creates the project with the
+  workbench's own `init_project`, which cannot drift.
+- **The build directory is held across signing.** `run_build` gives the
+  directory back when the compile ends, leaving the host-side signing and
+  OTA wrapping outside its guard; the dashboard now holds the same lock
+  across both, as the command line does. Each build already owns its
+  directory, so this is what makes the later operations on an existing
+  one — flashing it, cleaning it — safe to add.
+- A flaky test: a build record reaches its terminal state a few
+  statements before the registry hands the slot back, so a test asserting
+  on the slot had to wait for the later of the two. No client could
+  observe the gap — the finished record is published after the slot is
+  cleared.
+
 ### Security
 
 - **The Home Assistant ingress site is now admin-only** (ADR 0014). Every

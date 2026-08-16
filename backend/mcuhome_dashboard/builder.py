@@ -65,8 +65,11 @@ from mcuhome.workbench.api import (
     DEFAULT_METHOD,
     DEVICE_ENTRY,
     DEVICES_DIR,
+    LOCAL,
+    LOCAL_DEV,
     METHODS,
     PROJECT_VERSION,
+    REMOTE,
     BuildDirectoryBusy,
     BuildOutcome,
     BuildRequest,
@@ -88,6 +91,8 @@ __all__ = [
     "DEFAULT_BUILD_METHOD",
     "DEVICES_DIR",
     "DEVICE_ENTRY",
+    "LOCAL",
+    "LOCAL_DEV",
     "MCUHOME_VERSION",
     "PROBLEM_NO_PROJECT",
     "PROBLEM_UNREADABLE",
@@ -95,6 +100,13 @@ __all__ = [
     "PROBLEM_UPGRADING",
     "PROBLEM_VERSION_UNSUPPORTED",
     "PROJECT_VERSION",
+    "PUBLIC_FACTS",
+    "REMOTE",
+    "STEP_ARTIFACTS",
+    "STEP_COMPILE",
+    "STEP_CONTEXT",
+    "STEP_SIGN",
+    "STEP_VALIDATE",
     "BuildDirectoryBusy",
     "BuildOutcome",
     "BuildRequest",
@@ -110,10 +122,13 @@ __all__ = [
     "load_model",
     "open_config_tree",
     "project_problem",
+    "public_facts",
     "raw_summary",
     "resolve_method",
     "resolve_project",
     "run_build",
+    "steps_for_method",
+    "validate_facts",
     "write_ota_image",
 ]
 
@@ -141,6 +156,122 @@ MCUHOME_VERSION = api.VERSION
 #: nested structure — is reduced to ``None``, so that no accident turns
 #: an unresolved secret into a JSON string.
 _PLAIN_TYPES = (str, int, float, bool)
+
+
+# --------------------------------------------------------------------------
+# Build progress: the steps a build passes through, and what they establish
+# --------------------------------------------------------------------------
+
+#: The steps of a build, in the order they happen.
+#:
+#: Two of them are the **builder's** vocabulary: ``BuildRequest.on_step``
+#: is its honest-progress seam, and ``run_build`` announces ``context``
+#: and ``compile`` from inside itself. The other three are this
+#: dashboard's own, for the work it does around that one call. Keys are
+#: append-only on both sides — a consumer renders the ones it knows.
+STEP_VALIDATE = "validate"
+STEP_CONTEXT = "context"
+STEP_COMPILE = "compile"
+STEP_ARTIFACTS = "artifacts"
+STEP_SIGN = "sign"
+
+_WITH_CONTEXT = (STEP_VALIDATE, STEP_CONTEXT, STEP_COMPILE, STEP_ARTIFACTS, STEP_SIGN)
+#: ``local-dev`` compiles in a west workspace and builds no build
+#: context, so it announces no ``context`` step and none is claimed for
+#: it. The other two methods hand a context to a build environment,
+#: which is the step whose facts say which SDK the firmware comes from.
+_WITHOUT_CONTEXT = (STEP_VALIDATE, STEP_COMPILE, STEP_ARTIFACTS, STEP_SIGN)
+
+_METHOD_STEPS = {
+    LOCAL: _WITH_CONTEXT,
+    REMOTE: _WITH_CONTEXT,
+    LOCAL_DEV: _WITHOUT_CONTEXT,
+}
+
+#: The facts this dashboard forwards to browsers, per step.
+#:
+#: An **allowlist**, and that is the whole design. The fact vocabulary
+#: belongs to the builder and is append-only by construction, so a filter
+#: of known-bad keys would publish whatever a later release adds to every
+#: open browser tab without anyone deciding it may travel. One key is
+#: excluded today for exactly that reason: ``compile`` carries ``server``
+#: on the remote method — the build server's address — and this
+#: deployment publishes only *whether* one is configured
+#: (``server/info``), never where it is.
+#:
+#: What is left out is otherwise noise rather than danger: ``sdk_sha256``
+#: and the image ``digest`` are pins nobody reads off a screen, and the
+#: build report is where they belong.
+PUBLIC_FACTS: dict[str, frozenset[str]] = {
+    STEP_VALIDATE: frozenset(
+        {"board", "transport", "thread_role", "matter", "endpoints", "channels"}
+    ),
+    STEP_CONTEXT: frozenset({"sdk", "zephyr", "patches", "files", "id"}),
+    STEP_COMPILE: frozenset({"image", "jobs"}),
+}
+
+
+def steps_for_method(method: str) -> tuple[str, ...]:
+    """The steps a build with *method* is expected to pass through.
+
+    A **prediction**, and stated as one: a person watching a build wants
+    to know how far along it is, which needs the steps still to come and
+    not only the one running. A method this dashboard has never heard of
+    gets the longer list — being one step optimistic about an unknown
+    method is better than showing nothing — and a step that is announced
+    without being on the list is added where it happened rather than
+    dropped, so a builder that grows one shows it late instead of never
+    (:class:`mcuhome_dashboard.builds._Progress`).
+    """
+    return _METHOD_STEPS.get(method, _WITH_CONTEXT)
+
+
+def public_facts(step: str, facts: dict[str, Any]) -> dict[str, Any]:
+    """The part of *facts* that may reach a browser, for *step*.
+
+    Two filters, both of them load-bearing. :data:`PUBLIC_FACTS` decides
+    *which* keys travel, for the reasons written there. The value check
+    decides what a key may hold: these dicts are serialized into a
+    WebSocket frame, and a builder release that made one of them an
+    object would turn a progress update into a failed publish in the
+    middle of a build. A fact is display material — it is never worth
+    that.
+    """
+    allowed = PUBLIC_FACTS.get(step)
+    if not allowed:
+        return {}
+    return {key: value for key, value in facts.items() if key in allowed and _serializable(value)}
+
+
+def _serializable(value: Any) -> bool:
+    """Whether *value* is plain enough to put in a frame unexamined."""
+    if isinstance(value, _PLAIN_TYPES) or value is None:
+        return True
+    return isinstance(value, list | tuple) and all(isinstance(item, _PLAIN_TYPES) for item in value)
+
+
+def validate_facts(model: DeviceModel) -> dict[str, Any]:
+    """What resolving this configuration established, as data.
+
+    The dashboard's own contribution to the fact vocabulary: stages 1-3
+    run here, before any build method is called, and what they settled —
+    the board, how the device talks, whether it is a Matter device at
+    all, how much of it there is — is the same set ``mcuhome build``
+    states in one line above its step bar.
+
+    Data and not a sentence, for the reason the whole
+    :func:`project_problem` payload is: two sites, one event bus, and the
+    browser is where the wording happens.
+    """
+    thread = model.network.thread
+    return {
+        "board": model.device.board,
+        "transport": model.network.transport,
+        "thread_role": thread.device_role if thread is not None else None,
+        "matter": model.network.matter_enabled,
+        "endpoints": len(model.endpoints),
+        "channels": len(model.channels),
+    }
 
 
 def open_config_tree(root: Path) -> Project:

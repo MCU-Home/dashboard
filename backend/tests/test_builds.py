@@ -48,6 +48,32 @@ from tests.conftest import call
 # --------------------------------------------------------------------------
 
 
+#: What the ``local`` method announces through ``on_step``, verbatim in
+#: shape: the context step twice — once on entry, once with what the
+#: context turned out to be — then the compile step with the image it
+#: resolved. ``sdk_sha256`` and ``digest`` are in here because the real
+#: seam carries them and the dashboard has to be seen dropping them.
+SCRIPTED_STEPS: tuple[tuple[str, dict[str, Any]], ...] = (
+    ("context", {}),
+    (
+        "context",
+        {
+            "id": "sha256:0123456789abcdef0123456789abcdef",
+            "sdk": "0.1.0",
+            "sdk_sha256": "9f" * 32,
+            "zephyr": "4.4.0",
+            "board": "nrf7002dk/nrf5340/cpuapp",
+            "files": 214,
+            "patches": ["chip-pigweed.patch"],
+        },
+    ),
+    (
+        "compile",
+        {"image": "ghcr.io/mcu-home/builder:test", "digest": "sha256:" + "ab" * 32, "jobs": 2},
+    ),
+)
+
+
 class FakeBuild:
     """One scripted run of ``run_build``, standing in for a real one."""
 
@@ -60,6 +86,7 @@ class FakeBuild:
         report: str = signing.BUILD_REPORT_FILE,
         raises: Exception | None = None,
         block: asyncio.Event | None = None,
+        steps: tuple[tuple[str, dict[str, Any]], ...] = SCRIPTED_STEPS,
     ) -> None:
         self.successful = successful
         self.lines = lines
@@ -67,12 +94,16 @@ class FakeBuild:
         self.report = report
         self.raises = raises
         self.block = block
+        self.steps = steps
         self.requests: list[builder.BuildRequest] = []
         self.methods: list[str] = []
 
     async def __call__(self, request: builder.BuildRequest, *, method: str) -> builder.BuildOutcome:
         self.requests.append(request)
         self.methods.append(method)
+        for key, facts in self.steps:
+            if request.on_step is not None:
+                request.on_step(key, **facts)
         for line in self.lines:
             if request.on_line is not None:
                 request.on_line(line)
@@ -171,6 +202,14 @@ async def slot_free(state: AppState, *, timeout: float = 5.0) -> None:
     publishes the finished record only after clearing the slot, but a
     test reading the registry directly can, so anything asserting on
     ``running`` waits for the later of the two events, not the earlier.
+
+    The retention rule of ADR 0013 decision 5 lives in that same gap:
+    ``_retire`` removes the directory of a build that did not succeed,
+    and the older directories of one that did, immediately before the
+    slot is handed back. So a test that asserts on **what is left on
+    disk** waits here too — otherwise it is asserting against a rmtree
+    that has not run yet, and passes or fails by how the thread pool
+    happened to be scheduled.
     """
     async with asyncio.timeout(timeout):
         while state.builds.running is not None:
@@ -365,6 +404,278 @@ async def test_real_run_build_refuses_remote_without_a_server(client, state: App
     assert record.state == "failed"
     assert record.errors[0]["kind"] == "RemoteNotConfigured"
     assert "build server" in record.errors[0]["message"]
+
+
+# --------------------------------------------------------------------------
+# Progress: the steps, and the facts they are allowed to carry
+# --------------------------------------------------------------------------
+
+
+def steps_of(record: builds.BuildRecord) -> dict[str, str]:
+    """Each step's state, by key — what a step bar renders from."""
+    return {step["key"]: step["state"] for step in record.steps}
+
+
+def facts_of(record: builds.BuildRecord, key: str) -> dict[str, Any]:
+    return next(step["facts"] for step in record.steps if step["key"] == key)
+
+
+async def test_a_build_states_its_steps_before_it_takes_one(
+    client, state: AppState, fake_build: FakeBuild
+) -> None:
+    """The very first frame carries the whole plan, all of it pending.
+
+    "How far along is this" needs the steps still to come. They are in
+    the record rather than in an event of their own precisely so that
+    this is true of the answer to ``build/start`` as well as of a
+    snapshot a browser opened halfway through asks for.
+    """
+    gate = asyncio.Event()
+    fake_build.block = gate
+    async with client.ws_connect("/ws") as ws:
+        frame = await call(ws, "build/start", {"name": "bench-node"})
+        listed = [step["key"] for step in frame["payload"]["build"]["steps"]]
+        assert listed == ["validate", "context", "compile", "artifacts", "sign"]
+
+        gate.set()
+        record = await finished(state, frame["payload"]["build"]["id"])
+    assert set(steps_of(record).values()) == {"done"}
+
+
+async def test_the_steps_follow_what_the_builder_announced(
+    state: AppState, fake_build: FakeBuild
+) -> None:
+    """The seam's one verb: "I am here now", everything before it done."""
+    record = await state.builds.begin("bench-node")
+    await finished(state, record.id)
+
+    assert steps_of(record) == {
+        "validate": "done",
+        "context": "done",
+        "compile": "done",
+        "artifacts": "done",
+        "sign": "done",
+    }
+    assert facts_of(record, "context")["sdk"] == "0.1.0"
+    assert facts_of(record, "context")["zephyr"] == "4.4.0"
+    assert facts_of(record, "context")["patches"] == ["chip-pigweed.patch"]
+    assert facts_of(record, "compile")["jobs"] == 2
+
+
+async def test_what_resolving_the_configuration_established_is_a_fact(
+    state: AppState, fake_build: FakeBuild
+) -> None:
+    """Stages 1-3 run on this side, so this step's facts are the dashboard's."""
+    record = await state.builds.begin("bench-node")
+    await finished(state, record.id)
+
+    facts = facts_of(record, "validate")
+    assert facts["board"] == "nrf7002dk/nrf5340/cpuapp"
+    assert facts["matter"] is True
+    assert facts["endpoints"] >= 1
+    assert isinstance(facts["channels"], int)
+
+
+async def test_the_build_servers_address_never_reaches_a_browser(
+    state: AppState, fake_build: FakeBuild
+) -> None:
+    """The remote method announces it; every subscribed tab must not see it.
+
+    ``server/info`` publishes *whether* a build server is configured and
+    never where it is, and a progress update is not a way around that.
+    The two pins in the same announcement go too, for being noise rather
+    than for being dangerous.
+    """
+    fake_build.steps = (
+        ("compile", {"server": "wss://builds.example.invalid:8443", "image": "img:1"}),
+    )
+    record = await state.builds.begin("bench-node", method="remote")
+    await finished(state, record.id)
+
+    assert facts_of(record, "compile") == {"image": "img:1"}
+    assert "example.invalid" not in str(record.to_dict())
+
+
+async def test_pins_nobody_reads_off_a_screen_are_left_out(
+    state: AppState, fake_build: FakeBuild
+) -> None:
+    record = await state.builds.begin("bench-node")
+    await finished(state, record.id)
+
+    assert "sdk_sha256" not in facts_of(record, "context")
+    assert "digest" not in facts_of(record, "compile")
+
+
+async def test_a_fact_that_is_not_plain_data_is_dropped_rather_than_sent(
+    state: AppState, fake_build: FakeBuild
+) -> None:
+    """These dicts end up in a JSON frame; one object in one would end a build."""
+    fake_build.steps = (("context", {"sdk": object(), "zephyr": "4.4.0"}),)
+    record = await state.builds.begin("bench-node")
+    await finished(state, record.id)
+
+    assert facts_of(record, "context") == {"zephyr": "4.4.0"}
+    assert record.state == "succeeded"
+
+
+async def test_a_method_without_a_build_context_claims_no_context_step(
+    tree: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``local-dev`` compiles in a west workspace and builds no context."""
+    stub = FakeBuild(steps=(("compile", {}),))
+    monkeypatch.setattr(builder, "run_build", stub)
+    monkeypatch.setattr(signing, "_sign_blocking", fake_signature())
+    config = Config(
+        config_root=tree,
+        poll_interval=0.0,
+        data_dir=tmp_path / "data",
+        build_method="local-dev",
+    )
+    state = AppState(config)
+    await state.start()
+    try:
+        record = await state.builds.begin("bench-node")
+        await finished(state, record.id)
+    finally:
+        await state.stop()
+
+    assert [step["key"] for step in record.steps] == ["validate", "compile", "artifacts", "sign"]
+
+
+async def test_a_step_nobody_predicted_is_shown_where_it_happened(
+    state: AppState, fake_build: FakeBuild
+) -> None:
+    """A builder that grows a step shows it late, never not at all.
+
+    Appending it to the end instead would sweep every step the build has
+    not reached yet to "done" — the one outcome worse than not showing
+    it.
+    """
+    fake_build.steps = (("context", {}), ("generate", {}), ("compile", {}))
+    record = await state.builds.begin("bench-node")
+    await finished(state, record.id)
+
+    assert [step["key"] for step in record.steps] == [
+        "validate",
+        "context",
+        "generate",
+        "compile",
+        "artifacts",
+        "sign",
+    ]
+
+
+async def test_a_failed_build_marks_the_step_it_stopped_at(
+    state: AppState, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(builder, "run_build", FakeBuild(successful=False))
+    monkeypatch.setattr(signing, "_sign_blocking", fake_signature())
+    record = await state.builds.begin("bench-node")
+    await finished(state, record.id)
+
+    assert record.state == "failed"
+    assert steps_of(record) == {
+        "validate": "done",
+        "context": "done",
+        "compile": "failed",
+        "artifacts": "pending",
+        "sign": "pending",
+    }
+
+
+async def test_a_builder_that_refuses_before_it_starts_does_not_blame_the_configuration(
+    state: AppState, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The dashboard's most ordinary failure: no toolchain distribution.
+
+    ``run_build`` refuses in-process without announcing a single step, so
+    nothing is in flight when the build ends. The configuration resolved
+    — it is the reason there was anything to refuse — and the step that
+    never happened is the one that carries the failure.
+    """
+    monkeypatch.setattr(
+        builder,
+        "run_build",
+        FakeBuild(steps=(), raises=builder.MCUHomeError("mcuhome-compiler is not installed")),
+    )
+    record = await state.builds.begin("bench-node")
+    await finished(state, record.id)
+
+    assert record.state == "failed"
+    assert steps_of(record) == {
+        "validate": "done",
+        "context": "failed",
+        "compile": "pending",
+        "artifacts": "pending",
+        "sign": "pending",
+    }
+
+
+async def test_a_build_cancelled_before_it_began_blames_no_step(
+    state: AppState, fake_build: FakeBuild
+) -> None:
+    """It did nothing, and an untouched bar is what "nothing" looks like.
+
+    ``build/start`` answers before the build takes its first step, so a
+    cancel can land in that window and the task ends without its body
+    ever running. Marking the first step failed there would say
+    "checking the configuration failed" about a build that never looked
+    at one — and the record beside it already says ``cancelled``.
+    """
+    record = await state.builds.begin("bench-node")
+    await state.builds.cancel(record.id)
+    await finished(state, record.id)
+    await slot_free(state)
+
+    assert record.state == "cancelled"
+    assert set(steps_of(record).values()) == {"pending"}
+
+
+async def test_a_build_cancelled_in_flight_marks_where_it_stopped(
+    state: AppState, fake_build: FakeBuild
+) -> None:
+    """Once a step is running, the cancel has somewhere honest to land."""
+    gate = asyncio.Event()
+    fake_build.block = gate
+    record = await state.builds.begin("bench-node")
+    await in_the_builder(fake_build)
+    await state.builds.cancel(record.id)
+    await finished(state, record.id)
+
+    assert record.state == "cancelled"
+    assert steps_of(record)["compile"] == "failed"
+    assert steps_of(record)["context"] == "done"
+
+    gate.set()
+    await slot_free(state)
+
+
+async def test_progress_reaches_a_subscriber_while_the_build_runs(
+    client, state: AppState, fake_build: FakeBuild
+) -> None:
+    """The whole point: a step is visible before the build ends."""
+    gate = asyncio.Event()
+    fake_build.block = gate
+    async with client.ws_connect("/ws") as ws:
+        await call(ws, "subscribe_events", {"topics": ["builds"]})
+        frame = await call(ws, "build/start", {"name": "bench-node"}, frame_id="2")
+        build_id = frame["payload"]["build"]["id"]
+
+        # The pump publishes on its own cadence, so this waits for the
+        # frame rather than for a sleep to be long enough.
+        async with asyncio.timeout(5.0):
+            while True:
+                event = await ws.receive_json()
+                if event.get("event") not in {"build_started", "build_changed"}:
+                    continue
+                states = {step["key"]: step["state"] for step in event["payload"]["build"]["steps"]}
+                if states.get("compile") == "running":
+                    break
+        assert states["context"] == "done"
+        assert not gate.is_set(), "the build is still in the builder"
+
+        gate.set()
+        await finished(state, build_id)
 
 
 # --------------------------------------------------------------------------
@@ -705,6 +1016,7 @@ async def test_the_build_is_signed_afterwards_and_the_key_is_created_once(
     }
     assert (Path(first.out_dir or "") / "firmware.signed.bin").is_file()
 
+    await slot_free(state)
     second = await state.builds.begin("bench-node")
     await finished(state, second.id)
     # A *second* generation is what must never happen quietly.
@@ -817,8 +1129,10 @@ async def test_a_stale_signed_image_does_not_survive_a_later_build(
     assert (first_dir / "firmware.signed.bin").is_file()
 
     monkeypatch.setattr(signing, "_sign_blocking", fake_signature(outputs=("firmware.signed.hex",)))
+    await slot_free(state)
     second = await state.builds.begin("bench-node")
     await finished(state, second.id)
+    await slot_free(state)
 
     assert second.state == "succeeded"
     assert not first_dir.exists(), "the older build directory goes when a newer one succeeds"
@@ -837,9 +1151,11 @@ async def test_a_build_that_did_not_succeed_takes_its_own_directory_only(
     await finished(state, good.id)
     good_dir = Path(good.out_dir or "")
 
+    await slot_free(state)
     monkeypatch.setattr(builder, "run_build", FakeBuild(successful=False))
     bad = await state.builds.begin("bench-node")
     await finished(state, bad.id)
+    await slot_free(state)
 
     assert bad.state == "failed"
     assert not Path(bad.out_dir or "").exists()
@@ -952,6 +1268,7 @@ async def test_a_cancelled_build_does_not_serve_the_last_ones_firmware(
     served = await client.get(f"/api/builds/{first.id}/artifacts/firmware.signed.bin")
     assert served.status == 200
 
+    await slot_free(state)
     gate = asyncio.Event()
     fake_build.block = gate
     second = await state.builds.begin("bench-node")

@@ -63,9 +63,10 @@ package imports in-process (ADR 0011). Writing a second one here would
 be a second opinion about a protocol the package already speaks.
 
 So the dashboard **builds** — `build/*` commands, the `builds` topic,
-streamed logs with resumable offsets, the artifact endpoint and detached
-signing — by calling `mcuhome.workbench.api.run_build`, and speaks no
-build protocol itself. Which build method runs is **deployment
+streamed logs with resumable offsets, step-by-step progress over the
+workbench's `on_step` seam (ADR 0016 draft), the artifact endpoint and
+detached signing — by calling `mcuhome.workbench.api.run_build`, and
+speaks no build protocol itself. Which build method runs is **deployment
 configuration** (`--build-method`): a build container on this machine, a
 build server, or a west workspace. `backend/mcuhome_dashboard/builds.py`
 is the registry; `builder.py` holds the one seam.

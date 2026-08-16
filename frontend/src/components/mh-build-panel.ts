@@ -38,6 +38,7 @@ import { artifactUrl } from '../base-path';
 import { t } from '../strings';
 import { sharedStyles } from '../styles/shared';
 
+import './mh-build-steps';
 import './mh-diagnostics';
 
 /** How close to the bottom still counts as "following the tail", in pixels. */
@@ -297,6 +298,15 @@ export class MhBuildPanel extends LitElement {
               <p>${t.build.createdKeyBody}</p>
             </wa-callout>`
           : null
+      }
+      ${
+        // Above the log on purpose: the bar is what a person reads first
+        // and keeps glancing at, and the log is what they scroll into
+        // when it says something they want the detail of.
+        (record.steps?.length ?? 0) === 0
+          ? null
+          : html`<h3>${t.build.steps.title}</h3>
+              <mh-build-steps .steps=${record.steps} .method=${record.method}></mh-build-steps>`
       }
 
       <h3>${t.build.log}</h3>

@@ -154,6 +154,68 @@ export const t = {
       if (minutes < 60) return `${minutes} min ${total % 60} s`;
       return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
     },
+    /**
+     * The step bar, and the one line each step leaves behind.
+     *
+     * The names say what the step *does*, not what the code calls it,
+     * and each one that runs somewhere says where — which is half of
+     * why a person watches a build at all: a fifteen-minute silence is
+     * a compile in a container, not a hang.
+     */
+    steps: {
+      title: 'Progress',
+      validate: 'Check configuration',
+      context: 'Collect sources',
+      compile: 'Compile',
+      artifacts: 'Collect files',
+      sign: 'Sign',
+      /** A step from a newer backend: its own name is the honest label. */
+      unknown: (key: string) => key,
+      state: {
+        pending: 'not started',
+        running: 'running',
+        done: 'done',
+        failed: 'failed',
+        unknown: 'unknown',
+      },
+      /** Where a step runs, appended to its name. */
+      inContainer: 'build container',
+      onServer: 'build server',
+      inWorkspace: 'local workspace',
+      here: 'dashboard',
+      /** The whole bar, for a screen reader that reads it as one thing. */
+      label: 'Build progress',
+      stepLabel: (name: string, state: string) => `${name}: ${state}`,
+    },
+
+    /**
+     * What a step established, in a person's words.
+     *
+     * Each returns the *parts* of a line rather than the line, because
+     * a fact that did not arrive should leave no gap and no stray
+     * separator — the caller joins what it got.
+     */
+    facts: {
+      transport: (transport: string | null, threadRole: string | null) => {
+        if (transport === null) return 'no network';
+        if (transport !== 'thread' || threadRole === null) return transport;
+        return threadRole === 'ftd' ? 'Thread router' : 'Thread end device';
+      },
+      matterOn: 'Matter on',
+      matterOff: 'Matter off',
+      endpoints: (count: number) => `${count} ${count === 1 ? 'endpoint' : 'endpoints'}`,
+      channels: (count: number) => `${count} ${count === 1 ? 'channel' : 'channels'}`,
+      sdk: (version: string) => `SDK ${version}`,
+      zephyr: (line: string) => `Zephyr ${line}`,
+      patches: (names: string[]) =>
+        names.length === 0 ? 'no patches' : `patches: ${names.join(', ')}`,
+      files: (count: number) => `${count} ${count === 1 ? 'file' : 'files'}`,
+      /** Twelve hex digits: what a person compares two builds with. */
+      contextId: (id: string) => `id ${id}`,
+      image: (reference: string) => reference,
+      jobs: (count: number) => `${count} parallel ${count === 1 ? 'job' : 'jobs'}`,
+    },
+
     log: 'Build output',
     logEmpty: 'No output yet.',
     logTruncated: '…earlier output was discarded.',

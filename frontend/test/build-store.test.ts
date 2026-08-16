@@ -31,6 +31,7 @@ function build(overrides: Partial<BuildRecord> = {}): BuildRecord {
     context_id: 'ctx',
     image: 'ghcr.io/mcu-home/builder:r6',
     status: '',
+    steps: [],
     errors: [],
     artifacts: [],
     signing: null,

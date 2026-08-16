@@ -47,6 +47,17 @@ undeclared name, a missing file and a path that resolves outside the
 build's own directory are all a **404 and never a 403**, because naming
 which guess escaped is free reconnaissance.
 
+**Progress.** ``BuildRequest.on_step`` is the builder's honest-progress
+seam — the build says which step it entered, and says it a second time
+when that step establishes something worth stating — and this module is
+its second consumer after the command line. What a person gets from it
+is what they had no way to know before: that a fifteen-minute silence is
+a compile rather than a hang, which SDK the firmware is coming from, and
+which of the five steps a failure stopped at. The steps live **in the
+record**, not in an event of their own: the record is what a snapshot
+carries, so a browser opened halfway through a build finds the progress
+without a second resume path (:class:`_Progress`).
+
 **Signing.** Every build method delivers an *unsigned* image and one
 host-side step signs it (firmware E55/E56). Here that step is
 :mod:`mcuhome_dashboard.signing` over the key at ADR 0008's
@@ -85,6 +96,7 @@ import threading
 import time
 import uuid
 from collections import deque
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -96,6 +108,7 @@ from mcuhome_dashboard.events import EventBus
 
 __all__ = [
     "STATES",
+    "STEP_STATES",
     "BuildBusy",
     "BuildLog",
     "BuildRecord",
@@ -115,6 +128,16 @@ STATE_CANCELLED = "cancelled"
 
 #: Every state a build can be in, for a client that renders them.
 STATES = (STATE_QUEUED, STATE_RUNNING, STATE_SUCCEEDED, STATE_FAILED, STATE_CANCELLED)
+
+#: The four states one *step* of a build can be in — the same four the
+#: command line's step line uses, deliberately: two front ends over one
+#: seam should not disagree about what "done" means.
+STEP_PENDING = "pending"
+STEP_RUNNING = "running"
+STEP_DONE = "done"
+STEP_FAILED = "failed"
+
+STEP_STATES = (STEP_PENDING, STEP_RUNNING, STEP_DONE, STEP_FAILED)
 
 #: Lines of build output kept per build. A Matter build prints tens of
 #: thousands; keeping all of them in one process's memory for every build
@@ -223,6 +246,12 @@ class BuildRecord:
     image: str = ""
     #: The method's own word for the result — ``success``/``failure``.
     status: str = ""
+    #: The steps of this build and what each established, as plain dicts
+    #: ready for a frame. Written by :class:`_Progress` and by nothing
+    #: else: the list is replaced whole on every change, so a reader on
+    #: the event loop never copies a structure a worker thread is in the
+    #: middle of writing.
+    steps: list[dict[str, Any]] = field(default_factory=list)
     #: Why it failed, in the shape ``device/validate`` already uses: the
     #: builder's own ``to_dict``, so a build refusal renders on the same
     #: component as a configuration problem, hint and all.
@@ -255,6 +284,7 @@ class BuildRecord:
             "context_id": self.context_id,
             "image": self.image,
             "status": self.status,
+            "steps": list(self.steps),
             "errors": list(self.errors),
             "artifacts": list(self.artifacts),
             "signing": dict(self.signing) if self.signing else None,
@@ -313,10 +343,174 @@ class _LogStream:
             offset = self._record.log.append(chunk)
             self._bus.publish(events.build_output(self._record.id, offset=offset, lines=chunk))
 
-    async def pump(self) -> None:
-        while True:
-            await asyncio.sleep(FLUSH_INTERVAL)
-            self.flush()
+
+@dataclass
+class _Step:
+    """One step of one build, while it is still being written."""
+
+    key: str
+    state: str = STEP_PENDING
+    facts: dict[str, Any] = field(default_factory=dict)
+
+
+class _Progress:
+    """The build's steps, as they are announced, onto the record.
+
+    :attr:`…api.BuildRequest.on_step` is called from whichever thread the
+    build method runs on — a worker for the two synchronous methods, the
+    event loop for ``remote`` — exactly like ``on_line``. So :meth:`step`
+    does the one thing that is safe from both: mutate under a lock and
+    leave the publishing to the pump.
+
+    **The list is a prediction and the announcements are the truth.** The
+    steps a method is expected to pass through are stated when the build
+    is accepted (:func:`…builder.steps_for_method`), because "how far
+    along is this" needs the steps still to come. A step that is then
+    announced without being on the list is inserted where it actually
+    happened rather than dropped, so a builder release that grows a step
+    shows it late instead of not at all.
+
+    **One verb.** The build only ever says "this is where I am now", and
+    everything before it is finished — the same rule the command line's
+    view derives its step line from, so that two front ends over one seam
+    cannot disagree about what a build did. A step may say it twice: once
+    on entry and once with what it found out.
+
+    What reaches the record is a **snapshot**, rebuilt whole on every
+    change and assigned in one statement. The record is read on the event
+    loop while this runs on a worker thread, and copying a dict that is
+    being written is how a progress update ends a build instead of
+    describing it.
+    """
+
+    def __init__(self, record: BuildRecord, bus: EventBus, *, keys: Iterable[str]) -> None:
+        self._record = record
+        self._bus = bus
+        self._steps = [_Step(key) for key in keys]
+        self._lock = threading.Lock()
+        self._dirty = False
+        self._snapshot()
+
+    def step(self, key: str, **facts: Any) -> None:
+        """The ``on_step`` seam: *key* is where the build is now."""
+        with self._lock:
+            entry = self._enter(key)
+            # Filtered here rather than where it is rendered: this is the
+            # boundary a fact crosses from the builder into a frame that
+            # goes to every subscribed browser tab, and the vocabulary is
+            # append-only on the other side of it.
+            entry.facts.update(builder.public_facts(key, facts))
+            self._snapshot()
+            self._dirty = True
+
+    def finish(self, key: str) -> None:
+        """*key* is over and went well — for a step this side drives itself.
+
+        The seam's one verb closes a step by entering the next one, and
+        that is enough while the same driver announces both. It is not
+        enough for ``validate``: the step after it is the *builder's* to
+        announce, and the builder's most ordinary refusal here — no
+        toolchain distribution installed, which is this dashboard's
+        deliberate default — happens before it announces anything at all.
+        Without this, a configuration that plainly resolved would be the
+        step marked failed, and the bar would point at the one thing that
+        was not wrong.
+        """
+        with self._lock:
+            entry = next((step for step in self._steps if step.key == key), None)
+            if entry is None or entry.state != STEP_RUNNING:
+                return
+            entry.state = STEP_DONE
+            self._snapshot()
+            self._dirty = True
+
+    def close(self, *, success: bool) -> None:
+        """Settle every step that is still open. The caller then publishes.
+
+        A run that ended well went through what it stated. One that did
+        not marks whatever was in flight failed — and if nothing was,
+        because the failure fell *between* two steps, the first step
+        still to come, so that the bar never claims an untroubled build.
+
+        **A build that ended before it began is left alone.** The clause
+        above is for a failure between two steps; a build cancelled in
+        the window before it took its first one, or refused before it
+        got there, is not between anything. Blaming its first step would
+        say "checking the configuration failed" about a build that never
+        looked at a configuration — an untouched bar next to a record
+        that reads ``cancelled`` is the truth, and the truth is that
+        nothing happened.
+        """
+        with self._lock:
+            if success:
+                for entry in self._steps:
+                    if entry.state in (STEP_PENDING, STEP_RUNNING):
+                        entry.state = STEP_DONE
+            elif any(entry.state != STEP_PENDING for entry in self._steps):
+                failed = [entry for entry in self._steps if entry.state == STEP_RUNNING]
+                for entry in failed:
+                    entry.state = STEP_FAILED
+                if not failed:
+                    for entry in self._steps:
+                        if entry.state == STEP_PENDING:
+                            entry.state = STEP_FAILED
+                            break
+            self._snapshot()
+            # The record's own final publish carries this; a second frame
+            # saying the same thing would only be one more to drop.
+            self._dirty = False
+
+    def flush(self) -> None:
+        """Publish the record if a step moved since the last flush."""
+        with self._lock:
+            if self._dirty is False:
+                return
+            self._dirty = False
+            payload = self._record.to_dict()
+        self._bus.publish(events.build_changed(payload))
+
+    # -- internals ---------------------------------------------------
+
+    def _enter(self, key: str) -> _Step:
+        entry = next((candidate for candidate in self._steps if candidate.key == key), None)
+        if entry is None:
+            # Not predicted, but it happened: put it after everything
+            # that has already started, which is where it belongs in the
+            # order — appending it to the end would sweep every step the
+            # build has not reached yet to "done" below.
+            frontier = sum(1 for candidate in self._steps if candidate.state != STEP_PENDING)
+            entry = _Step(key)
+            self._steps.insert(frontier, entry)
+        for candidate in self._steps:
+            if candidate is entry:
+                break
+            if candidate.state in (STEP_PENDING, STEP_RUNNING):
+                candidate.state = STEP_DONE
+        if entry.state == STEP_PENDING:
+            # Only ever forward: the second announcement of a step must
+            # not pull a finished one back out of its state.
+            entry.state = STEP_RUNNING
+        return entry
+
+    def _snapshot(self) -> None:
+        self._record.steps = [
+            {"key": entry.key, "state": entry.state, "facts": dict(entry.facts)}
+            for entry in self._steps
+        ]
+
+
+async def _pump(stream: _LogStream, progress: _Progress) -> None:
+    """Both of a build's streams onto the bus, on the loop, at one cadence.
+
+    Output first, and that order is the point: a step line that said
+    "signing" while the last of the compile output was still queued here
+    would put the log visibly behind the progress it is supposed to
+    explain.
+    """
+    while True:
+        await asyncio.sleep(FLUSH_INTERVAL)
+        stream.flush()
+        progress.flush()
 
 
 class BuildRegistry:
@@ -412,12 +606,17 @@ class BuildRegistry:
             if self._running is not None:
                 raise BuildBusy(self._running)
             record = BuildRecord(id=uuid.uuid4().hex[:16], device=device, method=chosen)
+            # Before the record is published, so that the very first frame
+            # a client sees already says what this build is going to do.
+            progress = _Progress(record, self._bus, keys=builder.steps_for_method(chosen))
             self._records[record.id] = record
             self._order.append(record.id)
             self._running = record
             self._forget_old()
-            task = asyncio.create_task(self._run(record), name=f"mcuhome-build-{record.id}")
-            task.add_done_callback(lambda _task: self._settle(record))
+            task = asyncio.create_task(
+                self._run(record, progress), name=f"mcuhome-build-{record.id}"
+            )
+            task.add_done_callback(lambda _task: self._settle(record, progress))
             self._task = task
         self._bus.publish(events.build_started(record.to_dict()))
         return record
@@ -456,7 +655,7 @@ class BuildRegistry:
             self._order.popleft()
             del self._records[oldest]
 
-    def _settle(self, record: BuildRecord) -> None:
+    def _settle(self, record: BuildRecord, progress: _Progress) -> None:
         """Backstop for a build whose task ended without :meth:`_run` running.
 
         ``build/start`` answers before the build takes its first step, so
@@ -464,9 +663,17 @@ class BuildRegistry:
         before its coroutine has run never executes the body that would
         end the record and hand the slot back. On every ordinary path
         this finds both already done and does nothing.
+
+        *progress* is settled here for the same reason the record is:
+        this is a terminal path, and a terminal path that skipped it
+        would be one the bar's rules never applied to — the kind of gap
+        that is invisible until somebody changes those rules. What it
+        settles to, for a build that ended before its first step, is
+        every step still pending, which is what happened.
         """
         if not record.finished_state:
             self._finish(record, STATE_CANCELLED)
+            progress.close(success=False)
             self._publish(record)
         if self._running is record and self._work is None and self._reaper is None:
             self._running = None
@@ -479,12 +686,12 @@ class BuildRegistry:
     def _publish(self, record: BuildRecord) -> None:
         self._bus.publish(events.build_changed(record.to_dict()))
 
-    async def _run(self, record: BuildRecord) -> None:
+    async def _run(self, record: BuildRecord, progress: _Progress) -> None:
         """One build, from the model to the signed image."""
         stream = _LogStream(record, self._bus)
-        pump = asyncio.create_task(stream.pump(), name=f"mcuhome-build-log-{record.id}")
+        pump = asyncio.create_task(_pump(stream, progress), name=f"mcuhome-build-pump-{record.id}")
         try:
-            await self._build(record, stream)
+            await self._build(record, stream, progress)
         except asyncio.CancelledError:
             self._finish(record, STATE_CANCELLED)
             raise
@@ -519,6 +726,9 @@ class BuildRegistry:
             stream.close()
             if not record.finished_state:  # pragma: no cover - defensive
                 self._finish(record, STATE_FAILED)
+            # After the state is settled, because that state is what says
+            # whether the steps still open were reached or missed.
+            progress.close(success=record.state == STATE_SUCCEEDED)
             self._task = None
             work = self._work
             if work is not None and not work.done():
@@ -577,7 +787,7 @@ class BuildRegistry:
         except OSError:
             logger.warning("build %s: %s could not be tidied up", record.id, out_dir)
 
-    async def _build(self, record: BuildRecord, stream: _LogStream) -> None:
+    async def _build(self, record: BuildRecord, stream: _LogStream, progress: _Progress) -> None:
         """The build proper. Raises; the caller turns that into a state."""
         root = self._devices.root
         entry = self._devices.entry_path(record.device)
@@ -589,9 +799,15 @@ class BuildRegistry:
             )
 
         record.state = STATE_RUNNING
+        progress.step(builder.STEP_VALIDATE)
         self._publish(record)
 
         model = await asyncio.to_thread(_load_model, root, entry)
+        # The step says itself a second time, now that it has something to
+        # say — and is then closed here rather than by whatever comes
+        # next, because what comes next is the builder's to announce.
+        progress.step(builder.STEP_VALIDATE, **builder.validate_facts(model))
+        progress.finish(builder.STEP_VALIDATE)
 
         # The public half, and the side effect that matters: after this
         # the signing key exists, so the signer below never has to invent
@@ -620,6 +836,7 @@ class BuildRegistry:
             server=self._config.build_server_url,
             token=self._config.build_server_token,
             on_line=stream.sink,
+            on_step=progress.step,
         )
         # Shielded, and this is the one place it matters: a cancel must
         # not hand the slot back while a container is still compiling.
@@ -653,6 +870,7 @@ class BuildRegistry:
         # what the guard is really for is the operations that come to an
         # existing directory later: flashing it, cleaning it.
         with builder.build_lock(out_dir, device=record.device, operation="sign"):
+            progress.step(builder.STEP_ARTIFACTS)
             record.artifacts = await asyncio.to_thread(_collect_artifacts, outcome, out_dir)
 
             # No stale signed image can be sitting here: this directory
@@ -660,6 +878,7 @@ class BuildRegistry:
             # only thing that ever writes a `.signed.` name or an `.ota`
             # into it. What used to be a delete-first is now the shape
             # of the directory.
+            progress.step(builder.STEP_SIGN)
             result = await signing.sign_build(
                 out_dir, key=key, report=outcome.report, env=environment
             )

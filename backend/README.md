@@ -202,6 +202,38 @@ really ends. A `build/start` in that window is refused with `conflict`
 naming a record that already reads `cancelled`, which is the honest
 answer: the machine is still busy.
 
+### Progress: what the build is doing, and what it found out
+
+The record carries `steps`, a list of `{"key", "state", "facts"}` in the
+order they happen, and it carries it from the moment `build/start`
+answers — every step `pending`, because "how far along is this" needs
+the steps still to come. `state` is one of `pending`, `running`, `done`,
+`failed`. Changes arrive as ordinary `build_changed` events, so a client
+that reconnects finds the progress in the next snapshot and has nothing
+extra to ask for.
+
+The five keys are `validate`, `context`, `compile`, `artifacts`, `sign`.
+Two of them are the *builder's* own progress vocabulary — it announces
+`context` and `compile` from inside `run_build` — and three are this
+dashboard's, for the work around that call. A method that skips one
+never claims it (`local-dev` builds no build context, so it lists no
+`context` step), and a step announced that is not in the list is
+inserted where it happened. **Both halves of the vocabulary are
+append-only:** render the keys you know, show an unknown one by its
+name, never fail on it.
+
+`facts` is what a step established, once it knows: `validate` answers
+with `board`, `transport`, `thread_role`, `matter`, `endpoints`,
+`channels`; `context` with `sdk`, `zephyr`, `patches`, `files` and the
+context `id`; `compile` with `image` and `jobs`. Every key is optional
+and the set only grows — read them defensively.
+
+Facts are **filtered on the way out, by allowlist** (ADR 0016 decision
+4). The builder announces more than this: a remote build's `compile`
+step carries the build server's address, and this API publishes only
+*whether* a build server is configured (`server/info`), never where it
+is. A value that is not plain JSON data is dropped rather than sent.
+
 ### Log offsets, and the hole the bus is allowed to punch
 
 `build_output` carries `{"build_id", "offset", "lines"}`, where `offset`

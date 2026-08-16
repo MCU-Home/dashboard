@@ -10,14 +10,21 @@ standalone product to create, build, flash and manage Zephyr-based smart
 home devices. Distribution targets: **Home Assistant App** (packaged in a
 separate future packaging repo), Docker image, plain Python app.
 
-> **FROZEN (product-owner decision, 2026-08-14).** This repository is
-> deliberately not being kept in step with the workbench while the CLI
-> phase reshapes `mcuhome.workbench` and its API. Red tests or CI here
-> are expected and accepted; do not fix them along the way. Once the
-> CLI stands, the dashboard is rebuilt against the settled
-> workbench/API in a dedicated pass of its own (adopting the ADR 0022
-> project/configuration model in the process). The last synchronized
-> state is the commit that introduced this note.
+> **FEATURE-FROZEN (product-owner decision, 2026-08-14; narrowed
+> 2026-08-16).** This repository is not being grown while the CLI phase
+> settles `mcuhome.workbench` and its API: no new features here, and the
+> rebuild pass that follows the CLI is where the dashboard catches up
+> with the CLI-era product.
+>
+> What is **no longer** accepted is a red suite. The freeze was read as
+> "red tests are expected", and under that reading 47 failing tests sat
+> here for two days hiding the fact that exactly *one* thing was wrong —
+> the fixture wrote a version-0 project marker after the workbench moved
+> to version 1. A permanently red suite cannot tell you that the 48th
+> failure is real. So the suite is green, CI runs it (`.github/
+> workflows/ci.yml`), and it stays that way: following a workbench
+> change that breaks the build is maintenance, not feature work, and is
+> done as it arrives.
 
 **Current phase: pre-alpha.** ADRs 0003–0011 fix the backend and
 frontend stacks, state layout, auth, flash flow and the builder
@@ -182,7 +189,12 @@ mcuhome-dashboard --config-root ~/mcuhome-config --static-root frontend/dist
 pre-commit run --all-files
 ```
 
-There is no CI yet.
+CI (`.github/workflows/ci.yml`) runs three gates on every push and pull
+request: `ruff` + REUSE, the backend `pytest`, and the frontend
+`pnpm check`. It installs the workbench and model from public sibling
+checkouts and deliberately leaves `mcuhome-compiler` out, so "the
+dashboard never compiles" is checked in the environment the tests run
+in rather than promised.
 
 ## Coding standards
 

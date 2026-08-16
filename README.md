@@ -19,14 +19,17 @@ That build server lives in its own repository,
 [mcu-home/build-server](https://github.com/mcu-home/build-server)
 ([ADR 0012](docs/adr/0012-build-server-extraction.md)).
 
-**Right now it does not build at all.** The client that spoke the job
-protocol of [ADR 0006](docs/adr/0006-build-service-protocol.md) has been
-removed: ADR 0012 decision 3 replaced that vocabulary with the session
-protocol of the firmware repository's ADR 0019, and the decision was to
-dismantle rather than migrate. The session client has not been written
-yet, so this dashboard has no build commands, no build events and no
-artifact downloads. Everything else — editing, validating and
-commissioning devices — is unaffected.
+**And it speaks no build protocol of its own.** The client that spoke
+the job protocol of [ADR 0006](docs/adr/0006-build-service-protocol.md)
+was dismantled rather than migrated (ADR 0012 decision 3), and its
+successor was not written here:
+[ADR 0013](docs/adr/0013-building-over-the-builder-package.md) found it
+already written, in `mcuhome-workbench`, which this package imports
+in-process. So the dashboard builds — `build/*` commands, streamed logs,
+artifact downloads and host-side signing — by calling
+`mcuhome.workbench.api.run_build`, and *where* that build runs is
+deployment configuration: a build container on this machine, a build
+server, or a west workspace.
 
 ## Project status
 
@@ -35,13 +38,12 @@ phase is complete (see [docs/adr/](docs/adr/)). The backend serves the
 API, watches the configuration tree and validates device configurations;
 the frontend lists devices, edits their YAML with the builder's
 diagnostics on the editor's gutter, and shows a device's Matter
-commissioning codes. **Building is not implemented** — the job-protocol
-client was dismantled with ADR 0012 decision 3 and its session-protocol
-successor is the next piece of work. What was kept for it: the
-build-server address, token and auto-pairing, the detached signing
-module, the event bus and the frame envelope. Still to come after it:
-the build and flash views in the browser, creating a device from the
-browser, and the Home Assistant App packaging. Firmware framework and
+commissioning codes. **Building works end to end** (ADR 0013): the
+`build/*` commands, the `builds` topic, logs streamed with resumable
+offsets, the artifact endpoint and host-side signing — the private
+signing key never leaves this side. Still to come: the flash views in
+the browser, creating a device from the browser, and the Home Assistant
+App packaging. Firmware framework and
 YAML builder live in
 [mcu-home/mcuhome](https://github.com/mcu-home/mcuhome).
 

@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The dashboard ships as two container images** (ADR 0018 draft), both
+  built from `docker/Dockerfile` here and published to GHCR on a `v*`
+  tag: `mcuhome-dashboard` for `docker run`, and
+  `mcuhome-dashboard-homeassistant` for the Home Assistant App, whose
+  metadata lives in
+  [mcu-home/ha-apps-repository](https://github.com/mcu-home/ha-apps-repository).
+  The App's entry point creates the project on first start and migrates
+  an outdated one before the server comes up — the dashboard still does
+  not manage projects; its container does. Both images default to the
+  `remote` build method, because `mcuhome-compiler` is not installed in
+  them and a build step in the Dockerfile fails if it ever is.
+
 ### Changed
 
 - **A project the dashboard cannot open now says so, and lists nothing**

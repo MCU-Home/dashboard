@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# What must not reach a build context. Two reasons, and the second is the
+# one that bites: sending gigabytes of node_modules is merely slow, but
+# copying a *host-built* node_modules or virtual environment into an
+# image produces one that was assembled from somebody's desk rather than
+# from this repository — and it works, right up until it is built
+# somewhere else.
+
+.git
+.github
+
+# Host-built dependency trees and their output
+**/node_modules
+**/.venv
+**/dist
+**/*.tsbuildinfo
+
+# Python by-products
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+
+# Tool caches
+**/.ruff_cache
+**/.pytest_cache
+**/.cache
+**/.turbo
+
+# Editors, OS, local settings
+**/.vscode
+**/.idea
+**/.DS_Store
+**/*.swp
+.claude
+CLAUDE.local.md

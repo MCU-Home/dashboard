@@ -176,7 +176,7 @@ pytest
 # Python lint/format
 ruff check --fix backend && ruff format backend
 
-# Frontend (Node >= 22.12; `corepack enable` picks up the pinned pnpm)
+# Frontend (Node >= 22.13; `corepack enable` picks up the pinned pnpm)
 cd frontend && pnpm install
 pnpm dev            # dev server on :5173, proxying /ws /health /auth /api
 pnpm check          # format, lint, types and tests — what a commit must pass

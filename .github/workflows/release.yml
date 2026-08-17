@@ -12,9 +12,10 @@
 # there — see mcu-home/ha-apps-repository. Doing it the other way round
 # offers users an update that cannot be pulled.
 #
-# One image name per deployment, multi-architecture underneath: adding
-# aarch64 is a line in `platforms` and a line in the app's `arch`, not a
-# new name.
+# One image name per deployment, multi-architecture underneath: amd64 and
+# aarch64, the two architectures Home Assistant ships for. The dashboard
+# carries no toolchain, so nothing here is gated on the evidence an
+# aarch64 *build server* still owes — every dependency is a wheel.
 #
 # All actions are pinned to commit SHAs, not tags (see dependabot.yml).
 
@@ -55,9 +56,10 @@ jobs:
           echo "Publishing ${version}"
 
       - name: Set up QEMU
-        # Only needed once `platforms` names something the runner is not.
-        # It is here now so that adding aarch64 is one word, not a debug
-        # session on a release day.
+        # The runner is amd64; the aarch64 leg is emulated. Only the pip
+        # install runs that way — the frontend stage is pinned to the
+        # build platform, because its output is the same bytes either
+        # way.
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
       - name: Set up Buildx
@@ -76,7 +78,7 @@ jobs:
           context: .
           file: docker/Dockerfile
           target: standalone
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ghcr.io/mcu-home/mcuhome-dashboard:${{ steps.version.outputs.version }}
@@ -90,7 +92,7 @@ jobs:
           context: .
           file: docker/Dockerfile
           target: homeassistant
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           # No `latest` here on purpose: the Supervisor pulls the exact
           # tag the app's config.yaml names, and a moving tag beside it

@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-17
+
+### Fixed
+
+- **The images are built for aarch64 as well**, which is what a Home
+  Assistant on a Raspberry Pi needs — an App that declares only amd64 is
+  not offered there at all, so 0.1.0 was installable on none of the most
+  common Home Assistant hosts. Nothing here was ever gated on the
+  aarch64 evidence ADR 0003 asks for: that gate is about a *build
+  server* and its toolchain, and the dashboard carries none. The
+  frontend stage builds on the runner's own architecture, its output
+  being the same JavaScript for both.
+
 ## [0.1.0] - 2026-08-17
 
 The first installable release: a Home Assistant App and a Docker image.

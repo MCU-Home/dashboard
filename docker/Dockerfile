@@ -20,7 +20,10 @@
 #   docker build -f docker/Dockerfile --target standalone -t mcuhome-dashboard .
 
 # ---------------------------------------------------------------- frontend
-FROM node:22-slim AS frontend
+# Pinned to the *build* platform: the output is JavaScript, which is the
+# same bytes for every target, and running a pnpm install plus a Vite
+# build under emulation costs minutes per architecture for nothing.
+FROM --platform=$BUILDPLATFORM node:22-slim AS frontend
 
 # pnpm asks before it purges a modules directory and refuses to guess
 # with no terminal attached. There is no terminal here, and the answer is

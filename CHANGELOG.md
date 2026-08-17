@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-17
+
+The first installable release: a Home Assistant App and a Docker image.
+
 ### Added
 
 - **The dashboard ships as two container images** (ADR 0018 draft), both

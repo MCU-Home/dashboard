@@ -368,15 +368,21 @@ async def test_real_run_build_refuses_because_no_compiler_is_installed(
     """The un-faked seam. ADR 0017 §2, checkable in this very venv.
 
     Nothing is monkeypatched here: this drives
-    ``mcuhome.workbench.api.run_build`` with the ``local`` method, which
-    needs ``mcuhome-compiler``. That distribution is deliberately absent
-    from ``requirements-dev.txt``, so the method raises
-    ``MethodUnavailable`` — and what this asserts is that the refusal
-    becomes a rendered build error carrying the exact ``pip install``,
-    rather than an internal error or a traceback on the wire.
+    ``mcuhome.workbench.api.run_build`` with the ``local-dev`` method,
+    which compiles in the caller's own west workspace and therefore needs
+    ``mcuhome-compiler``. That distribution is deliberately absent from
+    ``requirements-dev.txt``, so the method raises ``MethodUnavailable``
+    — and what this asserts is that the refusal becomes a rendered build
+    error carrying the exact ``pip install``, rather than an internal
+    error or a traceback on the wire.
+
+    It used to be the ``local`` method here. That one drives a build
+    container, and the thing that drives one is the workbench's own now,
+    so a compiler-less install runs it — which is the point of the move
+    and leaves ``local-dev`` as the method that demonstrates this.
     """
     async with client.ws_connect("/ws") as ws:
-        frame = await call(ws, "build/start", {"name": "bench-node", "method": "local"})
+        frame = await call(ws, "build/start", {"name": "bench-node", "method": "local-dev"})
         assert frame["type"] == "result", "starting must succeed; the build is what fails"
         record = await finished(state, frame["payload"]["build"]["id"])
 

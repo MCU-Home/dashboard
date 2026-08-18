@@ -116,6 +116,7 @@ __all__ = [
     "STEP_ARTIFACTS",
     "STEP_COMPILE",
     "STEP_CONTEXT",
+    "STEP_ENVIRONMENT",
     "STEP_SIGN",
     "STEP_VALIDATE",
     "BuildDirectoryBusy",
@@ -199,12 +200,21 @@ STEP_CONTEXT = "context"
 STEP_COMPILE = "compile"
 STEP_ARTIFACTS = "artifacts"
 STEP_SIGN = "sign"
+STEP_ENVIRONMENT = "environment"
 
-_WITH_CONTEXT = (STEP_VALIDATE, STEP_CONTEXT, STEP_COMPILE, STEP_ARTIFACTS, STEP_SIGN)
-#: ``local-dev`` compiles in a west workspace and builds no build
-#: context, so it announces no ``context`` step and none is claimed for
-#: it. The other two methods hand a context to a build environment,
-#: which is the step whose facts say which SDK the firmware comes from.
+_WITH_CONTEXT = (
+    STEP_VALIDATE,
+    STEP_ENVIRONMENT,
+    STEP_CONTEXT,
+    STEP_COMPILE,
+    STEP_ARTIFACTS,
+    STEP_SIGN,
+)
+#: ``local-dev`` compiles in a west workspace: it builds no build context
+#: and pins no build environment, so it announces neither step and
+#: neither is claimed for it. The other two methods hand a context to a
+#: build environment they chose first, which is where the two steps come
+#: from — the one that says which container, the one that says which SDK.
 _WITHOUT_CONTEXT = (STEP_VALIDATE, STEP_COMPILE, STEP_ARTIFACTS, STEP_SIGN)
 
 _METHOD_STEPS = {
@@ -225,13 +235,17 @@ _METHOD_STEPS = {
 #: (``server/info``), never where it is.
 #:
 #: What is left out is otherwise noise rather than danger: ``sdk_sha256``
-#: and the image ``digest`` are pins nobody reads off a screen, and the
-#: build report is where they belong.
+#: is a pin nobody reads off a screen, and the build report is where it
+#: belongs. The build environment's own reference **does** travel: it
+#: carries its digest, it names a public container registry rather than
+#: anything about this deployment, and it is the answer to "what was this
+#: firmware built in" — which is the question the step exists for.
 PUBLIC_FACTS: dict[str, frozenset[str]] = {
     STEP_VALIDATE: frozenset(
         {"board", "transport", "thread_role", "matter", "endpoints", "channels"}
     ),
-    STEP_CONTEXT: frozenset({"sdk", "zephyr", "patches", "files", "id"}),
+    STEP_ENVIRONMENT: frozenset({"build_environment", "zephyr", "found_under", "fetched"}),
+    STEP_CONTEXT: frozenset({"sdk", "build_environment", "patches", "files", "id"}),
     STEP_COMPILE: frozenset({"image", "jobs"}),
 }
 

@@ -236,6 +236,7 @@ export const t = {
     steps: {
       title: 'Progress',
       validate: 'Check configuration',
+      environment: 'Choose build environment',
       context: 'Collect sources',
       compile: 'Compile',
       artifacts: 'Collect files',
@@ -277,7 +278,21 @@ export const t = {
       endpoints: (count: number) => `${count} ${count === 1 ? 'endpoint' : 'endpoints'}`,
       channels: (count: number) => `${count} ${count === 1 ? 'channel' : 'channels'}`,
       sdk: (version: string) => `SDK ${version}`,
-      zephyr: (line: string) => `Zephyr ${line}`,
+      zephyr: (release: string) => `Zephyr ${release}`,
+      /**
+       * The container this firmware is compiled in, without its digest.
+       *
+       * The digest is what the build is pinned to and it is in the build
+       * report; on a screen it is sixty-four characters of noise beside
+       * the one part a person recognizes.
+       */
+      environment: (reference: string) => {
+        const at = reference.indexOf('@');
+        return at === -1 ? reference : reference.slice(0, at);
+      },
+      /** Which moving tag the pinned image was found under. */
+      foundUnder: (tag: string) => `found under ${tag}`,
+      fetched: 'fetched',
       patches: (names: string[]) =>
         names.length === 0 ? 'no patches' : `patches: ${names.join(', ')}`,
       files: (count: number) => `${count} ${count === 1 ? 'file' : 'files'}`,

@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A build states which container it is compiled in.** The workbench
+  resolves the build environment before it creates a context and reports
+  it as a step of its own; the browser shows the image, the Zephyr it
+  carries and the moving tag it was found under. The same seam as the
+  command line, with no dependency in either direction.
+
+### Changed
+
+- Canonical device model version **2** — the workbench's format for a
+  resolved device, which this dashboard sends and a build server
+  advertises support for.
+
 ## [0.1.1] - 2026-08-17
 
 ### Fixed

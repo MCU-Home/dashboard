@@ -54,8 +54,8 @@ def test_the_range_names_the_distribution_that_is_actually_imported() -> None:
     )
 
 
-def test_the_model_version_is_one_and_says_so_at_both_ends() -> None:
-    assert versions.MODEL_VERSION == 1
+def test_the_model_version_is_two_and_says_so_at_both_ends() -> None:
+    assert versions.MODEL_VERSION == 2
     assert versions.MODEL_VERSION_MIN <= versions.MODEL_VERSION <= versions.MODEL_VERSION_MAX
 
 

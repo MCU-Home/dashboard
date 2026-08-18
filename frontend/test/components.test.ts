@@ -642,7 +642,7 @@ describe('mh-build-steps', () => {
           state: 'done',
           facts: {
             sdk: '0.1.0',
-            zephyr: '4.4.0',
+            build_environment: `ghcr.io/mcu-home/build-container:zephyr-4.4.0-r10@sha256:${'ab'.repeat(32)}`,
             patches: ['chip-pigweed.patch'],
             files: 214,
             id: 'sha256:0123456789abcdef0123456789abcdef',
@@ -653,12 +653,44 @@ describe('mh-build-steps', () => {
 
     const shown = text(element);
     expect(shown).toContain('SDK 0.1.0');
-    expect(shown).toContain('Zephyr 4.4.0');
+    // The container without its digest: sixty-four hex digits beside the
+    // one part a person recognizes is noise, and the digest is in the
+    // build report.
+    expect(shown).toContain('ghcr.io/mcu-home/build-container:zephyr-4.4.0-r10');
+    expect(shown).not.toContain('abab');
     expect(shown).toContain('patches: chip-pigweed.patch');
     expect(shown).toContain('214 files');
     // Twelve digits of the hex, never the algorithm prefix.
     expect(shown).toContain('id 0123456789ab');
     expect(shown).not.toContain('sha256:');
+  });
+
+  it('states which container the build was pinned to, and how it got there', async () => {
+    const element = await mount<MhBuildSteps>('mh-build-steps', (node) => {
+      node.method = 'local';
+      node.steps = [
+        step({
+          key: 'environment',
+          state: 'done',
+          facts: {
+            build_environment: `ghcr.io/mcu-home/build-container:zephyr-4.4.0-r10@sha256:${'cd'.repeat(32)}`,
+            zephyr: '4.4.0',
+            found_under: 'zephyr-4.4-latest',
+            fetched: true,
+          },
+        }),
+      ];
+    });
+
+    const shown = text(element);
+    expect(shown).toContain('Choose build environment');
+    expect(shown).toContain('ghcr.io/mcu-home/build-container:zephyr-4.4.0-r10');
+    expect(shown).toContain('Zephyr 4.4.0');
+    // The moving tag is the difference between "the publisher recommends
+    // this" and "you asked for it", so it is said out loud.
+    expect(shown).toContain('found under zephyr-4.4-latest');
+    expect(shown).toContain('fetched');
+    expect(shown).not.toContain('cdcd');
   });
 
   it('says "no patches" rather than leaving the question open', async () => {
@@ -701,13 +733,18 @@ describe('mh-build-steps', () => {
         step({
           key: 'context',
           state: 'done',
-          facts: { sdk: 42, zephyr: '4.4.0', patches: 'not-a-list', files: 'many' },
+          facts: {
+            sdk: 42,
+            build_environment: 'ghcr.io/mcu-home/build-container:zephyr-4.4.0-r10',
+            patches: 'not-a-list',
+            files: 'many',
+          },
         }),
       ];
     });
 
     const shown = text(element);
-    expect(shown).toContain('Zephyr 4.4.0');
+    expect(shown).toContain('ghcr.io/mcu-home/build-container:zephyr-4.4.0-r10');
     expect(shown).not.toContain('42');
     expect(shown).not.toContain('not-a-list');
   });

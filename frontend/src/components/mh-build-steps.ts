@@ -223,6 +223,8 @@ export class MhBuildSteps extends LitElement {
     switch (step.key) {
       case 'validate':
         return names.validate;
+      case 'environment':
+        return names.environment;
       case 'context':
         return names.context;
       case 'compile':
@@ -268,6 +270,8 @@ export class MhBuildSteps extends LitElement {
     switch (step.key) {
       case 'validate':
         return this.#validateFacts(facts);
+      case 'environment':
+        return this.#environmentFacts(facts);
       case 'context':
         return this.#contextFacts(facts);
       case 'compile':
@@ -296,12 +300,31 @@ export class MhBuildSteps extends LitElement {
     return parts;
   }
 
+  /**
+   * Which container this build compiles in, and how it was arrived at.
+   *
+   * The line that makes a moving tag honest: the same configuration can
+   * resolve to two images on two days, so what it resolved to *this*
+   * time is stated rather than left in a file.
+   */
+  #environmentFacts(facts: Record<string, unknown>): string[] {
+    const parts: string[] = [];
+    const reference = text(facts, 'build_environment');
+    if (reference !== null) parts.push(t.build.facts.environment(reference));
+    const zephyr = text(facts, 'zephyr');
+    if (zephyr !== null) parts.push(t.build.facts.zephyr(zephyr));
+    const foundUnder = text(facts, 'found_under');
+    if (foundUnder !== null) parts.push(t.build.facts.foundUnder(foundUnder));
+    if (flag(facts, 'fetched') === true) parts.push(t.build.facts.fetched);
+    return parts;
+  }
+
   #contextFacts(facts: Record<string, unknown>): string[] {
     const parts: string[] = [];
     const sdk = text(facts, 'sdk');
     if (sdk !== null) parts.push(t.build.facts.sdk(sdk));
-    const zephyr = text(facts, 'zephyr');
-    if (zephyr !== null) parts.push(t.build.facts.zephyr(zephyr));
+    const environment = text(facts, 'build_environment');
+    if (environment !== null) parts.push(t.build.facts.environment(environment));
     const patches = list(facts, 'patches');
     if (patches !== null) parts.push(t.build.facts.patches(patches));
     const files = count(facts, 'files');

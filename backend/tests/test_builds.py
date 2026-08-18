@@ -48,12 +48,27 @@ from tests.conftest import call
 # --------------------------------------------------------------------------
 
 
+#: The build environment this scripted build resolves to, pinned the way
+#: a real one is: repository, readable tag, and the digest that is what
+#: the context's identity is actually computed over.
+SCRIPTED_ENVIRONMENT = "ghcr.io/mcu-home/build-container:zephyr-4.4.0-r10@sha256:" + "ab" * 32
+
 #: What the ``local`` method announces through ``on_step``, verbatim in
-#: shape: the context step twice — once on entry, once with what the
-#: context turned out to be — then the compile step with the image it
-#: resolved. ``sdk_sha256`` and ``digest`` are in here because the real
-#: seam carries them and the dashboard has to be seen dropping them.
+#: shape: the environment step twice — once on entry, once with the image
+#: it pinned — then the context step twice, then compile. ``sdk_sha256``
+#: is in here because the real seam carries it and the dashboard has to
+#: be seen dropping it.
 SCRIPTED_STEPS: tuple[tuple[str, dict[str, Any]], ...] = (
+    ("environment", {}),
+    (
+        "environment",
+        {
+            "build_environment": SCRIPTED_ENVIRONMENT,
+            "zephyr": "4.4.0",
+            "found_under": "zephyr-4.4-latest",
+            "fetched": False,
+        },
+    ),
     ("context", {}),
     (
         "context",
@@ -61,16 +76,13 @@ SCRIPTED_STEPS: tuple[tuple[str, dict[str, Any]], ...] = (
             "id": "sha256:0123456789abcdef0123456789abcdef",
             "sdk": "0.1.0",
             "sdk_sha256": "9f" * 32,
-            "zephyr": "4.4.0",
+            "build_environment": SCRIPTED_ENVIRONMENT,
             "board": "nrf7002dk/nrf5340/cpuapp",
             "files": 214,
             "patches": ["chip-pigweed.patch"],
         },
     ),
-    (
-        "compile",
-        {"image": "ghcr.io/mcu-home/builder:test", "digest": "sha256:" + "ab" * 32, "jobs": 2},
-    ),
+    ("compile", {"image": SCRIPTED_ENVIRONMENT, "jobs": 2}),
 )
 
 
@@ -441,7 +453,14 @@ async def test_a_build_states_its_steps_before_it_takes_one(
     async with client.ws_connect("/ws") as ws:
         frame = await call(ws, "build/start", {"name": "bench-node"})
         listed = [step["key"] for step in frame["payload"]["build"]["steps"]]
-        assert listed == ["validate", "context", "compile", "artifacts", "sign"]
+        assert listed == [
+            "validate",
+            "environment",
+            "context",
+            "compile",
+            "artifacts",
+            "sign",
+        ]
 
         gate.set()
         record = await finished(state, frame["payload"]["build"]["id"])
@@ -457,13 +476,16 @@ async def test_the_steps_follow_what_the_builder_announced(
 
     assert steps_of(record) == {
         "validate": "done",
+        "environment": "done",
         "context": "done",
         "compile": "done",
         "artifacts": "done",
         "sign": "done",
     }
+    assert facts_of(record, "environment")["build_environment"] == SCRIPTED_ENVIRONMENT
+    assert facts_of(record, "environment")["found_under"] == "zephyr-4.4-latest"
     assert facts_of(record, "context")["sdk"] == "0.1.0"
-    assert facts_of(record, "context")["zephyr"] == "4.4.0"
+    assert facts_of(record, "context")["build_environment"] == SCRIPTED_ENVIRONMENT
     assert facts_of(record, "context")["patches"] == ["chip-pigweed.patch"]
     assert facts_of(record, "compile")["jobs"] == 2
 
@@ -509,18 +531,18 @@ async def test_pins_nobody_reads_off_a_screen_are_left_out(
     await finished(state, record.id)
 
     assert "sdk_sha256" not in facts_of(record, "context")
-    assert "digest" not in facts_of(record, "compile")
+    assert "board" not in facts_of(record, "context")
 
 
 async def test_a_fact_that_is_not_plain_data_is_dropped_rather_than_sent(
     state: AppState, fake_build: FakeBuild
 ) -> None:
     """These dicts end up in a JSON frame; one object in one would end a build."""
-    fake_build.steps = (("context", {"sdk": object(), "zephyr": "4.4.0"}),)
+    fake_build.steps = (("context", {"sdk": object(), "build_environment": SCRIPTED_ENVIRONMENT}),)
     record = await state.builds.begin("bench-node")
     await finished(state, record.id)
 
-    assert facts_of(record, "context") == {"zephyr": "4.4.0"}
+    assert facts_of(record, "context") == {"build_environment": SCRIPTED_ENVIRONMENT}
     assert record.state == "succeeded"
 
 
@@ -563,6 +585,7 @@ async def test_a_step_nobody_predicted_is_shown_where_it_happened(
 
     assert [step["key"] for step in record.steps] == [
         "validate",
+        "environment",
         "context",
         "generate",
         "compile",
@@ -582,6 +605,7 @@ async def test_a_failed_build_marks_the_step_it_stopped_at(
     assert record.state == "failed"
     assert steps_of(record) == {
         "validate": "done",
+        "environment": "done",
         "context": "done",
         "compile": "failed",
         "artifacts": "pending",
@@ -610,7 +634,8 @@ async def test_a_builder_that_refuses_before_it_starts_does_not_blame_the_config
     assert record.state == "failed"
     assert steps_of(record) == {
         "validate": "done",
-        "context": "failed",
+        "environment": "failed",
+        "context": "pending",
         "compile": "pending",
         "artifacts": "pending",
         "sign": "pending",

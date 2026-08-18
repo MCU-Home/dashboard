@@ -9,7 +9,7 @@ dependency is the invariant — the builder never learns that the
 dashboard exists — so the check lives here and nowhere else.
 
 ADR 0007 decision 4 / ADR 0011 decision 3: the device-model wire format
-is at ``model_version`` 1. The dashboard sends exactly one version and
+is at ``model_version`` 2. The dashboard sends exactly one version and
 advertises the range it can read; a build server that cannot meet it is
 refused, never worked around.
 """
@@ -55,11 +55,11 @@ MCUHOME_VERSION_MAX_EXCLUSIVE = "0.2.0"
 MCUHOME_VERSION_SPEC = f"{MCUHOME_PACKAGE}>={MCUHOME_VERSION_MIN},<{MCUHOME_VERSION_MAX_EXCLUSIVE}"
 
 #: The device-model version this dashboard sends (ADR 0007 decision 4).
-MODEL_VERSION = 1
+MODEL_VERSION = 2
 #: The range it can read back. Both ends equal today; they exist apart
 #: so that widening the reader is not a protocol change.
-MODEL_VERSION_MIN = 1
-MODEL_VERSION_MAX = 1
+MODEL_VERSION_MIN = 2
+MODEL_VERSION_MAX = 2
 
 _RELEASE_RE = re.compile(r"^\s*v?(\d+(?:\.\d+)*)")
 

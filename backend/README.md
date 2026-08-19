@@ -162,11 +162,11 @@ client, which knows from `server/info` which site answered it.
 ## Building (ADR 0013)
 
 A build is `mcuhome.workbench.api.run_build`: one awaitable over the
-builder's three build methods. **Which one runs is configuration**, not
-code here — `--build-method local` drives a build container on this
-machine, `remote` a build server, `local-dev` a west workspace — and a
-method this installation cannot run refuses in the builder's own words,
-naming the exact `pip install` it is missing. The dashboard neither
+builder's build methods. **Which one runs is configuration**, not code
+here — `--build-method local` drives a build container on this machine,
+`remote` a build server — and a method this installation cannot run
+refuses in the builder's own words, naming the exact `pip install` it is
+missing. The dashboard neither
 subsets the list nor validates a name against a copy of it.
 
 ### The build record
@@ -222,9 +222,9 @@ The five keys are `validate`, `context`, `compile`, `artifacts`, `sign`.
 Two of them are the *builder's* own progress vocabulary — it announces
 `context` and `compile` from inside `run_build` — and three are this
 dashboard's, for the work around that call. A method that skips one
-never claims it (`local-dev` builds no build context, so it lists no
-`context` step), and a step announced that is not in the list is
-inserted where it happened. **Both halves of the vocabulary are
+never claims it — the list is a *prediction*, so a method that builds no
+build context lists no `context` step — and a step announced that is not
+in the list is inserted where it happened. **Both halves of the vocabulary are
 append-only:** render the keys you know, show an unknown one by its
 name, never fail on it.
 
@@ -299,7 +299,7 @@ created says so by the key's *role*, and the path is in the server log.
 
 | Option | Environment | What it is |
 |---|---|---|
-| `--build-method` | `MCUHOME_DASHBOARD_BUILD_METHOD` | `local`, `remote` or `local-dev`; unset takes the builder's default |
+| `--build-method` | `MCUHOME_DASHBOARD_BUILD_METHOD` | `local` or `remote`; unset takes the builder's default |
 | `--build-server-url` | `MCUHOME_DASHBOARD_BUILD_SERVER_URL` | `http(s)://` or `ws(s)://`; both forms are accepted and normalized |
 | `--build-server-token` | `MCUHOME_DASHBOARD_BUILD_SERVER_TOKEN` | the bearer token the build server logged at startup |
 | `--build-server-token-file` | `MCUHOME_DASHBOARD_BUILD_SERVER_TOKEN_FILE` | read it from a file instead |

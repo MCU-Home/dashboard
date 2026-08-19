@@ -42,7 +42,7 @@ none is worth a second implementation on this side:
     offers — every one of them runs the whole of stages 1-3.
 
 :func:`write_ota_image`
-    uses ``mcuhome.model.manifest.ota_parameters`` and
+    uses ``mcuhome.model.ota.ota_parameters`` and
     ``mcuhome.workbench.otafile`` to wrap a signed image in a Matter OTA
     file. The vendor/product identity and the SoftwareVersion derivation
     are the firmware repository's (its ``ota.py`` is asserted to be the
@@ -58,7 +58,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from mcuhome.model.manifest import ota_parameters
+from mcuhome.model.ota import ota_parameters
 from mcuhome.model.pairing import Pairing
 from mcuhome.workbench import api, otafile
 from mcuhome.workbench.api import (
@@ -66,7 +66,6 @@ from mcuhome.workbench.api import (
     DEVICE_ENTRY,
     DEVICES_DIR,
     LOCAL,
-    LOCAL_DEV,
     METHODS,
     PROJECT_VERSION,
     REMOTE,
@@ -103,7 +102,6 @@ __all__ = [
     "DEVICES_DIR",
     "DEVICE_ENTRY",
     "LOCAL",
-    "LOCAL_DEV",
     "MCUHOME_VERSION",
     "PROBLEM_NO_PROJECT",
     "PROBLEM_UNREADABLE",
@@ -210,17 +208,9 @@ _WITH_CONTEXT = (
     STEP_ARTIFACTS,
     STEP_SIGN,
 )
-#: ``local-dev`` compiles in a west workspace: it builds no build context
-#: and pins no build environment, so it announces neither step and
-#: neither is claimed for it. The other two methods hand a context to a
-#: build environment they chose first, which is where the two steps come
-#: from — the one that says which container, the one that says which SDK.
-_WITHOUT_CONTEXT = (STEP_VALIDATE, STEP_COMPILE, STEP_ARTIFACTS, STEP_SIGN)
-
 _METHOD_STEPS = {
     LOCAL: _WITH_CONTEXT,
     REMOTE: _WITH_CONTEXT,
-    LOCAL_DEV: _WITHOUT_CONTEXT,
 }
 
 #: The facts this dashboard forwards to browsers, per step.
@@ -648,7 +638,7 @@ def write_ota_image(model: DeviceModel, *, out_dir: Path, signed: Path) -> dict[
     has no staging slot and for a device without a Matter stack: neither
     can be updated over the air, so an ``.ota`` file for it would be a
     file nothing can deliver. The same two facts
-    ``mcuhome.model.manifest.ota_parameters`` checks, checked by calling
+    ``mcuhome.model.ota.ota_parameters`` checks, checked by calling
     it rather than by knowing them here.
 
     *signed* has to be the **signed** binary. An unsigned one produces a

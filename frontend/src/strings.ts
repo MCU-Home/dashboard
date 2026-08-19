@@ -253,7 +253,6 @@ export const t = {
       /** Where a step runs, appended to its name. */
       inContainer: 'build container',
       onServer: 'build server',
-      inWorkspace: 'local workspace',
       here: 'dashboard',
       /** The whole bar, for a screen reader that reads it as one thing. */
       label: 'Build progress',

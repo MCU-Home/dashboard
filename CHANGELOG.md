@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The `local-dev` build method**, which the workbench no longer has:
+  the methods are `local` and `remote`. The step-list prediction, the
+  "local workspace" label in the build view and the method's mention in
+  `--build-method`'s help go with it.
+- **The `build-manifest.json` half of signing.** A build delivers
+  `build-report.json` and nothing else, so `manifest_is_signed` is
+  `build_is_signed` — it answers from the signed files beside the report,
+  under the names the signer itself uses — and `sign_build` takes no
+  report name any more.
+
+### Fixed
+
+- **Detached signing was broken and no test could see it**: the signer
+  was called with a `topdir=` argument the workbench dropped in
+  2026-08-15, which every test stubbed out one level above. Found while
+  removing the second report shape.
+
 ### Added
 
 - **A build states which container it is compiled in.** The workbench

@@ -7,7 +7,7 @@ The dashboard's whole build path is this module plus the seam in
 :func:`mcuhome.workbench.api.run_build`, which is the builder's one
 awaitable over its three build methods, and **does not know which of them
 runs**: ``local`` starts a build container on this machine, ``remote``
-drives a build server, ``local-dev`` compiles in a west workspace, and
+drives a build server, and
 the request object is the same for all three (firmware ADR 0020 decision
 6, E64). ADR 0013 decision 1 makes that a decision rather than an
 accident: the method is deployment configuration, and a dashboard that
@@ -76,7 +76,7 @@ build that holds the slot.
 
 **The slot belongs to the work, not to the task waiting for it.** A
 cancel stops this process waiting; it cannot stop a container, because
-``local`` and ``local-dev`` block in a worker thread Python cannot
+``local`` blocks in a worker thread Python cannot
 interrupt. So the call into the builder is *shielded*: the record ends
 ``cancelled`` at once, for the user, while the slot stays taken until the
 work really returns and :meth:`BuildRegistry._reap` gives it back. A
@@ -625,7 +625,7 @@ class BuildRegistry:
         """Stop the dashboard's part of a running build.
 
         What that means is stated rather than smoothed over: the work
-        itself runs to its own end. ``local`` and ``local-dev`` are
+        itself runs to its own end. ``local`` is
         blocked in a worker thread that Python cannot interrupt, so the
         container or the compiler cannot be told anything at all, and
         ``remote`` is left alone for the same reason the slot is — a
@@ -879,9 +879,7 @@ class BuildRegistry:
             # into it. What used to be a delete-first is now the shape
             # of the directory.
             progress.step(builder.STEP_SIGN)
-            result = await signing.sign_build(
-                out_dir, key=key, report=outcome.report, env=environment
-            )
+            result = await signing.sign_build(out_dir, key=key, env=environment)
             # Assembled field by field, never from
             # ``SigningResult.to_dict``: that carries ``key``, the path
             # of the private key, and this object goes to every

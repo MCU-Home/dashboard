@@ -6,11 +6,11 @@ ADR 0007 decision 3 splits one operation in two: whatever compiles gets
 the **public** key, builds it into MCUboot and delivers the application
 image *unsigned*, and the side that has the private key applies the
 signature. Firmware E56 generalised the same split across all three
-build methods — a container here, a build server, a west workspace — so
-the split is now a property of every build rather than of the remote
-one, and this module is the second half of it wherever the first half
-ran. ADR 0008 decision 2 puts the key at ``/data/signing.key`` — the
-App's private volume, mode ``0600``, never in the configuration tree,
+build methods — a container here, a build server — so the split is a
+property of every build rather than of the remote one, and this module
+is the second half of it wherever the first half ran. ADR 0008 decision
+2 puts the key at ``/data/signing.key`` — the App's private volume, mode
+``0600``, never in the configuration tree,
 because the tree is the thing users sync to git and paste into forum
 posts.
 
@@ -33,13 +33,9 @@ the library both sides already share. The bytes are the same bytes: the
 argument order lives in :func:`mcuhome.workbench.imgtool.sign_command`
 and neither side spells it out.
 
-**Two report shapes, because there are two** (firmware E55). A build
-that ran in a build container or on a build server delivers the
-contract's ``build-report.json``; a host build writes
-``build-manifest.json`` and has a manifest to fold the signature back
-into. :attr:`mcuhome.workbench.api.BuildOutcome.report` says which one
-this build wrote, so the caller passes it through rather than this
-module guessing by looking around the directory.
+**One report shape.** Whatever built it, a build delivers the contract's
+``build-report.json`` beside the unsigned image, and that document
+carries the exact ``imgtool`` arguments the image was linked for.
 
 **A key is generated on first need, and the dashboard says so.** That is
 the builder's own behaviour and the alternative is worse: refusing to
@@ -73,9 +69,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from mcuhome.model.manifest import MANIFEST_FILE
 from mcuhome.workbench import imgtool
-from mcuhome.workbench.api import MCUHomeError, read_manifest
+from mcuhome.workbench.api import MCUHomeError
 from mcuhome.workbench.imgtool import BUILD_REPORT_FILE
 from mcuhome.workbench.signing import KEY_VAR, public_key_pem, signing_key
 
@@ -83,12 +78,11 @@ __all__ = [
     "BUILD_REPORT_FILE",
     "KEY_FILE",
     "KEY_VAR",
-    "MANIFEST_FILE",
     "KeyCustodyError",
     "SigningError",
     "SigningResult",
     "key_path",
-    "manifest_is_signed",
+    "build_is_signed",
     "public_key",
     "sign_build",
 ]
@@ -196,43 +190,30 @@ def public_key(path: Path, *, create: bool = True) -> tuple[str, bool]:
     return pem, key.created
 
 
-def manifest_is_signed(build_dir: Path, *, report: str = MANIFEST_FILE) -> bool:
+def build_is_signed(build_dir: Path) -> bool:
     """Whether the build in *build_dir* already carries a signature.
 
-    Reads the manifest's ``signing.signed`` — "is there a signature in
-    this directory now", which is the question a flasher asks, as
-    opposed to ``signed_by_the_build``, which is the historical fact of
-    whether a private key was ever near the machine that compiled.
-
-    A §7.2.1 ``build-report.json`` answers ``False`` always and
-    correctly: a delivered build is unsigned by construction (firmware
-    E56), and the report is written by the build environment, which has
-    no signature to record and never gains one — the signed files land
-    beside it without it being rewritten.
+    "Is there a signature in this directory now", which is the question a
+    flasher asks. A build delivers its image **unsigned** (firmware E56)
+    and the signed files land beside the report without it being
+    rewritten, so the answer is the files: the same names
+    :data:`~mcuhome.workbench.imgtool.REPORT_FIRMWARE` gives the signer,
+    which is why the two cannot disagree about what a signed image is
+    called.
     """
-    if report != MANIFEST_FILE:
-        return False
-    try:
-        manifest = read_manifest(build_dir / MANIFEST_FILE)
-    except MCUHomeError:
-        return False
-    signing = manifest.get("signing")
-    return bool(isinstance(signing, dict) and signing.get("signed"))
+    return any(
+        (build_dir / signed_name).is_file() for _source, signed_name in imgtool.REPORT_FIRMWARE
+    )
 
 
-def _sign_blocking(build_dir: Path, *, key: Path, report: str, env: dict[str, str]) -> list[Path]:
+def _sign_blocking(build_dir: Path, *, key: Path, env: dict[str, str]) -> list[Path]:
     """The signature itself, off the event loop. Returns what it wrote.
 
-    ``topdir=None`` on both calls: a west workspace is where ``imgtool``
-    can be borrowed from when there is none installed, and the dashboard
-    never compiles (ADR 0003), so there is no workspace here to borrow
-    one from. ``imgtool`` is a dependency of the machine that signs, and
-    its absence is a refusal that names the ``pip install`` — which is
-    the honest answer rather than a search for a workspace that this
-    deployment does not have.
+    ``imgtool`` is a declared dependency of the machine that signs, and
+    its absence is a refusal that names the ``pip install`` — the honest
+    answer on a machine that never compiles (ADR 0003).
     """
-    signer = imgtool.sign_build if report == MANIFEST_FILE else imgtool.sign_report
-    plan = signer(build_dir, key=key, env=env, topdir=None)
+    plan = imgtool.sign_report(build_dir, key=key, env=env)
     return list(plan.outputs)
 
 
@@ -240,16 +221,9 @@ async def sign_build(
     build_dir: Path,
     *,
     key: Path,
-    report: str = BUILD_REPORT_FILE,
     env: dict[str, str] | None = None,
 ) -> SigningResult:
     """Apply the detached signature to a finished build directory.
-
-    *report* is :attr:`mcuhome.workbench.api.BuildOutcome.report`: which
-    of the two documents this build wrote, and therefore which of the two
-    signers reads it. Passing it through rather than sniffing the
-    directory is what keeps "which build shape is this" a fact the build
-    stated instead of a guess made afterwards.
 
     *env* is stated, never read from the process inside the library —
     which ``imgtool`` runs is part of what a signature is. ``None`` means
@@ -257,9 +231,8 @@ async def sign_build(
     with one wants.
 
     Idempotent by omission rather than by cleverness: the caller checks
-    :func:`manifest_is_signed` first, because signing twice would produce
-    a second, equally valid signature over the same bytes and a manifest
-    that had been rewritten for no reason.
+    :func:`build_is_signed` first, because signing twice would produce a
+    second, equally valid signature over the same bytes.
     """
     environment = dict(os.environ) if env is None else dict(env)
     # ``create=False``, and it is the documented half of the split: the
@@ -272,9 +245,7 @@ async def sign_build(
     _pem, created = await asyncio.to_thread(public_key, key, create=False)
 
     try:
-        outputs = await asyncio.to_thread(
-            _sign_blocking, build_dir, key=key, report=report, env=environment
-        )
+        outputs = await asyncio.to_thread(_sign_blocking, build_dir, key=key, env=environment)
     except MCUHomeError as error:
         # The builder's refusals carry the fix in their hint, and losing
         # it here would turn "imgtool is not installed, here is the pip

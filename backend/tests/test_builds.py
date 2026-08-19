@@ -8,14 +8,13 @@ point into a container, a subprocess or a socket — because a test that
 really compiled would be a quarter of an hour of Zephyr and would test
 the firmware repository rather than this one.
 
-Two tests deliberately do *not* fake it. ``test_real_run_build_refuses``
-drives the actual ``mcuhome.workbench.api.run_build`` with the ``local``
-method and asserts what this venv must produce: ``mcuhome-compiler`` is
-not installed here (``requirements-dev.txt`` leaves it out on purpose, so
-that "the dashboard never compiles" is checkable in the very environment
-the tests run in), so the method refuses with :class:`MethodUnavailable`
-— and the point is that the refusal arrives as a *rendered build error*
-with the pip line in its hint, never as a crashed command.
+One test deliberately does *not* fake it:
+``test_real_run_build_refuses_remote_without_a_server`` drives the actual
+``mcuhome.workbench.api.run_build`` and asserts that its typed refusal
+arrives as a *rendered build error*, never as a crashed command. Beside
+it, ``test_this_installation_carries_no_toolchain`` keeps "the dashboard
+never compiles" checkable in the very environment the tests run in:
+``requirements-dev.txt`` leaves ``mcuhome-compiler`` out on purpose.
 
 The signing seam is cut one level lower: :func:`signing.sign_build` runs
 for real — it generates the key at ADR 0008's location under the test's
@@ -157,7 +156,7 @@ class _FailureDetail:
 def fake_signature(outputs: tuple[str, ...] = ("firmware.signed.bin",)):
     """Replace the ``imgtool`` call inside a real :func:`signing.sign_build`."""
 
-    def signer(build_dir: Path, *, key: Path, report: str, env: dict[str, str]) -> list[Path]:
+    def signer(build_dir: Path, *, key: Path, env: dict[str, str]) -> list[Path]:
         assert key.is_file(), "the signing key must exist before the signer runs"
         written = []
         for name in outputs:
@@ -275,7 +274,7 @@ async def test_a_configured_method_is_used_when_no_override_is_given(
         config_root=tree,
         poll_interval=0.0,
         data_dir=tmp_path / "data",
-        build_method="local-dev",
+        build_method="remote",
     )
     state = AppState(config)
     await state.start()
@@ -284,7 +283,7 @@ async def test_a_configured_method_is_used_when_no_override_is_given(
         await finished(state, record.id)
     finally:
         await state.stop()
-    assert stub.methods == ["local-dev"]
+    assert stub.methods == ["remote"]
 
 
 async def test_an_unknown_method_is_refused_in_the_builders_own_words(
@@ -374,34 +373,22 @@ async def test_a_configuration_that_stopped_resolving_fails_the_build(
     assert fake_build.requests == [], "a build must not start for a model that does not resolve"
 
 
-async def test_real_run_build_refuses_because_no_compiler_is_installed(
-    client, state: AppState
-) -> None:
-    """The un-faked seam. ADR 0017 §2, checkable in this very venv.
+def test_this_installation_carries_no_toolchain() -> None:
+    """ADR 0017 §2, checkable in this very venv.
 
-    Nothing is monkeypatched here: this drives
-    ``mcuhome.workbench.api.run_build`` with the ``local-dev`` method,
-    which compiles in the caller's own west workspace and therefore needs
-    ``mcuhome-compiler``. That distribution is deliberately absent from
-    ``requirements-dev.txt``, so the method raises ``MethodUnavailable``
-    — and what this asserts is that the refusal becomes a rendered build
-    error carrying the exact ``pip install``, rather than an internal
-    error or a traceback on the wire.
+    A dashboard install must never carry a toolchain, and since no build
+    method reaches for one any more there is no *build* that can
+    demonstrate it — so the property is asserted where it lives: the
+    compiler distribution is deliberately absent from
+    ``requirements-dev.txt``, and importing it fails.
 
-    It used to be the ``local`` method here. That one drives a build
-    container, and the thing that drives one is the workbench's own now,
-    so a compiler-less install runs it — which is the point of the move
-    and leaves ``local-dev`` as the method that demonstrates this.
+    It used to be a real ``local-dev`` build here, which refused with the
+    exact ``pip install``. That method is gone; what replaced the
+    demonstration is the fact it was demonstrating.
     """
-    async with client.ws_connect("/ws") as ws:
-        frame = await call(ws, "build/start", {"name": "bench-node", "method": "local-dev"})
-        assert frame["type"] == "result", "starting must succeed; the build is what fails"
-        record = await finished(state, frame["payload"]["build"]["id"])
+    import importlib.util
 
-    assert record.state == "failed"
-    assert record.errors[0]["kind"] == "MethodUnavailable"
-    assert "mcuhome-compiler" in record.errors[0]["message"]
-    assert "pip install mcuhome-compiler" in (record.errors[0]["hint"] or "")
+    assert importlib.util.find_spec("mcuhome.compiler") is None
 
 
 async def test_real_run_build_refuses_remote_without_a_server(client, state: AppState) -> None:
@@ -544,30 +531,6 @@ async def test_a_fact_that_is_not_plain_data_is_dropped_rather_than_sent(
 
     assert facts_of(record, "context") == {"build_environment": SCRIPTED_ENVIRONMENT}
     assert record.state == "succeeded"
-
-
-async def test_a_method_without_a_build_context_claims_no_context_step(
-    tree: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``local-dev`` compiles in a west workspace and builds no context."""
-    stub = FakeBuild(steps=(("compile", {}),))
-    monkeypatch.setattr(builder, "run_build", stub)
-    monkeypatch.setattr(signing, "_sign_blocking", fake_signature())
-    config = Config(
-        config_root=tree,
-        poll_interval=0.0,
-        data_dir=tmp_path / "data",
-        build_method="local-dev",
-    )
-    state = AppState(config)
-    await state.start()
-    try:
-        record = await state.builds.begin("bench-node")
-        await finished(state, record.id)
-    finally:
-        await state.stop()
-
-    assert [step["key"] for step in record.steps] == ["validate", "compile", "artifacts", "sign"]
 
 
 async def test_a_step_nobody_predicted_is_shown_where_it_happened(
@@ -1196,7 +1159,7 @@ async def test_a_build_that_did_not_succeed_takes_its_own_directory_only(
 async def test_signing_failure_is_a_rendered_error(
     state: AppState, fake_build: FakeBuild, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def refuse(build_dir: Path, *, key: Path, report: str, env: dict[str, str]) -> list[Path]:
+    def refuse(build_dir: Path, *, key: Path, env: dict[str, str]) -> list[Path]:
         raise builder.MCUHomeError("imgtool is not available here.")
 
     monkeypatch.setattr(signing, "_sign_blocking", refuse)

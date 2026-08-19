@@ -255,8 +255,6 @@ export class MhBuildSteps extends LitElement {
         return names.inContainer;
       case 'remote':
         return names.onServer;
-      case 'local-dev':
-        return names.inWorkspace;
       default:
         return null;
     }

@@ -424,12 +424,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--build-method",
         metavar="METHOD",
         help=(
-            "where firmware is compiled: local (a build container on this machine), "
-            "remote (a build server, needs --build-server-url) or local-dev (this "
-            "machine's own west workspace). Default: whatever the installed mcuhome "
-            "package defaults to. A method this installation cannot run — no "
-            "container runtime, no toolchain installed — refuses with the exact "
-            "install it is missing"
+            "where firmware is compiled: local (a build container on this machine) "
+            "or remote (a build server, needs --build-server-url). Default: whatever "
+            "the installed mcuhome package defaults to. A method this installation "
+            "cannot run — no container runtime — refuses with the exact install it "
+            "is missing"
         ),
     )
     parser.add_argument(

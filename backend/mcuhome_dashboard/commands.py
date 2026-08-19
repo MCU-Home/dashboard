@@ -795,7 +795,7 @@ async def build_cancel(context: CommandContext, command: Command) -> dict[str, A
     Payload: ``{"build_id"}``. Result: ``{"build": {...}}``.
 
     What "stop" means is said rather than implied: the work runs to its
-    own end. ``local`` and ``local-dev`` are blocked in a worker thread
+    own end. ``local`` is blocked in a worker thread
     that Python cannot interrupt, so the container or the compiler cannot
     be told anything at all. The record ends ``cancelled`` immediately,
     nothing is collected and nothing is signed — a cancelled build never

@@ -91,7 +91,7 @@ Assistant ever ships a propagation mechanism.
   also exactly the pool that already contributes to Home Assistant and
   ESPHome — the people most likely to show up here.
 - Frontend scaffolding — `package.json`, lockfile, eslint/prettier,
-  the prettier/eslint pre-commit hooks and the CI job — lands with the
+  the prettier/eslint CI job — lands with the
   first frontend commit. ADR 0002's "`frontend/` stays a placeholder"
   and the deferral notes recorded alongside it
   are discharged by this ADR.

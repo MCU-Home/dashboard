@@ -142,13 +142,13 @@ a theme exists.
   `tsconfig.node.json`) so browser code cannot reach a Node API by
   accident.
 - eslint with `recommendedTypeChecked`, prettier for formatting, both
-  wired into `pre-commit`.
+  run in CI.
 - Lit with TypeScript's legacy decorators and
   `useDefineForClassFields: false` — the combination Home Assistant's and
   ESPHome's frontends run. Changing either silently breaks every
   reactive property.
 - Apache-2.0 with an SPDX header in every new file; `reuse lint` runs in
-  pre-commit.
+  CI.
 - English only in this repository. Strings live in `src/strings.ts` and
   are never written inline, so adding a locale later is a second object
   rather than a sweep.

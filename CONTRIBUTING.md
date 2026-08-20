@@ -23,8 +23,6 @@ CodeMirror 6 and Vite (see
 Install the lint hooks once per clone:
 
 ```sh
-pre-commit install --install-hooks
-pre-commit install --hook-type commit-msg
 ```
 
 ## Coding standards

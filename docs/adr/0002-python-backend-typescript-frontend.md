@@ -41,8 +41,8 @@ interaction.
 - Native integration with west/twister/the builder package; one language
   boundary (HTTP/WebSocket API) instead of two.
 - Two toolchains in one repo (pip + pnpm), each with its own lint/format
-  chain — mirrored in pre-commit (ruff for the backend; prettier/eslint
-  through `pnpm exec` for the frontend) and in dependabot configuration.
+  chain — run in CI (ruff for the backend; prettier/eslint
+  through `pnpm exec` for the frontend) and mirrored in dependabot configuration.
   There is no CI yet; when it arrives it mirrors the same split.
 - Deferring the frontend scaffolding did its job: the tooling arrived
   with the framework decision rather than before it, so none of it was

@@ -21,7 +21,7 @@ from pathlib import Path
 
 from mcuhome.model import registry
 
-from tests.conftest import ADMIN_HEADERS, NON_ADMIN_HEADERS, call
+from tests.python.conftest import ADMIN_HEADERS, NON_ADMIN_HEADERS, call
 
 BOARD = "nrf7002dk/nrf5340/cpuapp"
 

@@ -19,7 +19,7 @@ import pytest
 from mcuhome.ui import builder
 from mcuhome.ui.devices import DeviceStore
 from mcuhome.ui.events import TOPIC_DEVICES, EventBus
-from tests.conftest import VALID_CONFIG, make_tree, write_device
+from tests.python.conftest import VALID_CONFIG, make_tree, write_device
 
 
 @pytest.fixture

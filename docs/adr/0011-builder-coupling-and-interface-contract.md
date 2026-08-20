@@ -59,7 +59,7 @@ half does not.
 ## Context
 
 ADR 0002 fixed that the backend drives the builder natively, and
-AGENTS.md carries two invariants that pull in opposite directions: the
+two invariants pull in opposite directions: the
 dashboard is a standalone product with its own release cycle, and using
 the builder CLI must never require the dashboard or any dashboard
 version. "In-process import" and "independent release cycles" have to be
@@ -101,7 +101,7 @@ The dashboard declares the `mcuhome` versions it supports
 (`mcuhome>=X,<Y`) and refuses to start against anything outside the
 range, naming both versions. The builder never depends on the dashboard
 — **the direction of the dependency is the invariant**, and it is what
-keeps AGENTS.md's "standalone release cycle" true while importing
+keeps the "standalone release cycle" true while importing
 in-process: the dashboard follows the builder's releases, the CLI never
 learns that the dashboard exists.
 
@@ -153,7 +153,7 @@ horizontal-scaling phase.
 - Every Block 0 item improves the plain CLI as well. `--json`,
   `mcuhome new`, the manifest and the schema export are all things a
   CLI-only user benefits from — the dashboard is the reason they get
-  built, not the only beneficiary. That is what keeps AGENTS.md's
+  built, not the only beneficiary. That is what keeps
   "the CLI must never require the dashboard" honest in spirit and not
   only in packaging.
 - The dashboard container carries the builder package (pure Python,

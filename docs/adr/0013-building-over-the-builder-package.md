@@ -270,7 +270,7 @@ a user later discovers was false while watching their CPU fan.
 - **`backend/README.md`'s "Building: it does not" section is obsolete**
   and is replaced by the build vocabulary. The two paragraphs about
   inert settings and the missing artifact route go with it.
-- **AGENTS.md's "there is no build client here" invariant is amended.**
+- **The "there is no build client here" invariant is amended.**
   There is still no *protocol* client here and none is to be added; what
   there is, is a caller of the builder package. The sentence "there is
   no local-build code path, and none is to be added" is superseded:

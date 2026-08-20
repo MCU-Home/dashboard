@@ -111,7 +111,7 @@ measured it.
 
 ## Consequences
 
-- The rule in AGENTS.md changes rather than disappearing: no App metadata
+- The rule changes rather than disappearing: no App metadata
   here, and the Dockerfile is here.
 - CI gains a gate that builds both images without publishing them. It is
   the only thing that exercises installing the workbench from git,

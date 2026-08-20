@@ -26,7 +26,7 @@ from mcuhome.ui.admin import (
 from mcuhome.ui.app import AppState, create_app
 from mcuhome.ui.config import Config
 from mcuhome.ui.security import TrustMode
-from tests.conftest import (
+from tests.python.conftest import (
     ADMIN_HEADERS,
     ADMIN_USER,
     NON_ADMIN_HEADERS,
@@ -197,7 +197,7 @@ async def test_an_admin_can_read_commissioning_codes(roster_ingress_client) -> N
 
 
 async def test_an_admin_can_save_a_device(roster_ingress_client, tree: Path) -> None:
-    from tests.conftest import VALID_CONFIG
+    from tests.python.conftest import VALID_CONFIG
 
     edited = VALID_CONFIG.replace("sampling: 10s", "sampling: 45s")
     async with roster_ingress_client.ws_connect("/ws", headers=ADMIN_HEADERS) as ws:

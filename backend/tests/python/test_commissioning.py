@@ -26,7 +26,7 @@ from mcuhome.model.pairing import TEST_DISCRIMINATOR, TEST_PAIRING
 from mcuhome.ui.app import AppState, create_app
 from mcuhome.ui.config import Config
 from mcuhome.ui.security import TrustMode
-from tests.conftest import VALID_CONFIG, call, write_device
+from tests.python.conftest import VALID_CONFIG, call, write_device
 
 #: The same device with Matter switched off — nothing to commission.
 NO_MATTER_CONFIG = """\

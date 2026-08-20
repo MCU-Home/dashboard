@@ -206,7 +206,7 @@ v0.1 shape.
 
 ### 3. Distribution targets beyond Home Assistant
 
-Unchanged from AGENTS.md, and now spelled out per app: standalone Docker
+Unchanged, and now spelled out per app: standalone Docker
 images for both, and a plain Python installation for the dashboard.
 The build server has no plain-Python installation — it *is* the
 toolchain container (firmware ADR 0007: the builder image is the single
@@ -216,7 +216,7 @@ build environment, used identically by developers, CI and the apps).
 
 App packaging — `config.yaml`, Dockerfile, s6-overlay v3 services,
 repository metadata — for **both** apps goes to the future packaging
-repo. No app packaging files in this repository (the existing AGENTS.md
+repo. No app packaging files in this repository (the existing
 invariant, now covering two apps instead of one).
 
 The dashboard's source is this repository. The build server's source is

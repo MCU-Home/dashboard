@@ -39,7 +39,7 @@ offering the choice.
 out — kind, devicetree node label, and a description for a human choosing
 between two of them — and `registry_data` exports it. A list of node
 labels maintained here would be a second opinion about board bring-up,
-which is exactly what AGENTS.md forbids and what would go stale the first
+which is exactly what this repository forbids and what would go stale the first
 time a board lands.
 
 It is a **catalogue and not a validation whitelist**: a board's
@@ -104,7 +104,7 @@ The alternative — returning them from the draw, the way the command line
 prints them — is one round trip cheaper on an already-open socket, and
 turns "exactly one command carries passcodes" from a place into a
 judgement ("…unless the user clearly asked"). A place is checkable and
-`backend/tests/test_commissioning.py` checks it; a judgement erodes.
+`backend/tests/python/test_commissioning.py` checks it; a judgement erodes.
 
 `force` is required to replace an existing identity, because every
 controller that knows the device would have to commission it again. In

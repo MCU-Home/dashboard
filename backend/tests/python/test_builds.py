@@ -40,7 +40,7 @@ from mcuhome.ui.app import AppState, create_app
 from mcuhome.ui.config import Config
 from mcuhome.ui.events import EventBus
 from mcuhome.ui.security import TrustMode
-from tests.conftest import call
+from tests.python.conftest import call
 
 # --------------------------------------------------------------------------
 # The fake build
@@ -1229,7 +1229,7 @@ async def test_the_route_serves_the_declared_artifacts_and_nothing_else(
     Both container-shaped methods keep their scratch area *inside* the
     build directory, and it holds the build context: the resolved device
     model, verbatim, with the Matter pairing tuple in it. Commissioning
-    codes travel only when a user asked for them (AGENTS.md), and a plain
+    codes travel only when a user asked for them, and a plain
     ``GET`` is not asking.
     """
     record = await state.builds.begin("bench-node")

@@ -470,8 +470,8 @@ async def device_new(context: CommandContext, command: Command) -> dict[str, Any
     supported, a source naming a peripheral that is not in the outline.
     They arrive as ordinary diagnostics with the fix hint the command
     line prints, because the alternative — checking the same things
-    again here — is the second opinion this dashboard does not keep
-    (AGENTS.md). It refuses **before writing anything**, so a rejected
+    again here — is the second opinion this dashboard does not keep.
+    It refuses **before writing anything**, so a rejected
     form leaves no half-made device behind.
 
     **A device that already exists is a conflict, never an overwrite.**

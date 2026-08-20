@@ -153,7 +153,7 @@ What it unlocks, all of it out of reach for v0.1:
 - Reproducibility is preserved: credentials come from the configuration,
   never from the build, so the same tree and the same MCUHome version
   still produce the same bytes anywhere (`builder-pipeline.md` §1.4).
-- `MODEL_VERSION` and `tests_py/test_model_golden.py` changed role —
+- `MODEL_VERSION` and `tests/python/test_model_golden.py` changed role —
   from an internal regression guard to the test of a published contract.
 - The dashboard's own signing step settled on MCUboot's `imgtool`,
   driven through `mcuhome.workbench.imgtool` — the same library

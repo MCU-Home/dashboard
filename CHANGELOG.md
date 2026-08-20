@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-20
+
+### Changed
+
+- **The distribution is `mcuhome-ui` and it imports as `mcuhome.ui`.**
+  The console script is `mcuhome-ui`, and the repository is
+  `mcu-home/mcuhome-ui`. Every MCUHome distribution now imports from the
+  one `mcuhome` namespace; the scheme is recorded in the workbench
+  repository's ADR 0028.
+- **The images are `ghcr.io/mcu-home/ui` and
+  `ghcr.io/mcu-home/ui-homeassistant-app`.** A GHCR package cannot be
+  renamed, so these come into existence with this release and the
+  previous names stop receiving updates. An installed App follows when
+  the app repository raises its `version:`.
+
 ### Removed
 
 - **The `local-dev` build method**, which the workbench no longer has:

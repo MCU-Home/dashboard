@@ -8,11 +8,11 @@ import asyncio
 import threading
 from pathlib import Path
 
-from mcuhome_dashboard import commands as commands_module
-from mcuhome_dashboard import versions
-from mcuhome_dashboard.app import AppState
-from mcuhome_dashboard.builder import MCUHOME_VERSION
-from mcuhome_dashboard.ws import MAX_INFLIGHT_COMMANDS
+from mcuhome.ui import commands as commands_module
+from mcuhome.ui import versions
+from mcuhome.ui.app import AppState
+from mcuhome.ui.builder import MCUHOME_VERSION
+from mcuhome.ui.ws import MAX_INFLIGHT_COMMANDS
 from tests.conftest import VALID_CONFIG, call, write_device
 
 

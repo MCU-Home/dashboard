@@ -13,8 +13,8 @@ import json
 
 import pytest
 
-from mcuhome_dashboard import protocol
-from mcuhome_dashboard.protocol import ProtocolError
+from mcuhome.ui import protocol
+from mcuhome.ui.protocol import ProtocolError
 
 
 def test_a_command_round_trips() -> None:

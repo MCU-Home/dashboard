@@ -17,9 +17,9 @@
 #
 # Point the paths elsewhere if your checkout is laid out differently. The
 # supported version range is asserted at startup from
-# mcuhome_dashboard/versions.py, not from this file.
+# mcuhome/ui/versions.py, not from this file.
 -e ../../mcuhome-sdk/packaging/model
--e ../../mcuhome
+-e ../../mcuhome-workbench
 # The dashboard never compiles (ADR 0019); workbench pulls model and is
 # the whole runtime surface. The compiler is deliberately NOT installed,
 # which keeps ADR 0017 §2 checkable in this very venv.

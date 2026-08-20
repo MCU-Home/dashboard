@@ -1,6 +1,6 @@
-# mcuhome-dashboard (backend)
+# mcuhome-ui (backend)
 
-Python backend of the [MCUHome Dashboard](https://github.com/mcu-home/dashboard):
+Python backend of the [MCUHome Dashboard](https://github.com/mcu-home/mcuhome-ui):
 device management and the API the frontend consumes. It **never compiles
 firmware** itself (ADR 0003).
 
@@ -29,7 +29,7 @@ building, signing and artifact download work end to end.
 ```sh
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt      # workbench + model from the sibling checkouts
-mcuhome-dashboard --config-root ~/mcuhome-config
+mcuhome-ui --config-root ~/mcuhome-config
 ```
 
 Then open <http://127.0.0.1:8099>. Every option also has an environment
@@ -475,7 +475,7 @@ container or a real build.
 
 The `mcuhome` package is imported in-process — never spawned, never
 parsed from stdout (ADR 0011). The supported range lives in
-`mcuhome_dashboard/versions.py` and is asserted at startup; a mismatch
+`mcuhome/ui/versions.py` and is asserted at startup; a mismatch
 refuses to start and names both versions. It is not in
 `pyproject.toml`'s `dependencies` yet because the builder is not
 published; `requirements-dev.txt` installs it from the sibling
@@ -486,9 +486,9 @@ The direction of the dependency is the invariant: the dashboard follows
 the builder's releases, and using the builder CLI never requires the
 dashboard.
 
-`mcuhome_dashboard/builder.py` is the module that knows the builder's
+`mcuhome/ui/builder.py` is the module that knows the builder's
 Python surface, and it consumes
-[`mcuhome.workbench.api`](https://github.com/mcu-home/mcuhome) — the
+[`mcuhome.workbench.api`](https://github.com/mcu-home/mcuhome-workbench) — the
 builder's supported programmatic surface — rather than reaching into the
 package: tree discovery, stages 1-3, the typed errors with their own
 `to_dict`, and `run_build` with its request and outcome types. **The

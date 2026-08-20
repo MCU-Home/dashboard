@@ -31,14 +31,14 @@ repository's CI publishes them to GHCR on a `v*` tag:
 
 | target | image | for |
 |---|---|---|
-| `standalone` | `ghcr.io/mcu-home/mcuhome-dashboard` | `docker run` on a machine you own |
-| `homeassistant` | `ghcr.io/mcu-home/mcuhome-dashboard-homeassistant` | the Home Assistant App |
+| `standalone` | `ghcr.io/mcu-home/ui` | `docker run` on a machine you own |
+| `homeassistant` | `ghcr.io/mcu-home/ui-homeassistant-app` | the Home Assistant App |
 
 The thing that knows how to build the program is the thing that builds
 it, from the commit that produced the code inside it. A Dockerfile in a
 second repository would be a second opinion about this one's dependencies.
 
-**2. App metadata lives in `mcu-home/ha-apps-repository`.** That
+**2. App metadata lives in `mcu-home/homeassistant-apps`.** That
 repository holds `repository.yaml` and one directory per App —
 `config.yaml`, documentation, translations — and nothing else. It builds
 nothing; each App's `config.yaml` names the image published under

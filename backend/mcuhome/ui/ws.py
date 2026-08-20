@@ -33,11 +33,11 @@ from typing import Any
 
 from aiohttp import WSMsgType, web
 
-from mcuhome_dashboard import commands as command_module
-from mcuhome_dashboard import protocol
-from mcuhome_dashboard.events import Event, EventBus, Subscription
-from mcuhome_dashboard.protocol import Command, ProtocolError
-from mcuhome_dashboard.security import STATE_KEY, check_origin, identity_of
+from mcuhome.ui import commands as command_module
+from mcuhome.ui import protocol
+from mcuhome.ui.events import Event, EventBus, Subscription
+from mcuhome.ui.protocol import Command, ProtocolError
+from mcuhome.ui.security import STATE_KEY, check_origin, identity_of
 
 __all__ = ["Connection", "websocket_handler"]
 

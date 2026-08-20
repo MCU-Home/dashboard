@@ -3,7 +3,7 @@
 Thanks for considering a contribution! The dashboard is in its design
 phase — the most valuable contributions right now are discussion and review
 of the [architecture decision records](docs/adr/) and participation in
-[GitHub Discussions](https://github.com/mcu-home/dashboard/discussions).
+[GitHub Discussions](https://github.com/mcu-home/mcuhome-ui/discussions).
 
 ## Development environment
 
@@ -49,7 +49,7 @@ Identical to the firmware repository:
 
 ## Reporting issues
 
-Use the [issue forms](https://github.com/mcu-home/dashboard/issues/new/choose).
+Use the [issue forms](https://github.com/mcu-home/mcuhome-ui/issues/new/choose).
 Security vulnerabilities go through [SECURITY.md](SECURITY.md), never
 public issues.
 

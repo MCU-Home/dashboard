@@ -16,18 +16,18 @@ protocol — the package does.
 Module map:
 
 =================================  ===================================
-:mod:`mcuhome_dashboard.config`    runtime configuration (CLI + env)
-:mod:`mcuhome_dashboard.app`       application factory, shared state
-:mod:`mcuhome_dashboard.server`    the two sites of ADR 0009
-:mod:`mcuhome_dashboard.ws`        the ``/ws`` endpoint
-:mod:`mcuhome_dashboard.commands`  the command vocabulary
-:mod:`mcuhome_dashboard.events`    in-process event bus
-:mod:`mcuhome_dashboard.devices`   config-tree scanning
-:mod:`mcuhome_dashboard.builds`    the build registry and its log stream
-:mod:`mcuhome_dashboard.builder`   adapter over the builder package
-:mod:`mcuhome_dashboard.signing`   the signing key and the signature
-:mod:`mcuhome_dashboard.security`  trust modes, origin, password, CSRF
-:mod:`mcuhome_dashboard.web`       static assets, SPA fallback, ingress
+:mod:`mcuhome.ui.config`    runtime configuration (CLI + env)
+:mod:`mcuhome.ui.app`       application factory, shared state
+:mod:`mcuhome.ui.server`    the two sites of ADR 0009
+:mod:`mcuhome.ui.ws`        the ``/ws`` endpoint
+:mod:`mcuhome.ui.commands`  the command vocabulary
+:mod:`mcuhome.ui.events`    in-process event bus
+:mod:`mcuhome.ui.devices`   config-tree scanning
+:mod:`mcuhome.ui.builds`    the build registry and its log stream
+:mod:`mcuhome.ui.builder`   adapter over the builder package
+:mod:`mcuhome.ui.signing`   the signing key and the signature
+:mod:`mcuhome.ui.security`  trust modes, origin, password, CSRF
+:mod:`mcuhome.ui.web`       static assets, SPA fallback, ingress
 =================================  ===================================
 """
 

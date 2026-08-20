@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from mcuhome_dashboard.config import (
+from mcuhome.ui.config import (
     DEFAULT_BUILD_SERVER_URL,
     ENV_PREFIX,
     http_url,
@@ -80,7 +80,7 @@ def test_two_apps_on_one_host_pair_themselves(tmp_path: Path, monkeypatch) -> No
     """
     pair = tmp_path / "build-server.token"
     pair.write_text("paired-token\n", encoding="utf-8")
-    monkeypatch.setattr("mcuhome_dashboard.config.DEFAULT_PAIR_FILE", pair)
+    monkeypatch.setattr("mcuhome.ui.config.DEFAULT_PAIR_FILE", pair)
 
     config = load_config(["--config-root", str(tmp_path)], env={})
     assert config.build_server_token == "paired-token"
@@ -89,7 +89,7 @@ def test_two_apps_on_one_host_pair_themselves(tmp_path: Path, monkeypatch) -> No
 
 
 def test_nothing_configured_is_no_build_server(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr("mcuhome_dashboard.config.DEFAULT_PAIR_FILE", tmp_path / "absent")
+    monkeypatch.setattr("mcuhome.ui.config.DEFAULT_PAIR_FILE", tmp_path / "absent")
     config = load_config(["--config-root", str(tmp_path)], env={})
     assert config.build_server_url is None
     assert config.build_server_token is None

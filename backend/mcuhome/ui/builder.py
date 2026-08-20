@@ -21,7 +21,7 @@ dashboard a caller of ``run_build``, and it calls it through the names
 re-exported below, so the whole of the dashboard's knowledge of how a
 build is started is this one file. Which *method* runs — a container on
 this machine, a build server, the caller's own workspace — is
-configuration (:class:`~mcuhome_dashboard.config.Config.build_method`)
+configuration (:class:`~mcuhome.ui.config.Config.build_method`)
 and not something this module or its callers branch on: that is the
 point of ADR 0013 decision 1, and it is only true because the request
 object is the same for all three.
@@ -172,7 +172,7 @@ DEFAULT_BUILD_METHOD = DEFAULT_METHOD
 
 #: The installed builder's version, re-exported so that the rest of the
 #: dashboard never imports ``mcuhome`` itself (ADR 0011 decision 2 checks
-#: it against the range in :mod:`mcuhome_dashboard.versions`).
+#: it against the range in :mod:`mcuhome.ui.versions`).
 MCUHOME_VERSION = api.VERSION
 
 #: Values a raw YAML summary is allowed to carry to the browser as-is.
@@ -250,7 +250,7 @@ def steps_for_method(method: str) -> tuple[str, ...]:
     method is better than showing nothing — and a step that is announced
     without being on the list is added where it happened rather than
     dropped, so a builder that grows one shows it late instead of never
-    (:class:`mcuhome_dashboard.builds._Progress`).
+    (:class:`mcuhome.ui.builds._Progress`).
     """
     return _METHOD_STEPS.get(method, _WITH_CONTEXT)
 

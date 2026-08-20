@@ -1,7 +1,7 @@
 version = 1
 SPDX-PackageName = "MCUHome Dashboard"
 SPDX-PackageSupplier = "The MCUHome Contributors"
-SPDX-PackageDownloadLocation = "https://github.com/mcu-home/dashboard"
+SPDX-PackageDownloadLocation = "https://github.com/mcu-home/mcuhome-ui"
 
 # Fallback annotation: files carrying their own SPDX headers take
 # precedence ("closest"); everything else (Markdown, templates) is

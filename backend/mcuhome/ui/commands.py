@@ -53,10 +53,10 @@ from typing import TYPE_CHECKING, Any
 
 from mcuhome.model.errors import MCUHomeError
 
-from mcuhome_dashboard import builder, versions
-from mcuhome_dashboard.builds import BuildBusy, UnknownBuild
-from mcuhome_dashboard.events import TOPIC_BUILDS, TOPIC_DEVICES
-from mcuhome_dashboard.protocol import (
+from mcuhome.ui import builder, versions
+from mcuhome.ui.builds import BuildBusy, UnknownBuild
+from mcuhome.ui.events import TOPIC_BUILDS, TOPIC_DEVICES
+from mcuhome.ui.protocol import (
     ERROR_BAD_REQUEST,
     ERROR_CONFLICT,
     ERROR_NOT_FOUND,
@@ -65,14 +65,14 @@ from mcuhome_dashboard.protocol import (
     Command,
     ProtocolError,
 )
-from mcuhome_dashboard.security import Identity, trust_mode_of
-from mcuhome_dashboard.web import base_path
+from mcuhome.ui.security import Identity, trust_mode_of
+from mcuhome.ui.web import base_path
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from aiohttp import web
 
-    from mcuhome_dashboard.app import AppState
-    from mcuhome_dashboard.ws import Connection
+    from mcuhome.ui.app import AppState
+    from mcuhome.ui.ws import Connection
 
 __all__ = ["COMMANDS", "CommandContext", "KNOWN_TOPICS", "handler_for"]
 
@@ -177,7 +177,7 @@ async def server_info(context: CommandContext, command: Command) -> dict[str, An
     config = state.config
     return {
         "dashboard": {
-            "name": "mcuhome-dashboard",
+            "name": "mcuhome-ui",
             "version": versions.DASHBOARD_VERSION,
             "uptime_seconds": round(time.monotonic() - state.started_at, 3),
         },

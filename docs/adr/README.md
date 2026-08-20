@@ -4,12 +4,12 @@ Dashboard-specific design decisions, in lightweight
 [MADR](https://adr.github.io/madr/) style: **Context / Decision /
 Consequences**, plus a status. Project-wide decisions (license,
 repository split, versioning) live in the firmware repository:
-[mcu-home/mcuhome/docs/adr](https://github.com/mcu-home/mcuhome/tree/main/docs/adr).
+[mcu-home/mcuhome-workbench/docs/adr](https://github.com/mcu-home/mcuhome-workbench/tree/main/docs/adr).
 
 ## Lifecycle: draft first, final when real
 
 ADRs follow the project-wide draft-first lifecycle of
-[firmware ADR 0021](https://github.com/mcu-home/mcuhome/blob/main/docs/adr/0021-draft-first-adr-lifecycle.md):
+[firmware ADR 0021](https://github.com/mcu-home/mcuhome-workbench/blob/main/docs/adr/0021-draft-first-adr-lifecycle.md):
 an ADR starts in [`draft/`](draft/) as a **living document** — while
 the component it decides about is being built, changes land as better
 text, never as amendment or erratum sections; git history is the

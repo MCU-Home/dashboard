@@ -21,10 +21,10 @@ from pathlib import Path
 
 import pytest
 
-from mcuhome_dashboard.app import AppState, create_app
-from mcuhome_dashboard.commands import MAX_CONFIG_BYTES
-from mcuhome_dashboard.config import Config
-from mcuhome_dashboard.security import TrustMode
+from mcuhome.ui.app import AppState, create_app
+from mcuhome.ui.commands import MAX_CONFIG_BYTES
+from mcuhome.ui.config import Config
+from mcuhome.ui.security import TrustMode
 from tests.conftest import VALID_CONFIG, call
 
 #: A trivially different valid configuration for the same device.

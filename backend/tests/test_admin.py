@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """ADR 0014: dashboard access in Home Assistant is admin-only.
 
-Two layers, tested apart. :mod:`mcuhome_dashboard.admin` turns a trusted
+Two layers, tested apart. :mod:`mcuhome.ui.admin` turns a trusted
 username into an admin decision by asking the Supervisor; the command
 layer and the artifact route turn that decision into a refusal. The
 public site is untouched — its identities are administrators by
@@ -17,15 +17,15 @@ from pathlib import Path
 import aiohttp
 import pytest
 
-from mcuhome_dashboard.admin import (
+from mcuhome.ui.admin import (
     NoAdminOracle,
     SupervisorAdminOracle,
     build_admin_oracle,
     user_is_admin,
 )
-from mcuhome_dashboard.app import AppState, create_app
-from mcuhome_dashboard.config import Config
-from mcuhome_dashboard.security import TrustMode
+from mcuhome.ui.app import AppState, create_app
+from mcuhome.ui.config import Config
+from mcuhome.ui.security import TrustMode
 from tests.conftest import (
     ADMIN_HEADERS,
     ADMIN_USER,

@@ -32,8 +32,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from mcuhome_dashboard import builder, events
-from mcuhome_dashboard.events import EventBus
+from mcuhome.ui import builder, events
+from mcuhome.ui.events import EventBus
 
 __all__ = ["DeviceEntry", "DeviceStore"]
 
@@ -153,7 +153,7 @@ class DeviceStore:
         """Take the first scan, then poll until :meth:`stop`."""
         await self.refresh(announce=False)
         if self._poll_interval > 0:
-            self._task = asyncio.create_task(self._poll(), name="mcuhome-dashboard-tree-poll")
+            self._task = asyncio.create_task(self._poll(), name="mcuhome-ui-tree-poll")
 
     async def stop(self) -> None:
         if self._task is None:

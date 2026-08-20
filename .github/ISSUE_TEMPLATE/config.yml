@@ -4,14 +4,14 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions & ideas
-    url: https://github.com/mcu-home/dashboard/discussions
+    url: https://github.com/mcu-home/mcuhome-ui/discussions
     about: Ask questions and discuss feature ideas in GitHub Discussions before filing an issue.
   - name: Firmware / device issues
     url: https://github.com/mcu-home/mcuhome-sdk/issues
     about: Problems with firmware or devices belong in the SDK repository.
   - name: YAML config / build issues
-    url: https://github.com/mcu-home/mcuhome/issues
+    url: https://github.com/mcu-home/mcuhome-workbench/issues
     about: Problems with YAML configs or the build pipeline belong in the workbench repository.
   - name: Security vulnerabilities
-    url: https://github.com/mcu-home/dashboard/security/advisories/new
+    url: https://github.com/mcu-home/mcuhome-ui/security/advisories/new
     about: Report security issues privately — never as public issues.

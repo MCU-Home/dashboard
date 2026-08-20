@@ -77,7 +77,7 @@ by construction: `open` (a loopback deployment) is the machine's owner and
 in the auth middleware, from the Supervisor:
 
 - the trusted `X-Remote-User-Name` names the user;
-- `mcuhome_dashboard.admin.SupervisorAdminOracle` asks
+- `mcuhome.ui.admin.SupervisorAdminOracle` asks
   `GET /auth/list` (over `SUPERVISOR_TOKEN`, cached ~30 s) and answers
   whether that username is an owner or in `system-admin`.
 

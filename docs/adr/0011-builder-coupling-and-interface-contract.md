@@ -18,7 +18,7 @@ half does not.
   1-3 — is history. Part of it shipped:
   `build-manifest.json` (`mcuhome/manifest.py`), structured errors
   (`mcuhome/errors.py:129`, `:177`) with the `--json` mode, the registry
-  and schema export, `mcuhome new` (`cli/mcuhome_cli/cli.py:904`) and
+  and schema export, `mcuhome new` (`cli/mcuhome/cli/main.py:904`) and
   detached signing are implemented (`builder-pipeline.md` §7 and §8).
   The rest is overtaken rather than pending, because what the
   dashboard needs from the firmware side is no longer a list of CLI

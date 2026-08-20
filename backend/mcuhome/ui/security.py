@@ -23,7 +23,7 @@ the authenticated ingress session, so a non-admin cannot forge a colleague's
 name. ADR 0014 turns that into authorization: dashboard access in Home
 Assistant is admin-only, and the admin decision is not the header itself
 (identity) but the answer the Supervisor's authenticated ``/auth/list``
-gives for that username (:mod:`mcuhome_dashboard.admin`). The header says
+gives for that username (:mod:`mcuhome.ui.admin`). The header says
 *which* user; the API says *whether that user is an admin*. When the
 answer cannot be had, the user is treated as non-admin — fail closed.
 
@@ -77,7 +77,7 @@ logger = logging.getLogger(__name__)
 #: The only address a Home Assistant ingress request can come from.
 SUPERVISOR_GATEWAY = "172.30.32.2"
 
-SESSION_COOKIE = "mcuhome_dashboard_session"
+SESSION_COOKIE = "mcuhome.ui_session"
 CSRF_HEADER = "X-CSRF-Token"
 
 #: Request key holding the resolved :class:`Identity`.
@@ -102,7 +102,7 @@ class TrustMode(enum.Enum):
     PUBLIC = "public"
 
 
-#: Application keys, set by the factory in :mod:`mcuhome_dashboard.app`.
+#: Application keys, set by the factory in :mod:`mcuhome.ui.app`.
 #: The trust mode is a property of the *application*, never of the
 #: request — that is what makes the two-site split unforgeable.
 TRUST_KEY: web.AppKey[TrustMode] = web.AppKey("mcuhome_trust")
@@ -131,7 +131,7 @@ class Identity:
     ``is_admin`` is ``True`` for ``open`` (a loopback deployment is
     unconditionally trusted) and ``password`` (ADR 0009's single password
     already means "the operator"), and for ``ingress`` **only** when
-    :mod:`mcuhome_dashboard.admin` resolved the user to a Home Assistant
+    :mod:`mcuhome.ui.admin` resolved the user to a Home Assistant
     administrator. It fails closed: an ingress user whose status could not
     be resolved is not an admin.
     """

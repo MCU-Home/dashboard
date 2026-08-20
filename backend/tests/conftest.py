@@ -21,9 +21,9 @@ from pathlib import Path
 import pytest
 from mcuhome.workbench import api as workbench_api
 
-from mcuhome_dashboard.app import AppState, create_app
-from mcuhome_dashboard.config import Config
-from mcuhome_dashboard.security import TrustMode
+from mcuhome.ui.app import AppState, create_app
+from mcuhome.ui.config import Config
+from mcuhome.ui.security import TrustMode
 
 #: A configuration that passes every check the builder makes.
 VALID_CONFIG = """\
@@ -153,7 +153,7 @@ class StubAdminOracle:
 
     ``is_admin`` answers from a fixed set of admin usernames, and ``None``
     when there is no username to match — the same fail-closed shape the
-    real :class:`mcuhome_dashboard.admin.SupervisorAdminOracle` has.
+    real :class:`mcuhome.ui.admin.SupervisorAdminOracle` has.
     """
 
     def __init__(self, admins: set[str] | None = None) -> None:

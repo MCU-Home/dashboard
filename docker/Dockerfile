@@ -17,7 +17,7 @@
 # resolves for one resolves for the other.
 #
 # Build from the repository root:
-#   docker build -f docker/Dockerfile --target standalone -t mcuhome-dashboard .
+#   docker build -f docker/Dockerfile --target standalone -t mcuhome-ui .
 
 # ---------------------------------------------------------------- frontend
 # Pinned to the *build* platform: the output is JavaScript, which is the
@@ -96,7 +96,7 @@ ENV PATH="/opt/mcuhome/bin:${PATH}" \
     MCUHOME_DASHBOARD_STATIC_ROOT=/opt/mcuhome/share/dashboard/static \
     MCUHOME_DASHBOARD_BUILD_METHOD=remote
 
-LABEL org.opencontainers.image.source="https://github.com/mcu-home/dashboard" \
+LABEL org.opencontainers.image.source="https://github.com/mcu-home/mcuhome-ui" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.title="MCUHome Dashboard"
 
@@ -116,7 +116,7 @@ EXPOSE 8099
 
 LABEL org.opencontainers.image.description="MCUHome dashboard, standalone."
 
-ENTRYPOINT ["mcuhome-dashboard"]
+ENTRYPOINT ["mcuhome-ui"]
 
 # ----------------------------------------------------------- home assistant
 FROM runtime AS homeassistant

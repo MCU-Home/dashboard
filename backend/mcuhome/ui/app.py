@@ -29,14 +29,14 @@ from typing import Any
 
 from aiohttp import web
 
-from mcuhome_dashboard import versions, ws
-from mcuhome_dashboard.admin import AdminOracle, build_admin_oracle
-from mcuhome_dashboard.builder import MCUHOME_VERSION
-from mcuhome_dashboard.builds import BuildRegistry, UnknownBuild
-from mcuhome_dashboard.config import Config
-from mcuhome_dashboard.devices import DeviceStore
-from mcuhome_dashboard.events import EventBus
-from mcuhome_dashboard.security import (
+from mcuhome.ui import versions, ws
+from mcuhome.ui.admin import AdminOracle, build_admin_oracle
+from mcuhome.ui.builder import MCUHOME_VERSION
+from mcuhome.ui.builds import BuildRegistry, UnknownBuild
+from mcuhome.ui.config import Config
+from mcuhome.ui.devices import DeviceStore
+from mcuhome.ui.events import EventBus
+from mcuhome.ui.security import (
     CSRF_HEADER,
     SESSION_COOKIE,
     STATE_KEY,
@@ -50,7 +50,7 @@ from mcuhome_dashboard.security import (
     peer_address,
     require_csrf,
 )
-from mcuhome_dashboard.web import base_path, static_handler
+from mcuhome.ui.web import base_path, static_handler
 
 __all__ = ["AppState", "create_app"]
 
@@ -235,7 +235,7 @@ async def build_artifact(request: web.Request) -> web.StreamResponse:
     legitimate one follows a link out of a build record it was given.
 
     It is under ``/api/``, so
-    :data:`mcuhome_dashboard.security.PROTECTED_PREFIXES` already makes
+    :data:`mcuhome.ui.security.PROTECTED_PREFIXES` already makes
     it need an identity on the public site — the same door as ``/ws``,
     which matters because these bytes are firmware signed with this
     installation's key.

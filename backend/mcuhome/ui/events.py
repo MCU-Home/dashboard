@@ -19,7 +19,7 @@ starts at, because *this* bus drops the oldest events for a subscriber
 that fell behind, and build output is exactly the traffic that makes one
 fall behind. A progress stream without a resumable position shows a log
 with a hole in it and no way to notice. The offsets are line numbers now
-rather than byte positions (:mod:`mcuhome_dashboard.builds` streams
+rather than byte positions (:mod:`mcuhome.ui.builds` streams
 lines, not a byte range), which is the same promise in the unit the
 producer actually has: monotonic, per build, and never reused.
 
@@ -105,7 +105,7 @@ def tree_state(
 
     ``problem`` carries codes and numbers, never a rendered sentence:
     both sites publish onto this one bus and the sentence differs
-    between them (:func:`mcuhome_dashboard.builder.project_problem`).
+    between them (:func:`mcuhome.ui.builder.project_problem`).
     """
     return Event(
         TOPIC_DEVICES, "tree_state", {"root": root, "available": available, "problem": problem}

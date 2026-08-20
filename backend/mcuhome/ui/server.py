@@ -11,7 +11,7 @@ what :func:`supervisor_interface` does, is:
 * bind loopback, plus this container's own address on the Supervisor
   network (``172.30.32.0/23``), which is what the gateway can reach;
 * refuse any peer that is neither loopback nor the gateway
-  (:func:`mcuhome_dashboard.security.is_trusted_peer`).
+  (:func:`mcuhome.ui.security.is_trusted_peer`).
 
 Binding and peer check together are the trust boundary the ADR
 describes. Outside a Home Assistant app there is no such interface, the
@@ -29,11 +29,11 @@ from collections.abc import Sequence
 
 from aiohttp import web
 
-from mcuhome_dashboard import versions
-from mcuhome_dashboard.app import AppState, create_app
-from mcuhome_dashboard.builder import DEFAULT_BUILD_METHOD, MCUHOME_VERSION
-from mcuhome_dashboard.config import Config, http_url, load_config
-from mcuhome_dashboard.security import TrustMode
+from mcuhome.ui import versions
+from mcuhome.ui.app import AppState, create_app
+from mcuhome.ui.builder import DEFAULT_BUILD_METHOD, MCUHOME_VERSION
+from mcuhome.ui.config import Config, http_url, load_config
+from mcuhome.ui.security import TrustMode
 
 __all__ = ["main", "run", "serve", "supervisor_interface"]
 

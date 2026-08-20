@@ -62,10 +62,10 @@ The first installable release: a Home Assistant App and a Docker image.
 
 - **The dashboard ships as two container images** (ADR 0018 draft), both
   built from `docker/Dockerfile` here and published to GHCR on a `v*`
-  tag: `mcuhome-dashboard` for `docker run`, and
-  `mcuhome-dashboard-homeassistant` for the Home Assistant App, whose
+  tag: `mcuhome-ui` for `docker run`, and
+  `mcuhome-ui-homeassistant` for the Home Assistant App, whose
   metadata lives in
-  [mcu-home/ha-apps-repository](https://github.com/mcu-home/ha-apps-repository).
+  [mcu-home/homeassistant-apps](https://github.com/mcu-home/homeassistant-apps).
   The App's entry point creates the project on first start and migrates
   an outdated one before the server comes up — the dashboard still does
   not manage projects; its container does. Both images default to the
@@ -329,7 +329,7 @@ The first installable release: a Home Assistant App and a Docker image.
   `mcuhome validate` prints. A command of its own rather than a field of
   the device summary, because the QR payload contains the passcode and
   must not ride along on every list response (ADR 0007).
-- Backend skeleton (`backend/mcuhome_dashboard/`): aiohttp application
+- Backend skeleton (`backend/mcuhome/ui/`): aiohttp application
   with the two sites of ADR 0009 (an ingress site that trusts the
   Supervisor gateway, a public site that authenticates itself), the
   WebSocket-first API of ADR 0004 on a single `/ws` endpoint, and an
@@ -361,13 +361,13 @@ The first installable release: a Home Assistant App and a Docker image.
 
 ### Changed
 
-- **The build server moved to its own repository** ([mcu-home/build-server](https://github.com/mcu-home/build-server),
+- **The build server moved to its own repository** ([mcu-home/mcuhome-buildserver](https://github.com/mcu-home/mcuhome-buildserver),
   ADR 0012): `buildserver/` and its test suite leave this repository.
   The dashboard kept its client at the time of the move; the client was
   removed shortly afterwards — see **Removed**, above. The
   frame-vocabulary cross-check retires with it (ADR 0012's
   Consequences).
-- `mcuhome_dashboard/builder.py` consumes `mcuhome.api` — the builder's
+- `mcuhome/ui/builder.py` consumes `mcuhome.api` — the builder's
   supported programmatic surface since its Block 0 — instead of reaching
   into the package: `load_model`, `open_config_tree`, `error_dicts` and
   `ConfigError.to_dict` are the builder's own now, and the local
@@ -384,10 +384,10 @@ The first installable release: a Home Assistant App and a Docker image.
 - ADR 0007 records detached signing as implemented rather than pending.
 - Backend requires Python ≥ 3.13 (was ≥ 3.11) — ADR 0004.
 - Backend depends on `aiohttp` and gains a `dev` extra, a
-  `mcuhome-dashboard` entry point and pytest wiring. The `mcuhome`
+  `mcuhome-ui` entry point and pytest wiring. The `mcuhome`
   builder package is installed from the sibling checkout via
   `requirements-dev.txt` until it is published; the supported version
-  range is declared in `mcuhome_dashboard/versions.py` and asserted at
+  range is declared in `mcuhome/ui/versions.py` and asserted at
   startup.
 - AGENTS.md reflects the design decisions: "App" instead of "Add-on",
   two-App packaging, always-remote builds, and the in-process builder

@@ -21,7 +21,7 @@ interaction.
 
 ## Decision
 
-- **Backend:** Python (`backend/`, package `mcuhome_dashboard`), driving
+- **Backend:** Python (`backend/`, package `mcuhome.ui`), driving
   the build tooling natively — the in-process import that ADR 0011 later
   made a rule, today of `mcuhome-workbench`. The version floor was
   ≥ 3.11 at decision time; ADR 0004 raised it to ≥ 3.13 together with

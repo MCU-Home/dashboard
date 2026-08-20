@@ -12,7 +12,7 @@ the scaffold are still welcome.
 
 Use GitHub's private vulnerability reporting:
 **Security → Report a vulnerability** on this repository
-([direct link](https://github.com/mcu-home/dashboard/security/advisories/new)).
+([direct link](https://github.com/mcu-home/mcuhome-ui/security/advisories/new)).
 
 We aim to acknowledge reports within **3 business days**.
 
@@ -56,4 +56,4 @@ leaves its build context there, and that context holds the resolved
 device model with its commissioning credentials in it.
 
 Firmware and builder vulnerabilities belong to
-[mcu-home/mcuhome](https://github.com/mcu-home/mcuhome/security).
+[mcu-home/mcuhome-workbench](https://github.com/mcu-home/mcuhome-workbench/security).

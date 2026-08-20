@@ -14,7 +14,7 @@ repository; this ADR is dismantled against it rather than migrated.
 **Superseded.**
 
 - **Decision 1's two-App topology** — the fixed pair of a thin
-  `mcuhome-dashboard` App and a fat `mcuhome-build-server` App, with
+  `mcuhome-ui` App and a fat `mcuhome-buildserver` App, with
   the build server's shape fixed by that pairing. What replaces it is a
   backend, in one of two profiles: `container`, in which the backend
   materializes one build container per session, and `subprocess`, in
@@ -180,8 +180,8 @@ The facts above invert that.
 
 | App | Contents | Architectures |
 |---|---|---|
-| `mcuhome-dashboard` | web interface, builder package, no toolchain | amd64 + aarch64, trivially |
-| `mcuhome-build-server` | headless build service, builder image contents | amd64 now; aarch64 gated (see below) |
+| `mcuhome-ui` | web interface, builder package, no toolchain | amd64 + aarch64, trivially |
+| `mcuhome-buildserver` | headless build service, builder image contents | amd64 now; aarch64 gated (see below) |
 
 The dashboard is thin by construction: pure Python plus static assets,
 so multi-arch is a build-matrix line and nothing else. The build server

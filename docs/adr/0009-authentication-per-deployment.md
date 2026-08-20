@@ -46,7 +46,7 @@ iframe is friction with no security value. Its control is *who is
 talking to it*: it binds loopback plus this container's own address on
 the Supervisor network (`172.30.32.0/23`), and refuses any peer that is
 neither loopback nor the gateway
-(`mcuhome_dashboard.security.is_trusted_peer`). The first phrasing of
+(`mcuhome.ui.security.is_trusted_peer`). The first phrasing of
 this decision — "binds loopback plus the Supervisor gateway" — could not
 be implemented literally: a bound address is local and the gateway's is
 a peer's. The binding and the peer check together are the trust boundary

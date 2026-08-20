@@ -18,7 +18,7 @@ from pathlib import Path
 from mcuhome.ui.app import AppState, create_app
 from mcuhome.ui.config import Config
 from mcuhome.ui.security import TrustMode
-from tests.conftest import (
+from tests.python.conftest import (
     BROKEN_BOARD_COLUMN,
     BROKEN_BOARD_LINE,
     VALID_CONFIG,

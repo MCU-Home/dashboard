@@ -21,7 +21,7 @@ from mcuhome.ui import security, server
 from mcuhome.ui.app import AppState, create_app
 from mcuhome.ui.config import Config, is_loopback_host, load_config, resolve_password
 from mcuhome.ui.security import CSRF_HEADER, SESSION_COOKIE, TrustMode
-from tests.conftest import call
+from tests.python.conftest import call
 
 PASSWORD = "correct-horse-battery-staple"
 

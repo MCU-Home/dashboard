@@ -130,7 +130,7 @@ describes — where it stands today.
   exposes the trusting site is the failure mode worth a test. As built,
   the split is a `TrustMode` carried by the aiohttp application object:
   two applications from two factory calls, the mode read from the
-  application and never from the request; `backend/tests/test_auth.py`
+  application and never from the request; `backend/tests/python/test_auth.py`
   is the test, and it is mostly refusals.
 - Related standing decisions: ADR 0003, ADR 0004 (the small REST
   surface), ADR 0007, ADR 0008 (the key), ADR 0012 (which carries

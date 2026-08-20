@@ -25,7 +25,7 @@ from mcuhome.ui.app import AppState, create_app
 from mcuhome.ui.commands import MAX_CONFIG_BYTES
 from mcuhome.ui.config import Config
 from mcuhome.ui.security import TrustMode
-from tests.conftest import VALID_CONFIG, call
+from tests.python.conftest import VALID_CONFIG, call
 
 #: A trivially different valid configuration for the same device.
 EDITED_CONFIG = VALID_CONFIG.replace("sampling: 10s", "sampling: 30s")

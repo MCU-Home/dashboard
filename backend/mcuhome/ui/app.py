@@ -222,7 +222,7 @@ async def build_artifact(request: web.Request) -> web.StreamResponse:
     that area holds the build context — the resolved device model, which
     carries the Matter pairing tuple. Serving the directory would put it
     one plain ``GET`` away, in a codebase where commissioning codes
-    travel only when a user asked for them (AGENTS.md). So the requested
+    travel only when a user asked for them. So the requested
     path has to *be* one of ``record.artifacts``; anything else is not
     there.
 

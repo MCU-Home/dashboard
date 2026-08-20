@@ -17,7 +17,7 @@
  * (ADR 0004 decision 5), and are converted straight into CodeMirror
  * diagnostics — nothing here decides what is valid, and nothing may
  * start to. The configuration schema is the firmware repository's
- * contract (AGENTS.md).
+ * contract.
  *
  * **The theme is CSS custom properties, not two themes.** Every colour
  * below is a `--wa-color-*` variable, so the editor follows the
@@ -210,7 +210,7 @@ export class MhYamlEditor extends LitElement {
           // 0011 decision 4). Until it exists this is CodeMirror's
           // word-based completion only — the schema may not be
           // reimplemented here, because the firmware repository owns it
-          // (AGENTS.md).
+          //.
           autocompletion(),
           keymap.of([
             ...closeBracketsKeymap,

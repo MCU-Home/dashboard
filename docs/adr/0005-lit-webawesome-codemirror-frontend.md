@@ -93,7 +93,7 @@ Assistant ever ships a propagation mechanism.
 - Frontend scaffolding — `package.json`, lockfile, eslint/prettier,
   the prettier/eslint pre-commit hooks and the CI job — lands with the
   first frontend commit. ADR 0002's "`frontend/` stays a placeholder"
-  and the deferral notes in `.pre-commit-config.yaml` and `CLAUDE.md`
+  and the deferral notes recorded alongside it
   are discharged by this ADR.
 - CodeMirror with `@lezer/yaml` gives syntax highlighting, folding and
   bracket handling immediately. **Schema-aware autocomplete and inline

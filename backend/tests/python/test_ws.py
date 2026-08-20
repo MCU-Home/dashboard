@@ -13,7 +13,7 @@ from mcuhome.ui import versions
 from mcuhome.ui.app import AppState
 from mcuhome.ui.builder import MCUHOME_VERSION
 from mcuhome.ui.ws import MAX_INFLIGHT_COMMANDS
-from tests.conftest import VALID_CONFIG, call, write_device
+from tests.python.conftest import VALID_CONFIG, call, write_device
 
 
 async def test_server_info_answers_with_the_id_it_was_asked_with(client) -> None:

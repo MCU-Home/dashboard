@@ -69,7 +69,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 known-first-party = ["mcuhome.ui", "tests"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/python"]
 asyncio_mode = "auto"
 
 [tool.codespell]

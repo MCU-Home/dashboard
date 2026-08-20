@@ -11,7 +11,7 @@
  * translation changes. Adding a second locale is then a second object
  * and a lookup, not a sweep through every component.
  *
- * House rule from AGENTS.md: it is **"App"**, never "Add-on". Home
+ * House rule: it is **"App"**, never "Add-on". Home
  * Assistant renamed them in 2026.2.
  */
 

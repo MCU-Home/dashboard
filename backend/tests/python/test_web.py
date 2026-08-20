@@ -12,7 +12,7 @@ from mcuhome.ui.app import AppState, create_app
 from mcuhome.ui.config import Config
 from mcuhome.ui.security import TrustMode
 from mcuhome.ui.web import INGRESS_PATH_HEADER, render_index
-from tests.conftest import call
+from tests.python.conftest import call
 
 INGRESS_PREFIX = "/api/hassio_ingress/UEhpJ4z0y7"
 

@@ -14,7 +14,7 @@ since firmware E64 — the three build methods behind one awaitable
 :func:`run_build`. Nothing here re-implements builder behaviour, because
 that would put the dashboard in the business of knowing what a valid
 configuration is, or how a container is started — contracts the firmware
-repository owns (AGENTS.md).
+repository owns.
 
 **The build seam is here and nowhere else.** ADR 0013 makes the
 dashboard a caller of ``run_build``, and it calls it through the names

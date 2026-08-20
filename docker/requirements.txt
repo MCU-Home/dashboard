@@ -18,4 +18,4 @@
 # (`mcuhome` depends on `mcuhome-workbench[local,remote]`), which is why
 # these images do not ship it.
 mcuhome-model @ git+https://github.com/mcu-home/mcuhome-sdk@9f68f0d7298c1eab1a6a4ac1ee5bacb83ffae47b#subdirectory=packaging/model
-mcuhome-workbench[remote] @ git+https://github.com/mcu-home/mcuhome@d2c6fec91d41a0b28338c89ce1227695ae5071d7
+mcuhome-workbench[remote] @ git+https://github.com/mcu-home/mcuhome-workbench@d2c6fec91d41a0b28338c89ce1227695ae5071d7

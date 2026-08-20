@@ -23,9 +23,9 @@ from pathlib import Path
 
 from mcuhome.model.pairing import TEST_DISCRIMINATOR, TEST_PAIRING
 
-from mcuhome_dashboard.app import AppState, create_app
-from mcuhome_dashboard.config import Config
-from mcuhome_dashboard.security import TrustMode
+from mcuhome.ui.app import AppState, create_app
+from mcuhome.ui.config import Config
+from mcuhome.ui.security import TrustMode
 from tests.conftest import VALID_CONFIG, call, write_device
 
 #: The same device with Matter switched off — nothing to commission.

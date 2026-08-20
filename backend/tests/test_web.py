@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from mcuhome_dashboard.app import AppState, create_app
-from mcuhome_dashboard.config import Config
-from mcuhome_dashboard.security import TrustMode
-from mcuhome_dashboard.web import INGRESS_PATH_HEADER, render_index
+from mcuhome.ui.app import AppState, create_app
+from mcuhome.ui.config import Config
+from mcuhome.ui.security import TrustMode
+from mcuhome.ui.web import INGRESS_PATH_HEADER, render_index
 from tests.conftest import call
 
 INGRESS_PREFIX = "/api/hassio_ingress/UEhpJ4z0y7"

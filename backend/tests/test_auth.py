@@ -17,10 +17,10 @@ from pathlib import Path
 import pytest
 from aiohttp import WSServerHandshakeError
 
-from mcuhome_dashboard import security, server
-from mcuhome_dashboard.app import AppState, create_app
-from mcuhome_dashboard.config import Config, is_loopback_host, load_config, resolve_password
-from mcuhome_dashboard.security import CSRF_HEADER, SESSION_COOKIE, TrustMode
+from mcuhome.ui import security, server
+from mcuhome.ui.app import AppState, create_app
+from mcuhome.ui.config import Config, is_loopback_host, load_config, resolve_password
+from mcuhome.ui.security import CSRF_HEADER, SESSION_COOKIE, TrustMode
 from tests.conftest import call
 
 PASSWORD = "correct-horse-battery-staple"
@@ -63,7 +63,7 @@ def test_the_rules_survive_the_trip_through_the_command_line() -> None:
 
 def test_a_generated_password_is_logged_once_and_visibly(caplog) -> None:
     config = load_config(["--host", "0.0.0.0"], env={})
-    with caplog.at_level(logging.INFO, logger="mcuhome_dashboard.server"):
+    with caplog.at_level(logging.INFO, logger="mcuhome.ui.server"):
         server._announce(config)
 
     generated = [record for record in caplog.records if config.password in record.getMessage()]
@@ -74,7 +74,7 @@ def test_a_generated_password_is_logged_once_and_visibly(caplog) -> None:
 
 
 def test_a_password_free_loopback_run_says_so(caplog) -> None:
-    with caplog.at_level(logging.INFO, logger="mcuhome_dashboard.server"):
+    with caplog.at_level(logging.INFO, logger="mcuhome.ui.server"):
         server._announce(load_config([], env={}))
     assert any("without a password" in record.getMessage() for record in caplog.records)
 

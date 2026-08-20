@@ -74,7 +74,7 @@ same volume as the feature it qualifies: **operate build servers as
 trusted machines.** A build server is inside the trust boundary of every
 device it builds — exactly like the machine that holds the signing key,
 and for the same reason. This sentence belongs where a user configures a
-build server, not in an appendix — the build-server repository's README
+build server, not in an appendix — the mcuhome-buildserver repository's README
 carries it up front.
 
 Thread datasets keep the project's standing rule regardless: they live

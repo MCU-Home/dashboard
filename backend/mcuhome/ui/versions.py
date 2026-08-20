@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 
-from mcuhome_dashboard import __version__ as DASHBOARD_VERSION
+from mcuhome.ui import __version__ as DASHBOARD_VERSION
 
 __all__ = [
     "DASHBOARD_VERSION",

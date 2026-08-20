@@ -6,7 +6,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mcuhome-dashboard"
+name = "mcuhome-ui"
 version = "0.1.1"
 description = "Web interface for MCUHome: create, build, flash and manage Zephyr-based smart home devices."
 readme = "README.md"
@@ -24,13 +24,13 @@ classifiers = [
 dependencies = ["aiohttp>=3.10,<4"]
 
 # `mcuhome-workbench` — the builder distribution this package imports,
-# never the bare `mcuhome`, which is the command line's since firmware
+# never the bare `mcuhome`, which is no distribution at all since firmware
 # ADR 0020 decision 2 — is a real runtime dependency (ADR 0011 decision
 # 1: it is imported in-process, never spawned). It is NOT declared here
 # yet, because it is not published: pip would resolve the name against
 # PyPI and fail. Until then:
 #
-#   * the supported range lives in `mcuhome_dashboard/versions.py` as
+#   * the supported range lives in `mcuhome/ui/versions.py` as
 #     MCUHOME_VERSION_SPEC, and the server refuses to start outside it,
 #     naming both versions (ADR 0011 decision 2);
 #   * `requirements-dev.txt` installs it from the sibling checkout in
@@ -45,14 +45,14 @@ dependencies = ["aiohttp>=3.10,<4"]
 dev = ["pytest>=8", "pytest-aiohttp>=1.1", "ruff==0.16.1"]
 
 [project.scripts]
-mcuhome-dashboard = "mcuhome_dashboard.server:main"
+mcuhome-ui = "mcuhome.ui.server:main"
 
 [project.urls]
-Homepage = "https://github.com/mcu-home/dashboard"
-Issues = "https://github.com/mcu-home/dashboard/issues"
+Homepage = "https://github.com/mcu-home/mcuhome-ui"
+Issues = "https://github.com/mcu-home/mcuhome-ui/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["mcuhome_dashboard"]
+only-include = ["mcuhome/ui"]
 
 # Kept byte-identical to the builder repository's configuration except
 # for the Python floor, which ADR 0004 decision 2 sets higher here: the
@@ -66,7 +66,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.isort]
 # `tests` is a package in this directory, not a third-party import.
-known-first-party = ["mcuhome_dashboard", "tests"]
+known-first-party = ["mcuhome.ui", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

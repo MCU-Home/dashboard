@@ -4,8 +4,8 @@
 
 from __future__ import annotations
 
-from mcuhome_dashboard import events
-from mcuhome_dashboard.events import QUEUE_LIMIT, Event, EventBus
+from mcuhome.ui import events
+from mcuhome.ui.events import QUEUE_LIMIT, Event, EventBus
 
 
 def test_an_event_reaches_only_its_topic() -> None:

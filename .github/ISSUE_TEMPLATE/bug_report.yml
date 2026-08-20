@@ -11,7 +11,7 @@ body:
         Thanks for reporting! Firmware and device problems belong in the
         [SDK repo](https://github.com/mcu-home/mcuhome-sdk/issues), YAML
         config and build-pipeline problems in the
-        [workbench repo](https://github.com/mcu-home/mcuhome/issues) —
+        [workbench repo](https://github.com/mcu-home/mcuhome-workbench/issues) —
         this tracker is for the web interface only.
   - type: input
     id: version

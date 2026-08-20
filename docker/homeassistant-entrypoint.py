@@ -29,8 +29,8 @@ from typing import Any
 
 from mcuhome.workbench import api
 
-from mcuhome_dashboard import builder
-from mcuhome_dashboard.builder import MCUHomeError
+from mcuhome.ui import builder
+from mcuhome.ui.builder import MCUHomeError
 
 #: `addon_config`, mapped read-write by config.yaml. On the host this is
 #: /addon_configs/<id>_mcuhome-ui, which is what the documentation names.
@@ -159,7 +159,7 @@ def main() -> None:
 
     # Replace this process rather than supervise it: the app is one
     # program, and the container's exit status should be the server's.
-    server = "/opt/mcuhome/bin/mcuhome-dashboard"
+    server = "/opt/mcuhome/bin/mcuhome-ui"
     os.execv(
         server,
         [

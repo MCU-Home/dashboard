@@ -5,12 +5,12 @@ repository.
 
 ## What this project is
 
-The web interface for [MCUHome](https://github.com/mcu-home/mcuhome): a
+The web interface for [MCUHome](https://github.com/mcu-home/mcuhome-workbench): a
 standalone product to create, build, flash and manage Zephyr-based smart
 home devices. Distribution targets: **Home Assistant App**, Docker image,
 plain Python app. The first two are container images built here and
 published to GHCR; the App's metadata lives in
-[mcu-home/ha-apps-repository](https://github.com/mcu-home/ha-apps-repository)
+[mcu-home/homeassistant-apps](https://github.com/mcu-home/homeassistant-apps)
 (ADR 0018).
 
 > **FEATURE-FROZEN (product-owner decision, 2026-08-14; narrowed
@@ -56,7 +56,7 @@ with conflict detection, and the commissioning view.
 `frontend/README.md` is its guide.
 
 The **build server** lives in its own repository since ADR 0012:
-[mcu-home/build-server](https://github.com/mcu-home/build-server).
+[mcu-home/mcuhome-buildserver](https://github.com/mcu-home/mcuhome-buildserver).
 
 **There is no build *protocol* client here, and none is to be added.**
 ADR 0012 decision 3 dismantled ADR 0006's job client and named the
@@ -71,7 +71,7 @@ workbench's `on_step` seam (ADR 0016 draft), the artifact endpoint and
 detached signing — by calling `mcuhome.workbench.api.run_build`, and
 speaks no build protocol itself. Which build method runs is **deployment
 configuration** (`--build-method`): a build container on this machine, a
-build server, or a west workspace. `backend/mcuhome_dashboard/builds.py`
+build server, or a west workspace. `backend/mcuhome/ui/builds.py`
 is the registry; `builder.py` holds the one seam.
 
 A device can also be **created** from the browser (ADR 0017 draft):
@@ -104,7 +104,7 @@ whose primary target is standalone.)
 
 | Path | Role |
 |---|---|
-| `backend/` | Python ≥ 3.13 backend (`mcuhome_dashboard` package), aiohttp, WebSocket-first API (ADR 0004) |
+| `backend/` | Python ≥ 3.13 backend (`mcuhome.ui` package), aiohttp, WebSocket-first API (ADR 0004) |
 | `frontend/` | TypeScript SPA: Lit 3 + `@home-assistant/webawesome` + CodeMirror 6, built with Vite (ADR 0005) |
 | `docker/` | The two published images: one Dockerfile, the runtime pins, and the Home Assistant entry point |
 | `docs/adr/` | Dashboard-specific architecture decision records |
@@ -113,12 +113,12 @@ The two READMEs here are the contracts: `backend/README.md` is the
 `/ws` frame vocabulary, `frontend/README.md` the application that
 consumes it. The build protocol and the build server's deployment are
 documented in the
-[build-server repository](https://github.com/mcu-home/build-server)'s
+[build-server repository](https://github.com/mcu-home/mcuhome-buildserver)'s
 README.
 
 Project-wide decisions (license, repo split, versioning) are recorded in
 the workbench repo:
-[mcu-home/mcuhome/docs/adr](https://github.com/mcu-home/mcuhome/tree/main/docs/adr).
+[mcu-home/mcuhome-workbench/docs/adr](https://github.com/mcu-home/mcuhome-workbench/tree/main/docs/adr).
 
 ## Non-obvious invariants
 
@@ -140,14 +140,16 @@ the workbench repo:
   supported version range (`versions.py`) and follows the builder's
   releases; the builder never depends on the dashboard, and using the
   builder CLI must never require the dashboard or any dashboard version.
-  The range names `mcuhome-workbench`, never the bare `mcuhome` — since
+  The range names `mcuhome-workbench`, never the bare `mcuhome` — which
+  is no distribution at all, only the shared namespace and the command
+  name — since
   firmware ADR 0020 decision 2 that is the *command line's* distribution.
 - **The images are built here; the app metadata is not** (ADR 0018).
   `docker/Dockerfile` builds both published images — `standalone` for
   `docker run`, `homeassistant` for the App — because the repository that
   holds the source is the one that knows how to build it. What lives
   elsewhere is `repository.yaml` and the App's `config.yaml`, in
-  [mcu-home/ha-apps-repository](https://github.com/mcu-home/ha-apps-repository),
+  [mcu-home/homeassistant-apps](https://github.com/mcu-home/homeassistant-apps),
   which builds nothing and only names the image and pins its tag. This
   replaces the older rule ("no Dockerfile here either"), whose reason —
   one packaging place for a fixed pair of Apps — went away with the
@@ -190,7 +192,7 @@ the workbench repo:
 
 ```sh
 # Backend setup. requirements-dev.txt also installs the workbench and
-# model packages from the sibling checkouts (../../mcuhome and
+# model packages from the sibling checkouts (../../mcuhome-workbench and
 # ../../mcuhome-sdk) — imported in-process (ADR 0011), not published yet.
 cd backend && python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
@@ -208,7 +210,7 @@ pnpm check          # format, lint, types and tests — what a commit must pass
 pnpm build          # emits frontend/dist
 
 # Run it, serving the built frontend
-mcuhome-dashboard --config-root ~/mcuhome-config --static-root frontend/dist
+mcuhome-ui --config-root ~/mcuhome-config --static-root frontend/dist
 
 # All lint hooks
 pre-commit run --all-files

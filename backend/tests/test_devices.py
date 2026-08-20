@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from mcuhome_dashboard import builder
-from mcuhome_dashboard.devices import DeviceStore
-from mcuhome_dashboard.events import TOPIC_DEVICES, EventBus
+from mcuhome.ui import builder
+from mcuhome.ui.devices import DeviceStore
+from mcuhome.ui.events import TOPIC_DEVICES, EventBus
 from tests.conftest import VALID_CONFIG, make_tree, write_device
 
 

@@ -3,13 +3,13 @@
 #
 # Publish the dashboard's two container images.
 #
-#   ghcr.io/mcu-home/mcuhome-dashboard                 `docker run`
-#   ghcr.io/mcu-home/mcuhome-dashboard-homeassistant   the Home Assistant App
+#   ghcr.io/mcu-home/ui                 `docker run`
+#   ghcr.io/mcu-home/ui-homeassistant-app   the Home Assistant App
 #
 # Triggered by a `v*` tag, and the tag is the version: `v0.1.0` publishes
 # `:0.1.0`. Home Assistant pulls the App image by the tag named in the app
 # repository's config.yaml, so a release is finished by bumping `version:`
-# there — see mcu-home/ha-apps-repository. Doing it the other way round
+# there — see mcu-home/homeassistant-apps. Doing it the other way round
 # offers users an update that cannot be pulled.
 #
 # One image name per deployment, multi-architecture underneath: amd64 and
@@ -81,8 +81,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/mcu-home/mcuhome-dashboard:${{ steps.version.outputs.version }}
-            ghcr.io/mcu-home/mcuhome-dashboard:latest
+            ghcr.io/mcu-home/ui:${{ steps.version.outputs.version }}
+            ghcr.io/mcu-home/ui:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -97,6 +97,6 @@ jobs:
           # No `latest` here on purpose: the Supervisor pulls the exact
           # tag the app's config.yaml names, and a moving tag beside it
           # is only ever something to pull by mistake.
-          tags: ghcr.io/mcu-home/mcuhome-dashboard-homeassistant:${{ steps.version.outputs.version }}
+          tags: ghcr.io/mcu-home/ui-homeassistant-app:${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

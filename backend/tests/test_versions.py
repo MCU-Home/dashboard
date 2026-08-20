@@ -8,9 +8,9 @@ import importlib.metadata
 
 import pytest
 
-from mcuhome_dashboard import versions
-from mcuhome_dashboard.builder import MCUHOME_VERSION
-from mcuhome_dashboard.versions import IncompatibleBuilderError, check_mcuhome_version
+from mcuhome.ui import versions
+from mcuhome.ui.builder import MCUHOME_VERSION
+from mcuhome.ui.versions import IncompatibleBuilderError, check_mcuhome_version
 
 
 def test_the_installed_builder_is_inside_the_supported_range() -> None:

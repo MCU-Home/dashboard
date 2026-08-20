@@ -15,9 +15,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mcuhome_dashboard.app import AppState, create_app
-from mcuhome_dashboard.config import Config
-from mcuhome_dashboard.security import TrustMode
+from mcuhome.ui.app import AppState, create_app
+from mcuhome.ui.config import Config
+from mcuhome.ui.security import TrustMode
 from tests.conftest import (
     BROKEN_BOARD_COLUMN,
     BROKEN_BOARD_LINE,

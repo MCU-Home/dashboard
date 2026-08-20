@@ -3,7 +3,7 @@
 """Builds: starting them, streaming them, and what happens after one (ADR 0013).
 
 The dashboard's whole build path is this module plus the seam in
-:mod:`mcuhome_dashboard.builder`. It drives
+:mod:`mcuhome.ui.builder`. It drives
 :func:`mcuhome.workbench.api.run_build`, which is the builder's one
 awaitable over its three build methods, and **does not know which of them
 runs**: ``local`` starts a build container on this machine, ``remote``
@@ -26,7 +26,7 @@ deployment to install a toolchain deliberately.
 Three things the old job protocol had, rebuilt rather than rediscovered:
 
 **Log offsets.** The event bus drops the oldest events for a subscriber
-that fell behind (:mod:`mcuhome_dashboard.events`), and build output is
+that fell behind (:mod:`mcuhome.ui.events`), and build output is
 exactly the traffic that makes one fall behind. So every batch of output
 says the line offset it starts at, the offsets are monotonic per build
 and never reused, and ``build/log`` serves any suffix of the retained
@@ -60,7 +60,7 @@ without a second resume path (:class:`_Progress`).
 
 **Signing.** Every build method delivers an *unsigned* image and one
 host-side step signs it (firmware E55/E56). Here that step is
-:mod:`mcuhome_dashboard.signing` over the key at ADR 0008's
+:mod:`mcuhome.ui.signing` over the key at ADR 0008's
 ``/data/signing.key``, and the private half never enters a
 :class:`…api.BuildRequest` — there is no field it would fit in. What goes
 in is the PEM public half, which the same call that produces it creates
@@ -101,10 +101,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from mcuhome_dashboard import builder, events, signing
-from mcuhome_dashboard.config import Config
-from mcuhome_dashboard.devices import DeviceStore
-from mcuhome_dashboard.events import EventBus
+from mcuhome.ui import builder, events, signing
+from mcuhome.ui.config import Config
+from mcuhome.ui.devices import DeviceStore
+from mcuhome.ui.events import EventBus
 
 __all__ = [
     "STATES",
@@ -148,7 +148,7 @@ MAX_LOG_LINES = 20_000
 
 #: Lines per ``build_output`` event. Batching is what keeps the bus's
 #: 256-deep queues from overflowing on every build (see
-#: :func:`mcuhome_dashboard.events.build_output`); the cap keeps one
+#: :func:`mcuhome.ui.events.build_output`); the cap keeps one
 #: frame from becoming a megabyte.
 MAX_EVENT_LINES = 250
 
@@ -232,7 +232,7 @@ class BuildRecord:
 
     id: str
     device: str
-    #: Which of :data:`mcuhome_dashboard.builder.BUILD_METHODS` runs.
+    #: Which of :data:`mcuhome.ui.builder.BUILD_METHODS` runs.
     method: str
     state: str = STATE_QUEUED
     started: float = field(default_factory=time.time)
@@ -516,9 +516,9 @@ async def _pump(stream: _LogStream, progress: _Progress) -> None:
 class BuildRegistry:
     """Every build this process ran, and the one slot they take turns in.
 
-    Follows :class:`~mcuhome_dashboard.devices.DeviceStore`'s shape —
+    Follows :class:`~mcuhome.ui.devices.DeviceStore`'s shape —
     constructed with the bus, started and stopped by
-    :class:`~mcuhome_dashboard.app.AppState` — because it is the same
+    :class:`~mcuhome.ui.app.AppState` — because it is the same
     kind of object: long-lived, owned by the process rather than by a
     connection, and publishing to a topic that any number of sockets
     subscribe to.

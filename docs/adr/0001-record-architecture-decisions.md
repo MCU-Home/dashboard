@@ -6,7 +6,7 @@
 ## Context
 
 Same rationale as
-[mcu-home/mcuhome ADR 0001](https://github.com/mcu-home/mcuhome/blob/main/docs/adr/0001-record-architecture-decisions.md):
+[mcu-home/mcuhome-workbench ADR 0001](https://github.com/mcu-home/mcuhome-workbench/blob/main/docs/adr/0001-record-architecture-decisions.md):
 decisions and their rationale must survive chat logs, PR threads and AI
 session boundaries.
 

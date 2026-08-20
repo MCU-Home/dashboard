@@ -125,7 +125,7 @@ dismantling, the carry-forward, and the key custody.
 - The move was sequenced by the merge plan of firmware ADR 0017's
   consequences and has executed: `buildserver/` and its test suite
   left this repository on 2026-08-08, and the build server lives at
-  [mcu-home/build-server](https://github.com/mcu-home/build-server).
+  [mcu-home/mcuhome-buildserver](https://github.com/mcu-home/mcuhome-buildserver).
 - Related standing decisions: ADR 0003 (topology; superseded in part,
   as above), ADR 0006 (transport and threat model, carried forward;
   frame vocabulary replaced), ADR 0007 (wire content), ADR 0008

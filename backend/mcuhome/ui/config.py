@@ -133,7 +133,7 @@ def default_data_dir(env: Mapping[str, str] | None = None) -> Path:
     if Path("/data").is_dir():
         return Path("/data")
     base = env.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
-    return Path(base) / "mcuhome-dashboard"
+    return Path(base) / "mcuhome-ui"
 
 
 def is_loopback_host(host: str) -> bool:
@@ -195,7 +195,7 @@ class Config:
     # --- ingress admin resolution (ADR 0014) ---
     #: The add-on's ``SUPERVISOR_TOKEN``, used to ask the Supervisor's
     #: authenticated ``/auth/list`` which ingress users are administrators
-    #: (:mod:`mcuhome_dashboard.admin`). ``None`` everywhere but a Home
+    #: (:mod:`mcuhome.ui.admin`). ``None`` everywhere but a Home
     #: Assistant app; without it no ingress user resolves to an admin, so
     #: the admin-only verbs are refused — the fail-closed default of ADR
     #: 0014. It never reaches the wire (like the build-server token).
@@ -385,7 +385,7 @@ def _env_int(env: Mapping[str, str], name: str) -> int | None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="mcuhome-dashboard",
+        prog="mcuhome-ui",
         description="Web interface for MCUHome. Serves the UI and drives the builder; "
         "firmware is always compiled by a separate build server.",
     )

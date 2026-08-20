@@ -28,7 +28,7 @@ backend you start yourself:
 
 ```sh
 # in another terminal, from the repository root
-cd backend && mcuhome-dashboard --config-root ~/mcuhome-config
+cd backend && mcuhome-ui --config-root ~/mcuhome-config
 ```
 
 Point the proxy somewhere else with
@@ -51,11 +51,11 @@ Point the proxy somewhere else with
 
 ```sh
 pnpm build
-mcuhome-dashboard --config-root ~/mcuhome-config --static-root ../frontend/dist
+mcuhome-ui --config-root ~/mcuhome-config --static-root ../frontend/dist
 ```
 
 Equivalently `MCUHOME_DASHBOARD_STATIC_ROOT=…`. The backend's *default*
-static root is `backend/mcuhome_dashboard/static/`, which ships a
+static root is `backend/mcuhome/ui/static/`, which ships a
 diagnostic page rather than the application — packaging (a separate work
 block) is what copies a `dist/` into the wheel. Nothing in this
 directory writes into the Python package, so a source checkout never has

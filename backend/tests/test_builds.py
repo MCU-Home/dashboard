@@ -3,7 +3,7 @@
 """Building: the verbs, the offsets, the artifacts and the signature (ADR 0013).
 
 Everything here is in-process. The one seam that is faked is
-:func:`mcuhome_dashboard.builder.run_build` — the builder's own entry
+:func:`mcuhome.ui.builder.run_build` — the builder's own entry
 point into a container, a subprocess or a socket — because a test that
 really compiled would be a quarter of an hour of Zephyr and would test
 the firmware repository rather than this one.
@@ -35,11 +35,11 @@ import pytest
 from mcuhome.model.artifacts import Artifact
 from mcuhome.workbench import buildlock
 
-from mcuhome_dashboard import builder, builds, signing, versions
-from mcuhome_dashboard.app import AppState, create_app
-from mcuhome_dashboard.config import Config
-from mcuhome_dashboard.events import EventBus
-from mcuhome_dashboard.security import TrustMode
+from mcuhome.ui import builder, builds, signing, versions
+from mcuhome.ui.app import AppState, create_app
+from mcuhome.ui.config import Config
+from mcuhome.ui.events import EventBus
+from mcuhome.ui.security import TrustMode
 from tests.conftest import call
 
 # --------------------------------------------------------------------------

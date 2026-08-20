@@ -119,7 +119,7 @@ without one.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Questions and ideas:
+See [the contributing rules](https://github.com/mcu-home/.github/blob/main/CONTRIBUTING.md). Questions and ideas:
 [GitHub Discussions](https://github.com/mcu-home/mcuhome-ui/discussions).
 
 ## License

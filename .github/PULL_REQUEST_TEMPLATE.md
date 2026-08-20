@@ -14,4 +14,3 @@ Closes #
 - [ ] New files carry SPDX headers (`Apache-2.0`)
 - [ ] No schema/metadata definitions duplicated from the firmware repo
 - [ ] Documentation / ADRs updated where the change affects design decisions
-- [ ] `pre-commit run --all-files` passes

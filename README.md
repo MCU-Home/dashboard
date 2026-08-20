@@ -1,128 +1,113 @@
-# MCUHome Dashboard
+# mcuhome-ui
 
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-red.svg)](#project-status)
+mcuhome-ui is MCUHome's web interface: a browser front end for a project of
+device configurations, from editing one to building and signing its firmware.
+It is the graphical half of the project's tooling, working on the same project
+tree the command line works on.
 
-**The web interface for [MCUHome](https://github.com/mcu-home/mcuhome-workbench):
-create, build, flash and manage Zephyr-based smart home devices from your
-browser.**
+## What this repository holds
 
-The dashboard is a standalone product with its own release cycle,
-distributed as a **Home Assistant App**, as a **Docker image**, and as a
-plain Python application.
+- A Python backend (`backend/`) that serves two `aiohttp` sites from one
+  process: a Home Assistant ingress site and a password-protected standalone
+  site.
+- The `/ws` command vocabulary — device listing, editing, validation,
+  commissioning codes and build control — defined in one place,
+  `backend/mcuhome/ui/commands.py`.
+- A TypeScript single-page application (`frontend/`): device list, YAML editor,
+  new-device wizard, commissioning view and live build panel.
+- The seam onto the workbench library, which runs a build in-process and
+  applies the firmware signature to its unsigned result.
+- The Dockerfile behind both published images, and the Home Assistant entry
+  point that opens the project an App instance works on.
 
-**The dashboard never compiles.** Firmware builds always run on a
-separate build server, on any machine you point the dashboard at. See
-[ADR 0003](docs/adr/0003-two-home-assistant-apps-dashboard-never-compiles.md).
-That build server lives in its own repository,
-[mcu-home/mcuhome-buildserver](https://github.com/mcu-home/mcuhome-buildserver)
-([ADR 0012](docs/adr/0012-build-server-extraction.md)).
+## Using it
 
-**And it speaks no build protocol of its own.** The client that spoke
-the job protocol of [ADR 0006](docs/adr/0006-build-service-protocol.md)
-was dismantled rather than migrated (ADR 0012 decision 3), and its
-successor was not written here:
-[ADR 0013](docs/adr/0013-building-over-the-builder-package.md) found it
-already written, in `mcuhome-workbench`, which this package imports
-in-process. So the dashboard builds — `build/*` commands, streamed logs,
-artifact downloads and host-side signing — by calling
-`mcuhome.workbench.api.run_build`, and *where* that build runs is
-deployment configuration: a build container on this machine, a build
-server, or a west workspace.
+The standalone image serves the interface on port 8099 against a project
+directory mounted at `/config`, and keeps its signing key and build output in
+`/data`. A bind other than loopback wants a password.
 
-## Project status
+```sh
+docker run -p 8099:8099 -v /path/to/project:/config -v mcuhome-data:/data \
+  -e MCUHOME_DASHBOARD_PASSWORD=secret ghcr.io/mcu-home/ui
+```
 
-**Pre-alpha.** The architecture is designed in the open and the design
-phase is complete (see [docs/adr/](docs/adr/)). The backend serves the
-API, watches the configuration tree and validates device configurations;
-the frontend lists devices, edits their YAML with the builder's
-diagnostics on the editor's gutter, and shows a device's Matter
-commissioning codes. **Building works end to end** (ADR 0013): the
-`build/*` commands, the `builds` topic, logs streamed with resumable
-offsets, the artifact endpoint and host-side signing — the private
-signing key never leaves this side. A device can be **created** from the
-browser, and both container images are built and published from this
-repository. Still to come: the flash views in the browser. Firmware
-framework and YAML builder live in
-[mcu-home/mcuhome-workbench](https://github.com/mcu-home/mcuhome-workbench).
+The second image, `ghcr.io/mcu-home/ui-homeassistant-app`, is the same program
+as a Home Assistant App: it runs behind ingress, authenticated by the
+Supervisor, and opens the App's own configuration directory as the project.
 
-## Architecture
+## How it fits into MCUHome
+
+The interface imports
+[mcuhome-workbench](https://github.com/mcu-home/mcuhome-workbench) in-process
+for device model parsing, validation, build orchestration and signing; it
+never invokes the [mcuhome-cli](https://github.com/mcu-home/mcuhome-cli) and
+never compiles firmware itself. Which build method runs is configuration:
+`local` drives a build environment image defined in
+[mcuhome-sdk](https://github.com/mcu-home/mcuhome-sdk), `remote` hands the work
+to a [mcuhome-buildserver](https://github.com/mcu-home/mcuhome-buildserver).
+The App image is built and published from this repository;
+[homeassistant-apps](https://github.com/mcu-home/homeassistant-apps) carries
+only the metadata that makes it installable in Home Assistant.
+
+## Layout
 
 | Path | Purpose |
 |---|---|
-| `backend/` | Python backend (aiohttp, WebSocket-first API): device management |
-| `frontend/` | TypeScript single-page application: Lit 3, `@home-assistant/webawesome`, CodeMirror 6, Vite |
-| `docker/` | The two published container images, built from one Dockerfile |
-| `docs/adr/` | Architecture decision records (dashboard-specific) |
+| `backend/` | The Python package `mcuhome.ui` and its test suite |
+| `frontend/` | The single-page application and its test suite |
+| `docker/` | The two-target Dockerfile and the Home Assistant entry point |
+| `docs/` | Decision records for this repository |
 
-Two products, two version numbers, one protocol — and since ADR 0012 two
-repositories: the headless build service lives in
-[mcu-home/mcuhome-buildserver](https://github.com/mcu-home/mcuhome-buildserver).
-Neither package depends on the other: a build server is installable
-where the dashboard is not, and the dashboard will talk to one over the
-network even when both run on the same host. The protocol joining them
-is being replaced (ADR 0012 decision 3), and until the new client
-exists the two are not joined at all.
+## Working on this repository
 
-The backend drives the MCUHome builder (`mcuhome` Python package) and
-serves the frontend. The YAML configuration schema and device metadata are
-owned by the firmware repository and consumed here as a versioned artifact.
-
-## Running it
-
-### In Home Assistant
-
-Add the MCUHome app repository once —
-**Settings → Apps → App Store → ⋮ → Repositories**:
-
-```
-https://github.com/mcu-home/homeassistant-apps
-```
-
-then install **MCUHome Dashboard** and open its web interface. The App
-creates its project directory on first start and keeps it current across
-updates; only Home Assistant administrators can change or build anything.
-
-### With Docker
+The backend wants Python 3.13; `backend/requirements-dev.txt` installs it
+together with the sibling checkouts of the workbench and the model package it
+imports. The frontend wants Node 22 and pnpm. Each half has its own gate, and
+both of them run in CI on every push and pull request.
 
 ```sh
-docker run -d --name mcuhome-ui \
-  -p 8099:8099 \
-  -e MCUHOME_DASHBOARD_PASSWORD='choose-one' \
-  -v mcuhome-config:/config \
-  -v mcuhome-data:/data \
-  ghcr.io/mcu-home/ui:latest
+ruff check backend docker && ruff format --check backend docker
+(cd backend && pytest)
+pnpm --dir frontend install && pnpm --dir frontend run check
 ```
 
-`/config` is the MCUHome project — devices, secrets, shared pieces — and
-`/data` is private: the firmware signing key and build output. **Back up
-the signing key.** Every device you bootstrap accepts only firmware
-signed with it.
+## Configuration
 
-The password is what the public site asks for; there is no Home Assistant
-here to say who is asking. Unlike the App, this image does not create a
-project for you — point it at one, or make one with
-[the command line](https://github.com/mcu-home/mcuhome-cli).
+Options come from the command line or from environment variables prefixed
+`MCUHOME_DASHBOARD_`, the command line winning where both are given: the
+project directory, the data directory, the bind address and password, and the
+build method together with its build-server address and token. A Home
+Assistant App reads `/data/options.json` instead, which
+`docker/homeassistant-entrypoint.py` maps onto the same settings. The full set
+is declared in [`backend/mcuhome/ui/config.py`](backend/mcuhome/ui/config.py).
 
-Both images are built from `docker/Dockerfile` in this repository and
-published on a `v*` tag; the App's metadata lives in
-[mcu-home/homeassistant-apps](https://github.com/mcu-home/homeassistant-apps)
-([ADR 0018](docs/adr/draft/0018-images-here-app-metadata-in-its-own-repository.md)).
+## Security
 
-### Building firmware
+The two sites answer to different authorities. The ingress site proves that its
+peer is the Supervisor gateway before it reads a user header, then asks Home
+Assistant whether that user is an administrator and treats an unanswerable
+question as "no"; the standalone site requires a password unless it is bound to
+loopback alone. The firmware signing key is read by this process and by nothing
+else — what travels into a build is the public half, on either build method.
+Vulnerabilities are reported through the organization's
+[security policy](https://github.com/mcu-home/.github/blob/main/SECURITY.md).
 
-Neither deployment compiles. Point the dashboard at a
-[build server](https://github.com/mcu-home/mcuhome-buildserver) with
-`MCUHOME_DASHBOARD_BUILD_SERVER_URL`; everything else — creating,
-editing, validating devices and drawing commissioning credentials — works
-without one.
+## Documentation
 
-## Contributing
+- [`docs/adr/`](docs/adr/) — the decisions behind this interface
+- [`backend/mcuhome/ui/commands.py`](backend/mcuhome/ui/commands.py) — the
+  `/ws` command vocabulary
+- [`docker/Dockerfile`](docker/Dockerfile) — how both images are assembled
+- [MCUHome on GitHub](https://github.com/mcu-home) — the rest of the project
 
-See [the contributing rules](https://github.com/mcu-home/.github/blob/main/CONTRIBUTING.md). Questions and ideas:
-[GitHub Discussions](https://github.com/mcu-home/mcuhome-ui/discussions).
+## Contributing and support
+
+Bugs, questions and feature requests belong in this repository's
+[issue tracker](https://github.com/mcu-home/mcuhome-ui/issues). The
+organization's
+[contributing rules](https://github.com/mcu-home/.github/blob/main/CONTRIBUTING.md)
+apply before a pull request.
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE). This repository follows the
-[REUSE](https://reuse.software/) specification.
+Apache License 2.0, see [`LICENSE`](LICENSE).

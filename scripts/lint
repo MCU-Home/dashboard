@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The lint gate for both halves of this repository: ruff (check +
+# format) over backend and docker, from the root .venv, exactly as the
+# README runs it; and the frontend's own `pnpm run check` (prettier,
+# eslint, tsc, vitest), via pnpm. Extra arguments are passed through to
+# the two ruff invocations only. If pnpm is not on PATH, the frontend
+# half is skipped with a notice and the script still fails.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+venv="$root/.venv"
+
+if [ ! -x "$venv/bin/python" ]; then
+  echo "scripts/lint: no .venv found. Create it first: python3.13 -m venv .venv && .venv/bin/pip install ruff (see README, \"Working on this repository\")." >&2
+  exit 1
+fi
+
+status=0
+
+(cd "$root" && "$venv/bin/python" -m ruff check backend docker "$@") || status=$?
+(cd "$root" && "$venv/bin/python" -m ruff format --check backend docker "$@") || status=$?
+
+if command -v pnpm >/dev/null 2>&1; then
+  (cd "$root/frontend" && pnpm install && pnpm run check) || status=$?
+else
+  echo "scripts/lint: pnpm not found on PATH — skipping the frontend checks (prettier, eslint, tsc, vitest). Install Node 22 and pnpm (see README, \"Working on this repository\")." >&2
+  status=1
+fi
+
+exit "$status"

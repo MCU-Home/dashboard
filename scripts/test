@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The test gate for both halves of this repository: the backend suite
+# (pytest, from backend/.venv — its own environment, kept separate from
+# the root .venv the way the README already does) and the frontend suite
+# (vitest, via pnpm). Extra arguments are passed through to pytest only.
+# If pnpm is not on PATH, the frontend half is skipped with a notice and
+# the script still fails — a missing frontend toolchain is not a pass.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+backend_venv="$root/backend/.venv"
+
+if [ ! -x "$backend_venv/bin/python" ]; then
+  echo "scripts/test: no backend/.venv found. Create it first: python3.13 -m venv backend/.venv && backend/.venv/bin/pip install -r backend/requirements-dev.txt (see README, \"Working on this repository\")." >&2
+  exit 1
+fi
+
+status=0
+
+(cd "$root/backend" && "$backend_venv/bin/python" -m pytest "$@") || status=$?
+
+if command -v pnpm >/dev/null 2>&1; then
+  (cd "$root/frontend" && pnpm exec vitest run) || status=$?
+else
+  echo "scripts/test: pnpm not found on PATH — skipping the frontend suite (vitest). Install Node 22 and pnpm (see README, \"Working on this repository\")." >&2
+  status=1
+fi
+
+exit "$status"

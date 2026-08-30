@@ -20,6 +20,16 @@ updates:
     groups:
       python-deps:
         patterns: ["*"]
+  # The root pyproject.toml holds only the lint tool pins ([dependency-
+  # groups] dev), no project of its own — its own entry so those pins
+  # get bumped too.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python-deps:
+        patterns: ["*"]
   - package-ecosystem: npm
     directory: /frontend
     schedule:

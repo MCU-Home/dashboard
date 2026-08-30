@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# pytest, from this repository's own backend/.venv — kept separate from
+# the root .venv (which holds only the lint tools), the way the README
+# already does. Run from backend/, so relative fixtures resolve the same
+# way they do for a developer. Extra arguments are passed through. See
+# CONTRIBUTING.md ("Repository layout").
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+venv="$root/backend/.venv"
+
+if [ ! -x "$venv/bin/python" ]; then
+  echo "test.d/pytest: no backend/.venv found. Create it first: python3.13 -m venv backend/.venv && backend/.venv/bin/pip install -e backend --group backend/pyproject.toml:dev (see README)." >&2
+  exit 1
+fi
+
+cd "$root/backend"
+exec "$venv/bin/python" -m pytest "$@"

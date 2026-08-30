@@ -41,8 +41,13 @@ dependencies = ["aiohttp>=3.10,<4"]
 # The direction of the dependency is the invariant either way: the
 # builder never learns that the dashboard exists.
 
-[project.optional-dependencies]
-dev = ["pytest>=8", "pytest-aiohttp>=1.1", "ruff==0.16.1"]
+# PEP 735 dependency group, not a [project.optional-dependencies] extra
+# (workspace convention): these tools are for working on this package,
+# never a runtime dependency of it. ruff is not in this group — it runs
+# from the repository's root .venv, over backend and docker together
+# (root pyproject.toml, scripts/lint.d/ruff).
+[dependency-groups]
+dev = ["pytest>=8", "pytest-aiohttp>=1.1"]
 
 [project.scripts]
 mcuhome-ui = "mcuhome.ui.server:main"
@@ -72,6 +77,6 @@ known-first-party = ["mcuhome.ui", "tests"]
 testpaths = ["tests/python"]
 asyncio_mode = "auto"
 
-[tool.codespell]
-# Domain vocabulary codespell would "correct" into errors.
-ignore-words-list = "requestor,pase,ot,rsource"
+# codespell's settings live in the repository's root pyproject.toml: the
+# wrapper (scripts/lint.d/codespell) runs from the repository root, and
+# codespell only reads the pyproject.toml in its current directory.

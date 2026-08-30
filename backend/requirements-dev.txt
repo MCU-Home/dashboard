@@ -23,5 +23,11 @@
 # The dashboard never compiles (ADR 0019); workbench pulls model and is
 # the whole runtime surface. The compiler is deliberately NOT installed,
 # which keeps ADR 0017 §2 checkable in this very venv.
-
--e .[dev]
+#
+# The package itself and its dev tools (pytest, pytest-aiohttp) are not
+# listed here: `--group` is not a requirements-file directive, so they
+# are a separate command, from this directory or from the repository
+# root:
+#
+#     pip install -e . --group dev                        (from backend/)
+#     pip install -e backend --group backend/pyproject.toml:dev  (from the root)

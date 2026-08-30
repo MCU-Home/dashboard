@@ -58,18 +58,40 @@ only the metadata that makes it installable in Home Assistant.
 | `docker/` | The two-target Dockerfile and the Home Assistant entry point |
 | `docs/` | Decision records for this repository |
 
-## Working on this repository
+## Development — how to work on this repository
 
-The backend wants Python 3.13; `backend/requirements-dev.txt` installs it
-together with the sibling checkouts of the workbench and the model package it
-imports. The frontend wants Node 22 and pnpm. Each half has its own gate, and
-both of them run in CI on every push and pull request.
+This repository has its own virtual environment in `.venv/`; nothing is
+installed into the system Python or into another repository's environment.
+`bin/` holds the user-facing entry points, `scripts/` the development
+tooling: `scripts/test` and `scripts/lint` dispatch the checks — `all` runs
+every one, `list` names them, `<name>` runs one — and each check is its own
+wrapper in `scripts/test.d/` or `scripts/lint.d/`. The wrappers select
+`.venv` themselves (never activate one by hand) and are exactly what CI
+runs, one job per check.
+
+Needs Python 3.13 for two `.venv`s — the root one for the lint tools that
+run over `backend` and `docker`, `backend/.venv` for pytest, where
+`backend/requirements-dev.txt` adds the sibling checkouts of `mcuhome-sdk`'s
+`packaging/model` and `mcuhome-workbench` — and Node 22 with pnpm for the
+frontend, whose dependencies `scripts/test vitest` and the frontend lint
+wrappers expect already installed.
 
 ```sh
-ruff check backend docker && ruff format --check backend docker
-(cd backend && pytest)
-pnpm --dir frontend install && pnpm --dir frontend run check
+python3.13 -m venv .venv && .venv/bin/pip install --group dev
+(cd backend && python3.13 -m venv .venv && \
+  .venv/bin/pip install -r requirements-dev.txt && \
+  .venv/bin/pip install -e . --group dev)
+(cd frontend && pnpm install --frozen-lockfile)
 ```
+
+```sh
+scripts/test all
+scripts/lint all
+```
+
+The rules that hold across every MCUHome repository — coding standards,
+commits, licensing — are in the organization's
+[contributing guide](https://github.com/mcu-home/.github/blob/main/CONTRIBUTING.md).
 
 ## Configuration
 

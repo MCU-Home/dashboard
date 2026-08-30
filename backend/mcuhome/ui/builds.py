@@ -381,6 +381,20 @@ class _Progress:
     loop while this runs on a worker thread, and copying a dict that is
     being written is how a progress update ends a build instead of
     describing it.
+
+    **The seam closes, for the same reason the output one does.** The
+    producer outlives the reader here too: a cancelled build is not
+    stopped — it cannot be, the module docstring says why — so it keeps
+    announcing steps from its worker thread for the rest of its compile,
+    with the record it is announcing them onto already terminal. Without
+    :meth:`close` latching, those announcements walk the bar forward on a
+    build that ended: a step the cancel guaranteed did not happen is
+    swept to ``done``, and one that never started reads ``running`` next
+    to a record that reads ``cancelled``. Nothing republishes it either —
+    the pump is gone by then — so what a reconnecting client is served
+    diverges from what a connected one was told, permanently. After
+    :meth:`close` the steps are what they were when the build ended, and
+    a late announcement is dropped exactly like a late line.
     """
 
     def __init__(self, record: BuildRecord, bus: EventBus, *, keys: Iterable[str]) -> None:
@@ -389,11 +403,14 @@ class _Progress:
         self._steps = [_Step(key) for key in keys]
         self._lock = threading.Lock()
         self._dirty = False
+        self._closed = False
         self._snapshot()
 
     def step(self, key: str, **facts: Any) -> None:
         """The ``on_step`` seam: *key* is where the build is now."""
         with self._lock:
+            if self._closed:
+                return
             entry = self._enter(key)
             # Filtered here rather than where it is rendered: this is the
             # boundary a fact crosses from the builder into a frame that
@@ -417,6 +434,8 @@ class _Progress:
         was not wrong.
         """
         with self._lock:
+            if self._closed:
+                return
             entry = next((step for step in self._steps if step.key == key), None)
             if entry is None or entry.state != STEP_RUNNING:
                 return
@@ -425,7 +444,11 @@ class _Progress:
             self._dirty = True
 
     def close(self, *, success: bool) -> None:
-        """Settle every step that is still open. The caller then publishes.
+        """Settle every step that is still open, and take the seam down.
+
+        Called by :meth:`BuildRegistry._finish` and by nothing else, so
+        that settling the steps and ending the build are one thing. The
+        caller then publishes.
 
         A run that ended well went through what it stated. One that did
         not marks whatever was in flight failed — and if nothing was,
@@ -440,8 +463,17 @@ class _Progress:
         looked at a configuration — an untouched bar next to a record
         that reads ``cancelled`` is the truth, and the truth is that
         nothing happened.
+
+        **Once, and then never again.** A second call would find nothing
+        in flight and blame the next step still to come, which is how a
+        build acquires a failure it never had; and every announcement
+        that arrives afterwards is from work the record has stopped
+        describing.
         """
         with self._lock:
+            if self._closed:
+                return
+            self._closed = True
             if success:
                 for entry in self._steps:
                     if entry.state in (STEP_PENDING, STEP_RUNNING):
@@ -672,14 +704,35 @@ class BuildRegistry:
         every step still pending, which is what happened.
         """
         if not record.finished_state:
-            self._finish(record, STATE_CANCELLED)
-            progress.close(success=False)
+            self._finish(record, STATE_CANCELLED, progress)
             self._publish(record)
         if self._running is record and self._work is None and self._reaper is None:
             self._running = None
             self._task = None
 
-    def _finish(self, record: BuildRecord, state: str) -> None:
+    def _finish(self, record: BuildRecord, state: str, progress: _Progress) -> None:
+        """End *record* in *state*. The only way a build ever ends.
+
+        The steps are settled here rather than by the caller, and before
+        the state is written, because :attr:`BuildRecord.finished_state`
+        is what a client reads to stop watching: the moment it turns true
+        is the moment everything else about the record has to be true as
+        well. A record that says a build is over while one of its steps
+        says it is still compiling is exactly the pair the step bar
+        exists to exclude — and it was reachable, because the state used
+        to be written where the result was learned and the steps closed
+        several statements and one ``await`` later.
+
+        :meth:`_Progress.close` wants the state to decide whether the
+        steps still open were reached or missed, which is why it looked
+        like it had to come second. It wants the **decided** state, not
+        the published one, and that is sitting right here as *state* —
+        so the order is free, and taking it makes the transition one a
+        reader on the loop cannot land inside. Passing the progress is
+        not a convenience either: a terminal path that has to name one
+        cannot forget to settle it.
+        """
+        progress.close(success=state == STATE_SUCCEEDED)
         record.state = state
         record.finished = time.time()
 
@@ -693,7 +746,7 @@ class BuildRegistry:
         try:
             await self._build(record, stream, progress)
         except asyncio.CancelledError:
-            self._finish(record, STATE_CANCELLED)
+            self._finish(record, STATE_CANCELLED, progress)
             raise
         except builder.MCUHomeError as error:
             # Every refusal the builder raises — a missing compiler
@@ -702,7 +755,7 @@ class BuildRegistry:
             # the click — arrives with a message and a hint, in the same
             # shape validation errors use.
             record.errors = builder.errors_from_exception(error, root=self._devices.root)
-            self._finish(record, STATE_FAILED)
+            self._finish(record, STATE_FAILED, progress)
         except (signing.SigningError, OSError) as error:
             if isinstance(error, signing.KeyCustodyError):
                 # The public message says nothing about where the key is
@@ -710,11 +763,11 @@ class BuildRegistry:
                 # which does, goes here and nowhere else.
                 logger.exception("build %s: %s", record.id, error.detail)
             record.errors = [_plain_error(error)]
-            self._finish(record, STATE_FAILED)
+            self._finish(record, STATE_FAILED, progress)
         except Exception as error:  # pragma: no cover - a bug on this side
             logger.exception("build %s of %s failed unexpectedly", record.id, record.device)
             record.errors = [_plain_error(error)]
-            self._finish(record, STATE_FAILED)
+            self._finish(record, STATE_FAILED, progress)
         finally:
             pump.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -725,10 +778,7 @@ class BuildRegistry:
             # no reader are lines nobody can ask for.
             stream.close()
             if not record.finished_state:  # pragma: no cover - defensive
-                self._finish(record, STATE_FAILED)
-            # After the state is settled, because that state is what says
-            # whether the steps still open were reached or missed.
-            progress.close(success=record.state == STATE_SUCCEEDED)
+                self._finish(record, STATE_FAILED, progress)
             self._task = None
             work = self._work
             if work is not None and not work.done():
@@ -855,7 +905,7 @@ class BuildRegistry:
         record.status = outcome.status
         if not outcome.successful:
             record.errors = [_outcome_error(outcome)]
-            self._finish(record, STATE_FAILED)
+            self._finish(record, STATE_FAILED, progress)
             return
 
         # `run_build` holds the directory for the compile and gives it
@@ -899,7 +949,7 @@ class BuildRegistry:
                     builder.write_ota_image, model, out_dir=out_dir, signed=signed_bin
                 )
             record.artifacts = await asyncio.to_thread(_measure_outputs, out_dir, record)
-        self._finish(record, STATE_SUCCEEDED)
+        self._finish(record, STATE_SUCCEEDED, progress)
 
 
 # --------------------------------------------------------------------------

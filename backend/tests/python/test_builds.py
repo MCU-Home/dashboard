@@ -26,7 +26,10 @@ handling, which is the part worth being sure about, is exercised.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
+import threading
+from collections.abc import AsyncIterator
 from importlib import metadata
 from pathlib import Path
 from typing import Any
@@ -98,6 +101,7 @@ class FakeBuild:
         raises: Exception | None = None,
         block: asyncio.Event | None = None,
         steps: tuple[tuple[str, dict[str, Any]], ...] = SCRIPTED_STEPS,
+        late_steps: tuple[tuple[str, dict[str, Any]], ...] = (),
     ) -> None:
         self.successful = successful
         self.lines = lines
@@ -106,6 +110,9 @@ class FakeBuild:
         self.raises = raises
         self.block = block
         self.steps = steps
+        #: Announced after :attr:`block` opens — what a build that was
+        #: cancelled goes on saying, because a cancel does not stop it.
+        self.late_steps = late_steps
         self.requests: list[builder.BuildRequest] = []
         self.methods: list[str] = []
 
@@ -120,6 +127,9 @@ class FakeBuild:
                 request.on_line(line)
         if self.block is not None:
             await self.block.wait()
+        for key, facts in self.late_steps:
+            if request.on_step is not None:
+                request.on_step(key, **facts)
         if self.raises is not None:
             raise self.raises
 
@@ -200,6 +210,46 @@ async def in_the_builder(stub: FakeBuild, *, count: int = 1, timeout: float = 5.
     async with asyncio.timeout(timeout):
         while len(stub.requests) < count:
             await asyncio.sleep(0.01)
+
+
+@contextlib.asynccontextmanager
+async def watched(record: builds.BuildRecord) -> AsyncIterator[list[tuple[str, dict[str, str]]]]:
+    """Sample *record* on every turn of the loop, collecting nonsense.
+
+    What it collects is the one pair a finished build may never show: a
+    terminal state beside a step that still reads ``running``. Steps left
+    ``pending`` are not nonsense — a build that ended before it took one
+    leaves all of them that way on purpose.
+
+    ``asyncio.sleep(0)`` rather than a poll: it re-queues the watcher on
+    every turn, so this looks at exactly the moments a real reader can —
+    ``build/status`` and ``build/subscribe`` answer out of the same
+    record, on this loop, from whichever task the socket happened to
+    schedule. A timed poll samples a window microseconds wide by luck,
+    which is what made the defect this guards against read as a flaky
+    test instead of as the thing that happens on every single build.
+    """
+    caught: list[tuple[str, dict[str, str]]] = []
+
+    async def sample() -> None:
+        while True:
+            if record.finished_state:
+                still_running = {
+                    step["key"]: step["state"]
+                    for step in record.steps
+                    if step["state"] == "running"
+                }
+                if still_running:
+                    caught.append((record.state, still_running))
+            await asyncio.sleep(0)
+
+    watcher = asyncio.create_task(sample())
+    try:
+        yield caught
+    finally:
+        watcher.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await watcher
 
 
 async def slot_free(state: AppState, *, timeout: float = 5.0) -> None:
@@ -642,6 +692,110 @@ async def test_a_build_cancelled_in_flight_marks_where_it_stopped(
 
     gate.set()
     await slot_free(state)
+
+
+async def test_the_work_a_cancel_abandons_can_no_longer_move_the_steps(
+    state: AppState, fake_build: FakeBuild
+) -> None:
+    """A cancel does not stop the build, so the build goes on announcing.
+
+    That is the whole design — a container cannot be interrupted — and it
+    makes the step seam a producer that outlives its reader, exactly like
+    the output one. The output side has always dropped what arrives after
+    the record is over; this side used to take it, so a build that reads
+    ``cancelled`` went on walking its bar forward: the two steps it never
+    reached ended up ``done`` and ``running``, claiming that firmware was
+    collected by work a cancel had guaranteed did not happen. Nothing
+    republished it, so only a client that reconnected ever saw it — and
+    saw it disagree with the last frame the connected one was sent.
+    """
+    gate = asyncio.Event()
+    fake_build.block = gate
+    fake_build.late_steps = (("artifacts", {}), ("sign", {}))
+    record = await state.builds.begin("bench-node")
+    await in_the_builder(fake_build)
+    await state.builds.cancel(record.id)
+    await finished(state, record.id)
+    settled = steps_of(record)
+
+    gate.set()
+    # Not `finished()`: the record has been terminal since the cancel.
+    # What this waits for is the abandoned work really ending, which is
+    # when the late announcements have all been made and dropped.
+    await slot_free(state)
+
+    assert steps_of(record) == settled
+    assert settled["artifacts"] == "pending"
+    assert settled["sign"] == "pending"
+
+
+def test_a_closed_step_seam_takes_nothing_more_from_any_thread() -> None:
+    """The latch itself, from both sides and twice over.
+
+    Its sibling :class:`builds._LogStream` has had this test since it
+    grew a ``close``; the step seam is the same seam for the other
+    callback, so it gets the same one. Three things the build path can
+    reach but no build in this suite does: an announcement arriving from
+    a real worker thread — which is where ``local`` makes all of them —
+    a step *completing* after the record is over, and a second
+    :meth:`builds._Progress.close`, which without the guard finds nothing
+    in flight and blames the next step still to come.
+    """
+    record = builds.BuildRecord(id="beef", device="bench-node", method="local")
+    progress = builds._Progress(record, EventBus(), keys=("validate", "compile", "sign"))
+
+    progress.step("validate")
+    progress.step("compile")
+    progress.close(success=False)
+    settled = steps_of(record)
+    assert settled == {"validate": "done", "compile": "failed", "sign": "pending"}
+
+    # The thread is the point: `local` announces from one, and the record
+    # it announces onto has been terminal since the cancel.
+    from_a_thread = threading.Thread(target=progress.step, args=("sign",))
+    from_a_thread.start()
+    from_a_thread.join()
+    progress.finish("compile")
+    progress.close(success=False)
+
+    assert steps_of(record) == settled
+    progress.flush()
+    assert record.steps == [
+        {"key": key, "state": state, "facts": {}} for key, state in settled.items()
+    ]
+
+
+@pytest.mark.parametrize("successful", [True, False])
+async def test_a_build_is_never_finished_before_its_steps_are(
+    state: AppState, monkeypatch: pytest.MonkeyPatch, successful: bool
+) -> None:
+    """``finished_state`` is the moment everything else has to be true too.
+
+    A client stops watching a build when the record says it is over, and
+    the two that read it that way — ``build/status`` and
+    ``build/subscribe`` — answer straight out of the record. So the state
+    going terminal and the steps settling have to be one transition, with
+    no turn of the loop in between for a socket to be scheduled in.
+
+    They were not. The state was written where the result was learned and
+    the steps were closed several statements later, on the far side of an
+    ``await``, which put a two-turn window on **every** build — success
+    as much as failure — in which the record said ``succeeded`` and its
+    signing step said ``running``.
+    """
+    monkeypatch.setattr(builder, "run_build", FakeBuild(successful=successful))
+    monkeypatch.setattr(signing, "_sign_blocking", fake_signature())
+    record = await state.builds.begin("bench-node")
+
+    async with watched(record) as caught:
+        # The watcher has to be up before the build ends: the window is
+        # two turns wide and `finished` polls on a timer, so by the time
+        # it returns the window has long since closed. Waiting here at
+        # all is only to keep the watcher alive through the unwind.
+        await finished(state, record.id)
+        await slot_free(state)
+
+    assert not caught, f"a finished build showed a running step: {caught[0]}"
 
 
 async def test_progress_reaches_a_subscriber_while_the_build_runs(

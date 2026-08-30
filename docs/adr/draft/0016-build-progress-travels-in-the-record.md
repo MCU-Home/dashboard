@@ -88,6 +88,32 @@ from `record.method`, which is known before the build starts, and
 `sign` with "dashboard", which is structural (ADR 0008). Never from a
 fact that may or may not arrive.
 
+**6. A build is not finished until its steps are, and after that the
+seam is shut.** The record's terminal state is written in one place,
+`BuildRegistry._finish`, and that place settles the steps first — it
+takes the progress object, so a terminal path cannot be written without
+one. Afterwards the seam refuses further announcements, the way the
+output one already does.
+
+Both halves answer the same question: `finished_state` is what a client
+reads to stop watching, so the moment it turns true is the moment
+everything else about the record has to be true as well. Without the
+first half the state was written where the result was learned and the
+steps were settled several statements and one `await` later, which put a
+window on every build in which `build/status` answered `succeeded` next
+to a step reading `running` — brief, but exactly the pair a step bar
+exists to exclude. Without the second, the build a cancel abandons — and
+a cancel deliberately abandons rather than stops it — kept announcing
+onto a record that had ended, walking its bar forward through steps that
+cancel had guaranteed did not happen; with the pump gone nothing
+republished it, so a reconnecting browser was served a shape a connected
+one was never told about, permanently.
+
+The first half is why `close` takes the state rather than reading it: it
+needs the *decided* state, to know whether the steps still open were
+reached or missed, and the decided state is the argument `_finish` was
+given.
+
 ## Consequences
 
 The two front ends now render the same seam and stay comparable without

@@ -11,12 +11,12 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 if ! command -v pnpm >/dev/null 2>&1; then
-  echo "lint.d/tsc: pnpm not found on PATH. Install Node 22 and pnpm (see README)." >&2
+  echo "lint.d/tsc: pnpm not found on PATH. Install Node 22 and pnpm first — see README, \"Development — how to work on this repository\"." >&2
   exit 1
 fi
 
 if [ ! -d "$root/frontend/node_modules" ]; then
-  echo "lint.d/tsc: no frontend/node_modules found. Install it first: (cd frontend && pnpm install --frozen-lockfile) (see README)." >&2
+  echo "lint.d/tsc: no frontend/node_modules found. Install it first — see README, \"Development — how to work on this repository\"." >&2
   exit 1
 fi
 

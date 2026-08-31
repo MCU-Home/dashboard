@@ -116,7 +116,6 @@ Vulnerabilities are reported through the organization's
 
 ## Documentation
 
-- [`docs/adr/`](docs/adr/) — the decisions behind this interface
 - [`backend/mcuhome/ui/commands.py`](backend/mcuhome/ui/commands.py) — the
   `/ws` command vocabulary
 - [`docker/Dockerfile`](docker/Dockerfile) — how both images are assembled

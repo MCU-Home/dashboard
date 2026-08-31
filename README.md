@@ -69,7 +69,7 @@ wrapper in `scripts/test.d/` or `scripts/lint.d/`. The wrappers select
 `.venv` themselves (never activate one by hand) and are exactly what CI
 runs, one job per check.
 
-Needs Python 3.13 for two `.venv`s — the root one for the lint tools that
+Needs Python ≥3.13 for two `.venv`s — the root one for the lint tools that
 run over `backend` and `docker`, `backend/.venv` for pytest, where
 `backend/requirements-dev.txt` adds the sibling checkouts of `mcuhome-sdk`'s
 `packaging/model` and `mcuhome-workbench` — and Node 22 with pnpm for the
@@ -77,8 +77,8 @@ frontend, whose dependencies `scripts/test vitest` and the frontend lint
 wrappers expect already installed.
 
 ```sh
-python3.13 -m venv .venv && .venv/bin/pip install --group dev
-(cd backend && python3.13 -m venv .venv && \
+python3 -m venv .venv && .venv/bin/pip install --group dev
+(cd backend && python3 -m venv .venv && \
   .venv/bin/pip install -r requirements-dev.txt && \
   .venv/bin/pip install -e . --group dev)
 (cd frontend && pnpm install --frozen-lockfile)

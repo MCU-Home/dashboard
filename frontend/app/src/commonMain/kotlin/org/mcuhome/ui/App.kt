@@ -7,13 +7,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import org.mcuhome.ui.api.ConnectionState
+import org.mcuhome.ui.api.LocalMcuHomeApi
+import org.mcuhome.ui.api.McuHomeApi
+import org.mcuhome.ui.api.ServerInfo
 import org.mcuhome.ui.page.PlaceholderPage
 import org.mcuhome.ui.page.SpikePage
 import org.mcuhome.ui.shell.Destination
@@ -25,6 +35,12 @@ import org.mcuhome.ui.theme.MCUHomeTheme
  * The application: the theme, the shell around every screen, and the
  * navigation graph.
  *
+ * [api] is the one thing the platform decides for the application: today
+ * every entry point hands in the in-memory mock, and the client that talks
+ * to the back end replaces it without a screen changing. It is put into
+ * the composition once, here, and read from `LocalMcuHomeApi` wherever it
+ * is needed.
+ *
  * [onNavHostReady] hands the freshly created controller to the entry
  * point of the platform. The browser entry point uses it to tie the
  * navigation to the address bar and the back button; a future desktop or
@@ -32,15 +48,26 @@ import org.mcuhome.ui.theme.MCUHomeTheme
  * none at all.
  */
 @Composable
-fun App(onNavHostReady: suspend (NavHostController) -> Unit = {}) {
+fun App(api: McuHomeApi, onNavHostReady: suspend (NavHostController) -> Unit = {}) {
+    CompositionLocalProvider(LocalMcuHomeApi provides api) {
+        AppContent(onNavHostReady)
+    }
+}
+
+@Composable
+private fun AppContent(onNavHostReady: suspend (NavHostController) -> Unit) {
+    val api = LocalMcuHomeApi.current
+    var serverInfo by remember { mutableStateOf<ServerInfo?>(null) }
+    LaunchedEffect(api) { serverInfo = api.server.info() }
     MCUHomeTheme {
         val navController = rememberNavController()
         val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
         val currentDestination = Destination.entries.firstOrNull { it.route == currentRoute }
 
         Column(Modifier.fillMaxSize().background(MCUHomeTheme.colors.background)) {
+            val connection by api.connection.collectAsState()
             TopBar(
-                projectName = "my-home",
+                projectName = serverInfo?.projectName.orEmpty(),
                 current = currentDestination,
                 onNavigate = { destination ->
                     navController.navigate(destination.route) {
@@ -49,7 +76,7 @@ fun App(onNavHostReady: suspend (NavHostController) -> Unit = {}) {
                     }
                 },
                 runningJobs = 1,
-                connected = true,
+                connected = connection == ConnectionState.Connected,
             )
 
             NavHost(

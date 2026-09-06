@@ -15,7 +15,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import org.mcuhome.ui.page.PlaceholderPage
+import org.mcuhome.ui.page.SpikePage
 import org.mcuhome.ui.shell.Destination
+import org.mcuhome.ui.shell.SPIKE_ROUTE
 import org.mcuhome.ui.shell.TopBar
 import org.mcuhome.ui.theme.MCUHomeTheme
 
@@ -67,6 +69,7 @@ fun App(onNavHostReady: suspend (NavHostController) -> Unit = {}) {
                 composable(Destination.Project.route) {
                     PlaceholderPage("Project", "Project options, the project file, boards and the doctor report.")
                 }
+                composable(SPIKE_ROUTE) { SpikePage() }
             }
         }
 

@@ -19,3 +19,10 @@ enum class Destination(val route: String, val label: String) {
         val start: Destination = Devices
     }
 }
+
+/**
+ * The editor spike, reachable by typing its route but deliberately absent
+ * from the navigation. It exists to try the editor out on a real browser
+ * and is removed once the device screen carries the finished editor.
+ */
+const val SPIKE_ROUTE: String = "spike"

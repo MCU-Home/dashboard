@@ -13,16 +13,8 @@ updates:
     groups:
       actions:
         patterns: ["*"]
-  - package-ecosystem: pip
-    directory: /backend
-    schedule:
-      interval: weekly
-    groups:
-      python-deps:
-        patterns: ["*"]
-  # The root pyproject.toml holds only the lint tool pins ([dependency-
-  # groups] dev), no project of its own — its own entry so those pins
-  # get bumped too.
+  # The root pyproject.toml holds only the linter pins
+  # ([dependency-groups] dev), no project of its own.
   - package-ecosystem: pip
     directory: /
     schedule:
@@ -30,20 +22,3 @@ updates:
     groups:
       python-deps:
         patterns: ["*"]
-  - package-ecosystem: npm
-    directory: /frontend
-    schedule:
-      interval: weekly
-    groups:
-      frontend-deps:
-        patterns: ["*"]
-    ignore:
-      # TypeScript 7 is where the ecosystem is heading, but
-      # `typescript-eslint` 8 refuses to load against it at all ("does
-      # not support TS 7.0"), and type-aware linting is worth more here
-      # than being early — see frontend/README.md for the reasoning and
-      # the rest of the decision. Without this, every weekly run
-      # proposes the bump again and the gate refuses it again. Drop this
-      # entry when `typescript-eslint` ships TypeScript 7 support.
-      - dependency-name: typescript
-        update-types: ["version-update:semver-major"]

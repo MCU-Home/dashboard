@@ -1,23 +1,10 @@
 # SPDX-FileCopyrightText: 2026 The MCUHome Contributors
 # SPDX-License-Identifier: Apache-2.0
 #
-# Test gate for the dashboard: one job per wrapper in scripts/test.d/
-# (pytest for the backend, vitest for the frontend), plus a pre-check
-# that every wrapper has a job here.
-#
-# test-pytest needs the workbench (mcu-home/mcuhome-workbench) and, since
-# the ADR 0024 split, the model from mcu-home/mcuhome-sdk — both public
-# siblings, plain checkouts, no deploy keys. What is deliberately NOT
-# installed is mcuhome-compiler: "the dashboard never compiles" is
-# enforced by the dependency rather than by a missing code path, and
-# leaving the compiler out here is what keeps that checkable in the very
-# environment the tests run in — one test asserts the resulting refusal.
-# Once the packages are published this becomes a plain pip install.
-#
-# The backend package and its dev tools (pytest, pytest-aiohttp) are a
-# PEP 735 dependency group in backend/pyproject.toml, installed with
-# `--group backend/pyproject.toml:dev` since the job runs from the
-# repository root; that needs pip >= 25.1, so pip is upgraded first.
+# Test gate: one job per wrapper in scripts/test.d/, plus a pre-check
+# that every wrapper has a job here. There are no wrappers yet — the
+# repository holds no code to test — so the pre-check is the whole gate
+# for now, and it fails the moment a wrapper is added without its job.
 #
 # All actions are pinned to commit SHAs, not tags.
 
@@ -41,83 +28,3 @@ jobs:
 
       - name: scripts/test check-ci
         run: scripts/test check-ci
-
-  test-pytest:
-    name: Test (pytest)
-    needs: check-gates
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Checkout mcu-home/mcuhome-sdk
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: mcu-home/mcuhome-sdk
-          path: .deps/mcuhome-sdk
-
-      - name: Checkout mcu-home/mcuhome-packagetool
-        # The workbench imports mcuhome.packagetool.
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: mcu-home/mcuhome-packagetool
-          path: .deps/mcuhome-packagetool
-
-      - name: Checkout mcu-home/mcuhome-workbench
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: mcu-home/mcuhome-workbench
-          path: .deps/mcuhome-workbench
-
-      - name: Set up Python
-        # ADR 0004 decision 2 sets this repository's floor above the
-        # workbench's: it may sit higher and never lower.
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.13"
-
-      - name: Create backend/.venv and install
-        # backend/.venv is this repository's own second environment, kept
-        # separate from the root .venv (which holds only the lint
-        # tools) — scripts/test selects it itself, so it is created
-        # first, the same way a developer creates one locally. One
-        # invocation for the siblings, so pip resolves the pins against
-        # the copies being installed rather than against an index. No
-        # extras on the workbench, and no compiler: this reproduces
-        # exactly what backend/requirements-dev.txt builds locally.
-        run: |
-          python -m venv backend/.venv
-          backend/.venv/bin/pip install --disable-pip-version-check -U pip
-          backend/.venv/bin/pip install --disable-pip-version-check \
-            ./.deps/mcuhome-sdk/packaging/model \
-            ./.deps/mcuhome-packagetool \
-            ./.deps/mcuhome-workbench
-          backend/.venv/bin/pip install --disable-pip-version-check -e backend --group backend/pyproject.toml:dev
-
-      - name: scripts/test pytest
-        run: scripts/test pytest
-
-  test-vitest:
-    name: Test (vitest)
-    needs: check-gates
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        with:
-          package_json_file: frontend/package.json
-
-      - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "22.13"
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: frontend
-
-      - name: scripts/test vitest
-        run: scripts/test vitest

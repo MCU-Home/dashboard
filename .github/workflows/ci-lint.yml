@@ -1,21 +1,17 @@
 # SPDX-FileCopyrightText: 2026 The MCUHome Contributors
 # SPDX-License-Identifier: Apache-2.0
 #
-# Lint gate for the dashboard: one job per wrapper in scripts/lint.d/,
-# plus a pre-check that every wrapper has a job here. This repository
-# holds two programs in two languages, so the wrappers split by
-# toolchain: ruff/codespell/reuse/hygiene run from the root .venv (no
-# frontend dependency needed), prettier/eslint/tsc from the frontend's
-# own pnpm-installed dependencies (no Python needed).
+# Lint gate: one job per wrapper in scripts/lint.d/, plus a pre-check
+# that every wrapper has a job here. Every wrapper runs the same way —
+# from the root .venv, which holds the linters and nothing else.
 #
-# The lint tools are a PEP 735 dependency group ([dependency-groups] dev
+# Those linters are a PEP 735 dependency group ([dependency-groups] dev
 # in the root pyproject.toml), not a [project.optional-dependencies]
-# extra: a group installs standalone, without the backend package or its
-# unpublished siblings (mcu-home/mcuhome-workbench, mcu-home/mcuhome-sdk)
-# — only the test gate's pytest wrapper needs those.
+# extra: a group installs standalone, and this repository declares no
+# Python project an extra could hang off.
 #
-# --group needs pip >= 25.1; each Python job upgrades pip in its fresh
-# .venv before using it.
+# --group needs pip >= 25.1; each job upgrades pip in its fresh .venv
+# before using it.
 #
 # All actions are pinned to commit SHAs, not tags.
 
@@ -39,28 +35,6 @@ jobs:
 
       - name: scripts/lint check-ci
         run: scripts/lint check-ci
-
-  lint-ruff:
-    name: Lint (ruff)
-    needs: check-gates
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.13"
-
-      - name: Create .venv and install the dev tools
-        run: |
-          python -m venv .venv
-          .venv/bin/pip install --disable-pip-version-check -U pip
-          .venv/bin/pip install --disable-pip-version-check --group dev
-
-      - name: scripts/lint ruff
-        run: scripts/lint ruff
 
   lint-codespell:
     name: Lint (codespell)
@@ -127,89 +101,3 @@ jobs:
 
       - name: scripts/lint hygiene
         run: scripts/lint hygiene
-
-  lint-prettier:
-    name: Lint (prettier)
-    needs: check-gates
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up pnpm
-        # The version comes from `packageManager` in
-        # frontend/package.json, so it is never stated twice.
-        #
-        # Not `corepack enable`, which reads the same pin: the corepack
-        # bundled with Node at this floor carries npm registry signing
-        # keys that have since been rotated, so it dies on "Cannot find
-        # matching keyid" before it ever installs anything (observed
-        # here on 22.12).
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        with:
-          package_json_file: frontend/package.json
-
-      - name: Set up Node
-        # The floor `package.json` declares, not the newest release: a
-        # gate that only ever runs a newer Node lets the declared floor
-        # rot without anyone noticing.
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "22.13"
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: frontend
-
-      - name: scripts/lint prettier
-        run: scripts/lint prettier
-
-  lint-eslint:
-    name: Lint (eslint)
-    needs: check-gates
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        with:
-          package_json_file: frontend/package.json
-
-      - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "22.13"
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: frontend
-
-      - name: scripts/lint eslint
-        run: scripts/lint eslint
-
-  lint-tsc:
-    name: Lint (tsc)
-    needs: check-gates
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        with:
-          package_json_file: frontend/package.json
-
-      - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "22.13"
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: frontend
-
-      - name: scripts/lint tsc
-        run: scripts/lint tsc

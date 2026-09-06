@@ -1,22 +1,15 @@
 # SPDX-FileCopyrightText: 2026 The MCUHome Contributors
 # SPDX-License-Identifier: Apache-2.0
 #
-# TOOL CONFIGURATION ONLY — this repository holds two programs (the
-# aiohttp backend under backend/, its own package and pyproject.toml;
-# the SvelteKit frontend under frontend/), so there is no single project
-# to declare at the root. This file exists for the tools that run over
-# the whole tree from the root .venv: codespell's settings (it looks for
-# them in the current directory, and the wrappers in scripts/lint.d/ run
-# from here) and the PEP 735 dependency group that installs those tools
-# standalone, without pulling in the backend package or its unpublished
-# siblings (mcu-home/mcuhome-sdk, mcu-home/mcuhome-workbench). ruff's own
-# settings stay in ruff.toml, which already extends
-# backend/pyproject.toml — a [tool.ruff] table here would only compete
-# with it in the same directory.
+# TOOL CONFIGURATION ONLY — this repository declares no Python project,
+# so there is nothing here to build or install. The file exists for the
+# repository-wide linters that run from the root .venv: codespell's
+# settings (it looks for them in the current directory, and the wrappers
+# in scripts/lint.d/ run from there) and the PEP 735 dependency group
+# that installs those linters and nothing else.
 
 [dependency-groups]
 dev = [
-  "ruff==0.16.1",
   "codespell==2.4.3",
   "reuse==5.0.2",
   "pre-commit-hooks==5.0.0",
@@ -24,9 +17,8 @@ dev = [
 
 # The ignored words are deliberate spellings, not slips: Requestor and
 # PASE are the Matter specification's own, OT is OpenThread, rsource is
-# Kconfig's. The frontend's installed dependencies and its lockfile are
-# skipped because their wording is not ours to correct. Moved here from
-# the CI command line so scripts/lint.d/codespell can run the plain tool.
+# Kconfig's. Held here rather than on the CI command line so
+# scripts/lint.d/codespell can run the plain tool.
 [tool.codespell]
 ignore-words-list = "requestor,pase,ot,rsource,re-declared,re-declare,re-used,unparseable,pre-empt"
-skip = "./.git,./frontend/node_modules,pnpm-lock.yaml"
+skip = "./.git"

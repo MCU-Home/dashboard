@@ -3,8 +3,13 @@
 
 * text=auto eol=lf
 
+# Windows batch files keep CRLF; the Gradle wrapper ships one.
+*.bat text eol=crlf
+
 *.png binary
 *.jpg binary
 *.gif binary
 *.ico binary
 *.woff2 binary
+*.ttf binary
+*.jar binary

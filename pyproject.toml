@@ -20,5 +20,8 @@ dev = [
 # Kconfig's. Held here rather than on the CI command line so
 # scripts/lint.d/codespell can run the plain tool.
 [tool.codespell]
-ignore-words-list = "requestor,pase,ot,rsource,re-declared,re-declare,re-used,unparseable,pre-empt"
-skip = "./.git"
+ignore-words-list = "requestor,pase,ot,rsource,re-declared,re-declare,re-used,unparseable,pre-empt,optin"
+# Skipped paths: git's own storage, and everything the Gradle and Kotlin
+# builds generate under frontend/ — build output and caches are not
+# sources and their reports are full of truncated words.
+skip = "./.git,*/build,*/build/*,./frontend/.gradle,./frontend/.kotlin"

@@ -4,6 +4,12 @@
 # this repository
 .cache/
 
+# gradle and kotlin build output (frontend/)
+.gradle/
+build/
+.kotlin/
+local.properties
+
 # ai coding agents, which live in the workspace and never in a repository
 AGENTS.md
 CLAUDE.md

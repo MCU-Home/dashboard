@@ -19,7 +19,21 @@ plugins {
 kotlin {
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
-        browser()
+        browser {
+            // The multiplatform tests are compiled to WebAssembly and run
+            // in a real browser through Karma; headless Chrome is the one
+            // the Kotlin toolchain drives out of the box.
+            testTask {
+                useKarma {
+                    useChromeHeadless()
+                }
+            }
+        }
+        // Compose bundles its Skia runtime into the executable binary,
+        // and the browser test bundle loads it from there. Without a
+        // declared executable the Compose plugin refuses to run the
+        // tests, even the ones that touch no user interface.
+        binaries.executable()
     }
 
     sourceSets {

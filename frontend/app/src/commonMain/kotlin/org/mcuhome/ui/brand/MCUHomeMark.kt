@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import org.mcuhome.ui.theme.BrandColorTokens
 import org.mcuhome.ui.theme.MCUHomeTheme
 import kotlin.math.atan2
 import kotlin.math.hypot
@@ -35,38 +36,49 @@ import kotlin.math.sqrt
 /**
  * The MCUHome mark, drawn from the geometry of the brand's logo artwork:
  * a house with a door cut out of it, four antenna pins at its sides, and
- * three signal arcs above the roof, laid out on a 64 by 64 grid.
+ * three signal arcs above the roof, laid out on a 64 by 64 grid. It is
+ * drawn rather than shipped as an image so that it stays sharp at any
+ * size.
  *
- * It is drawn rather than shipped as an image so that it takes the accent
- * and pin colors of the color scheme in force and stays sharp at any
- * size. The two colors are the only difference between the light and the
- * dark artwork.
+ * The mark is not themed. House and signal arcs keep the brand's orange
+ * in both color schemes — it is the mark's own color, not the interface's
+ * accent, and it is the same orange in the light and the dark artwork.
+ * Only the pins differ between the two, and they take the brand's pin
+ * gray, which is defined as a pair. Callers may override either color
+ * where a surface demands it; nothing in the interface does today.
  */
 @Composable
 fun MCUHomeMark(
     modifier: Modifier = Modifier,
-    accent: Color = MCUHomeTheme.colors.accent,
+    mark: Color = MARK_ORANGE,
     pin: Color = MCUHomeTheme.colors.pinGray,
 ) {
     Canvas(modifier.semantics { contentDescription = "MCUHome" }) {
         val unit = min(size.width, size.height) / GRID
         withTransform({ scale(unit, unit, pivot = Offset.Zero) }) {
-            drawSignalArcs(accent)
+            drawSignalArcs(mark)
             drawPins(pin)
-            drawHouse(accent)
+            drawHouse(mark)
         }
     }
 }
 
+/**
+ * The mark's orange: the brand's accent color as the light scheme states
+ * it, used unchanged in both schemes. Taken from the token table so the
+ * value itself lives in exactly one place.
+ */
+private val MARK_ORANGE: Color = BrandColorTokens.accent.light
+
 private const val GRID = 64f
 
-private fun DrawScope.drawSignalArcs(accent: Color) {
+private fun DrawScope.drawSignalArcs(mark: Color) {
     val arcs = Path().apply {
         signalArc(startX = 27.1f, startY = 17.1f, endX = 36.9f, endY = 17.1f, radius = 7f)
         signalArc(startX = 23.5f, startY = 13.5f, endX = 40.5f, endY = 13.5f, radius = 12f)
         signalArc(startX = 20f, startY = 10f, endX = 44f, endY = 10f, radius = 17f)
     }
-    drawPath(arcs, accent, style = Stroke(width = 3.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+    drawPath(arcs, mark, style = Stroke(width = 3.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
 }
 
 private fun DrawScope.drawPins(pin: Color) {
@@ -79,7 +91,7 @@ private fun DrawScope.drawPins(pin: Color) {
     drawPath(pins, pin)
 }
 
-private fun DrawScope.drawHouse(accent: Color) {
+private fun DrawScope.drawHouse(mark: Color) {
     val house = Path().apply {
         moveTo(16f, 36f)
         lineTo(32f, 22f)
@@ -100,8 +112,8 @@ private fun DrawScope.drawHouse(accent: Color) {
     // own color, which is what gives the roof and the corners their
     // radius; the door is cut out of body and stroke alike.
     clipPath(door, clipOp = ClipOp.Difference) {
-        drawPath(house, accent)
-        drawPath(house, accent, style = Stroke(width = 6f, join = StrokeJoin.Round))
+        drawPath(house, mark)
+        drawPath(house, mark, style = Stroke(width = 6f, join = StrokeJoin.Round))
     }
 }
 

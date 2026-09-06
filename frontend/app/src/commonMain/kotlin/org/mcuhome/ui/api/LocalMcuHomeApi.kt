@@ -3,8 +3,6 @@
 
 package org.mcuhome.ui.api
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
@@ -24,8 +22,3 @@ import androidx.compose.runtime.staticCompositionLocalOf
 val LocalMcuHomeApi = staticCompositionLocalOf<McuHomeApi> {
     error("No McuHomeApi was provided — App() installs one; a preview or a test provides its own.")
 }
-
-/** The API in force, for a composable that only reads it. */
-val currentApi: McuHomeApi
-    @Composable @ReadOnlyComposable
-    get() = LocalMcuHomeApi.current

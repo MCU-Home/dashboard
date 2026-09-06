@@ -157,12 +157,6 @@ internal val SAMPLE_SECRETS: Map<SecretScope, Map<String, String>> = buildMap {
 }
 
 /**
- * Devices whose Matter credentials have not been drawn yet still need a
- * secrets file to appear in the Devices scope of the Secrets screen.
- */
-internal val SAMPLE_SECRET_DEVICES: List<String> = SAMPLE_DEVICES.map { it.name }
-
-/**
  * The project's options, as the Project screen shows them.
  *
  * The names are the builder's own configuration keys, spelled the way a

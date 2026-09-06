@@ -16,6 +16,21 @@ indent_size = 2
 [*.{kt,kts}]
 indent_style = space
 indent_size = 4
+max_line_length = 120
+# ktlint reads its whole configuration from here. Of its two code styles
+# "intellij_idea" is the one that matches Kotlin's own official style,
+# which is what frontend/gradle.properties selects for the IDE
+# (kotlin.code.style=official); "ktlint_official" is a stricter style of
+# ktlint's own that would disagree with the formatter every editor uses.
+ktlint_code_style = intellij_idea
+# Composable functions are named like the element they emit, in upper
+# camel case — the convention the whole Compose ecosystem follows.
+ktlint_function_naming_ignore_when_annotated_with = Composable
+# Keep signatures of three parameters or more on separate lines instead of
+# letting them flip between one line and several as a parameter is added
+# or renamed. Composables collect parameters as a screen grows, so that
+# would otherwise be a steady source of unrelated diff noise.
+ktlint_function_signature_rule_force_multiline_when_parameter_count_greater_or_equal_than = 3
 
 # Windows batch files need their carriage returns; the Gradle wrapper
 # ships one.

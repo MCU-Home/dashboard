@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# detekt runs on its own default rule set (buildUponDefaultConfig); this
+# file holds only the few rules whose defaults contradict how Compose
+# code is written. Nothing here silences a rule outright — each entry
+# narrows a default that measures the wrong thing in a declarative UI.
+# Everything else detekt objects to is fixed in the code, not here.
+
+naming:
+  FunctionNaming:
+    # A composable is named after the element it emits and is written in
+    # upper camel case — the convention of the whole Compose ecosystem,
+    # and what detekt's own Compose guidance recommends configuring.
+    ignoreAnnotated: ["Composable"]
+
+complexity:
+  LongMethod:
+    # The body of a composable is a declarative tree of UI elements, not
+    # a procedure; its line count says nothing about how hard it is to
+    # read, and splitting one to satisfy a threshold only scatters the
+    # tree over several functions.
+    ignoreAnnotated: ["Composable"]
+  CyclomaticComplexMethod:
+    ignoreAnnotated: ["Composable"]
+  LongParameterList:
+    # Composables carry their state in parameters, most of which have
+    # defaults; only the ones a caller has to pass are worth counting.
+    ignoreDefaultParameters: true
+
+style:
+  MagicNumber:
+    # Color tables and design tokens are literals by nature — a constant
+    # named after its own value explains nothing.
+    ignorePropertyDeclaration: true
+  ReturnCount:
+    # An early return that rejects a case is a guard clause, whatever
+    # line it stands on; the scanners in this project are written that
+    # way throughout.
+    excludeGuardClauses: true

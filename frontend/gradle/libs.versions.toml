@@ -15,6 +15,13 @@ compose-material3 = "1.12.0-alpha03"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 navigation = "2.9.2"
+# The linters. The ktlint Gradle plugin and the ktlint engine it runs are
+# versioned separately: the plugin ships a default engine version, and
+# this pins the engine explicitly so an updated plugin cannot change the
+# rules underneath us.
+ktlintPlugin = "14.2.0"
+ktlint = "1.8.0"
+detekt = "1.23.8"
 
 [libraries]
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose" }
@@ -31,3 +38,5 @@ kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref 
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

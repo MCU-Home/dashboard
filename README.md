@@ -72,7 +72,7 @@ runs, one job per check.
 Needs Python ≥3.13 for two `.venv`s — the root one for the lint tools that
 run over `backend` and `docker`, `backend/.venv` for pytest, where
 `backend/requirements-dev.txt` adds the sibling checkouts of `mcuhome-sdk`'s
-`packaging/model` and `mcuhome-workbench` — and Node 22 with pnpm for the
+`packaging/model`, `mcuhome-packagetool`, and `mcuhome-workbench` — and Node 22 with pnpm for the
 frontend, whose dependencies `scripts/test vitest` and the frontend lint
 wrappers expect already installed.
 

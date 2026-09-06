@@ -20,6 +20,7 @@
 # supported version range is asserted at startup from
 # mcuhome/ui/versions.py, not from this file.
 -e ../../mcuhome-sdk/packaging/model
+-e ../../mcuhome-packagetool
 -e ../../mcuhome-workbench
 # The dashboard never compiles (ADR 0019); workbench pulls model and is
 # the whole runtime surface. The compiler is deliberately NOT installed,

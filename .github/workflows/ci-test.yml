@@ -56,6 +56,13 @@ jobs:
           repository: mcu-home/mcuhome-sdk
           path: .deps/mcuhome-sdk
 
+      - name: Checkout mcu-home/mcuhome-packagetool
+        # The workbench imports mcuhome.packagetool.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mcu-home/mcuhome-packagetool
+          path: .deps/mcuhome-packagetool
+
       - name: Checkout mcu-home/mcuhome-workbench
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,6 +90,7 @@ jobs:
           backend/.venv/bin/pip install --disable-pip-version-check -U pip
           backend/.venv/bin/pip install --disable-pip-version-check \
             ./.deps/mcuhome-sdk/packaging/model \
+            ./.deps/mcuhome-packagetool \
             ./.deps/mcuhome-workbench
           backend/.venv/bin/pip install --disable-pip-version-check -e backend --group backend/pyproject.toml:dev
 

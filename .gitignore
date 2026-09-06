@@ -4,6 +4,7 @@
 # this repository
 .turbo/
 .cache/
+.deps/
 
 # ai coding agents, which live in the workspace and never in a repository
 AGENTS.md

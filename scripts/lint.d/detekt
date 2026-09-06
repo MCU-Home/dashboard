@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# detekt over the front end's Kotlin sources, run through the Gradle
+# wrapper checked in with the sources. It reports; it never rewrites
+# anything. detekt's own default rule set applies, with the few
+# adjustments in frontend/gradle/detekt.yml; the detekt version is
+# pinned in frontend/gradle/libs.versions.toml.
+#
+# Extra arguments are passed through to Gradle.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+if ! command -v java >/dev/null 2>&1; then
+  echo "lint.d/detekt: no Java found. Install a JDK 21 — see README, \"Development — how to work on this repository\"." >&2
+  exit 1
+fi
+
+cd "$root/frontend"
+exec ./gradlew --console=plain detekt "$@"

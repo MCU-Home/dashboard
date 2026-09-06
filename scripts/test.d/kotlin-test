@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The front end's Kotlin Multiplatform tests, run through the Gradle
+# wrapper checked in with the sources — the wrapper fetches the Gradle
+# distribution and the Kotlin toolchain itself, so a JDK is the only
+# thing that has to be present. `allTests` runs the tests of every
+# declared target; today that is wasmJs, where the tests are compiled to
+# WebAssembly and executed in headless Chrome under Karma.
+#
+# Karma finds the browser on PATH under the names `google-chrome` and
+# `google-chrome-stable`; a browser installed anywhere else is pointed at
+# with CHROME_BIN, which this wrapper passes through untouched.
+#
+# Extra arguments are passed through to Gradle.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+if ! command -v java >/dev/null 2>&1; then
+  echo "test.d/kotlin-test: no Java found. Install a JDK 21 — see README, \"Development — how to work on this repository\"." >&2
+  exit 1
+fi
+
+cd "$root/frontend"
+exec ./gradlew --console=plain allTests "$@"

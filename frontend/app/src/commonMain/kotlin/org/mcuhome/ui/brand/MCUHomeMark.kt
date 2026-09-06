@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 The MCUHome Contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: LicenseRef-MCUHome-Brand
 
 // Every literal below is a coordinate, radius or stroke width taken
 // from the logo artwork on its 64 by 64 grid. Naming them would not

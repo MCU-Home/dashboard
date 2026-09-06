@@ -37,8 +37,8 @@ SPDX-License-Identifier = "OFL-1.1"
 # screenshots and the drawing code that renders the mark are governed by
 # the brand usage policy in LICENSES/LicenseRef-MCUHome-Brand.txt. Stated
 # as an override because the PNGs have no comment syntax that could carry
-# an SPDX header, and MCUHomeMark.kt carries its own Apache-2.0 header
-# that this override deliberately supersedes.
+# an SPDX header; MCUHomeMark.kt carries the same header inline and needs
+# the override only for consistency with the PNGs.
 [[annotations]]
 path = [
   "frontend/app/src/commonMain/kotlin/org/mcuhome/ui/brand/MCUHomeMark.kt",

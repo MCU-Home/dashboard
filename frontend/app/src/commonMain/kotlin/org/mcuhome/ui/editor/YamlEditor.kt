@@ -100,7 +100,9 @@ fun YamlEditor(
     var pointer by remember { mutableStateOf<Offset?>(null) }
     var pinnedDiagnostic by remember { mutableStateOf<EditorDiagnostic?>(null) }
 
-    val highlighting = remember(documentText, colors.darkScheme) {
+    // Keyed on the color scheme only: a new OutputTransformation instance
+    // restarts the text-input session, which drops keystrokes on wasmJs.
+    val highlighting = remember(colors.darkScheme) {
         YamlOutputTransformation(colors.spanStyles())
     }
 
@@ -267,7 +269,7 @@ private fun DiagnosticTooltip(diagnostic: EditorDiagnostic, anchor: Rect?) {
 }
 
 /** Applies the syntax colors to the text the field shows, leaving the document untouched. */
-private class YamlOutputTransformation(
+private data class YamlOutputTransformation(
     private val styles: Map<YamlToken, SpanStyle>,
 ) : OutputTransformation {
     override fun TextFieldBuffer.transformOutput() {

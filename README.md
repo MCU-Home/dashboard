@@ -40,8 +40,8 @@ installed into the system Python or into another repository's environment.
 `scripts/` holds the development tooling: `scripts/test` and `scripts/lint`
 dispatch the checks — `all` runs every one, `list` names them, `<name>` runs
 one — and each check is its own wrapper in `scripts/test.d/` or
-`scripts/lint.d/`. The wrappers select `.venv` themselves (never activate one
-by hand) and are exactly what CI runs, one job per check.
+`scripts/lint.d/`. Each wrapper picks its own tooling (never activate a
+virtual environment by hand) and is exactly what CI runs, one job per check.
 
 Needs Python ≥3.13. The `.venv` holds the linters and nothing else; they are
 the `dev` dependency group of the root `pyproject.toml`, which declares no
@@ -53,11 +53,13 @@ python3 -m venv .venv && .venv/bin/pip install --group dev
 
 ```sh
 scripts/lint all
-scripts/lint list
+scripts/test all
 ```
 
-`scripts/test` has no wrappers while the repository holds no code to test; it
-says so and passes.
+The checks are of two kinds. `codespell`, `hygiene` and `reuse` look at the
+whole tree and come from the `.venv`. `ktlint`, `detekt` and `kotlin-test`
+belong to the front end and run through its Gradle wrapper, so they need a
+JDK 21 rather than the `.venv` — see below.
 
 ### The front end
 
@@ -65,7 +67,23 @@ The front end lives in `frontend/` and is built with Gradle. It needs a JDK
 21; nothing else has to be installed, because the Gradle wrapper checked in
 with the sources fetches the Gradle distribution it needs on first use, and
 the Kotlin Gradle plugin fetches the Node-based tooling the WebAssembly
-target needs. Every command runs from `frontend/`:
+target needs. That first run therefore downloads a few hundred megabytes and
+takes a while; later runs do not.
+
+`scripts/test kotlin-test` runs the multiplatform tests. They are compiled to
+WebAssembly and executed in a real browser: Karma starts Google Chrome in
+headless mode, so Chrome has to be installed. It is found on `PATH` as
+`google-chrome` or `google-chrome-stable`; a browser somewhere else is
+pointed at with the `CHROME_BIN` environment variable.
+
+`scripts/lint ktlint` and `scripts/lint detekt` check the Kotlin sources and
+the Gradle build scripts. Both only report. What ktlint can fix by itself is
+fixed by `cd frontend && ./gradlew ktlintFormat`. ktlint takes its rules from
+the repository's `.editorconfig`, detekt from its own defaults plus the few
+adjustments in `frontend/gradle/detekt.yml`; the version of each tool is
+pinned in `frontend/gradle/libs.versions.toml`.
+
+Every command below runs from `frontend/`:
 
 ```sh
 cd frontend

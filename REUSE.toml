@@ -1,5 +1,5 @@
 version = 1
-SPDX-PackageName = "MCUHome Dashboard"
+SPDX-PackageName = "mcuhome-ui"
 SPDX-PackageSupplier = "The MCUHome Contributors"
 SPDX-PackageDownloadLocation = "https://github.com/mcu-home/mcuhome-ui"
 

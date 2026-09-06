@@ -162,20 +162,20 @@ Pairs below are given as light → dark.
 | bg-alt | `#f4efe9` | `#231d17` |
 | pin-gray | `#b0a89e` | `#8a8078` |
 | success | `#3a7d44` | `#5cab6b` |
-| success tint | `#e9f2ea` | — |
-| success tint-border | `#c5dcc9` | — |
+| success tint | `#e9f2ea` | `#292219` |
+| success tint-border | `#c5dcc9` | `#5cab6b` |
 | success on-tint | `#2d6336` | `#5cab6b` |
 | info | `#2e6ca4` | `#6aa5d8` |
-| info tint | `#e7eff6` | — |
-| info tint-border | `#c2d6e6` | — |
+| info tint | `#e7eff6` | `#292219` |
+| info tint-border | `#c2d6e6` | `#6aa5d8` |
 | info on-tint | `#26597f` | `#6aa5d8` |
 | warning | `#b07d0a` | `#d99a1e` |
-| warning tint | `#f7f0da` | — |
-| warning tint-border | `#e2d3a8` | — |
+| warning tint | `#f7f0da` | `#292219` |
+| warning tint-border | `#e2d3a8` | `#d99a1e` |
 | warning on-tint | `#8a6106` | `#d99a1e` |
 | error | `#b3332b` | `#dd6a5f` |
-| error tint | `#f7e9e7` | — |
-| error tint-border | `#e3c2bd` | — |
+| error tint | `#f7e9e7` | `#292219` |
+| error tint-border | `#e3c2bd` | `#dd6a5f` |
 | error on-tint | `#8f2822` | `#dd6a5f` |
 
 Fonts: Sora 400/600/700 for the wordmark and headings, the system sans-serif

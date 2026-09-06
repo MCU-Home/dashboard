@@ -56,7 +56,7 @@ only the metadata that makes it installable in Home Assistant.
 | `backend/` | The Python package `mcuhome.ui` and its test suite |
 | `frontend/` | The single-page application and its test suite |
 | `docker/` | The two-target Dockerfile and the Home Assistant entry point |
-| `docs/` | Decision records for this repository |
+| `docs/` | The approved design reference (`docs/design/`): rendered screens and design notes |
 
 ## Development — how to work on this repository
 

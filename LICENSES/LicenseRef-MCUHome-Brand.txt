@@ -1,0 +1,23 @@
+MCUHome Brand Usage Policy
+
+The MCUHome name, logo, and wordmark (the "Marks") identify the MCUHome
+project (https://github.com/MCU-Home).
+
+Permitted without prior permission:
+- Using unmodified Marks to refer to the MCUHome project, its software,
+  or works compatible with it (articles, documentation, tutorials,
+  package listings, "works with MCUHome" statements), provided the use
+  does not suggest affiliation with, sponsorship by, or endorsement by
+  the MCUHome project.
+
+Not permitted without prior written permission:
+- Using the Marks, or any confusingly similar sign, as or within the
+  name, logo, or identity of another project, product, organization,
+  service, or domain.
+- Using the Marks in any way that suggests affiliation with,
+  sponsorship by, or endorsement by the MCUHome project.
+- Distributing modified versions of the Marks.
+
+All rights in the Marks are reserved. This policy grants no rights
+beyond the permitted uses above. Contact the MCUHome maintainers via
+the MCU-Home GitHub organization for permission requests.

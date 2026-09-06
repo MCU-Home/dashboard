@@ -32,3 +32,18 @@ path = "frontend/app/src/commonMain/composeResources/font/**.ttf"
 precedence = "override"
 SPDX-FileCopyrightText = "2019 The Sora Project Authors <https://github.com/sora-xor/sora-font>"
 SPDX-License-Identifier = "OFL-1.1"
+
+# These files carry the project's mark, not Apache-2.0 code: the design
+# screenshots and the drawing code that renders the mark are governed by
+# the brand usage policy in LICENSES/LicenseRef-MCUHome-Brand.txt. Stated
+# as an override because the PNGs have no comment syntax that could carry
+# an SPDX header, and MCUHomeMark.kt carries its own Apache-2.0 header
+# that this override deliberately supersedes.
+[[annotations]]
+path = [
+  "frontend/app/src/commonMain/kotlin/org/mcuhome/ui/brand/MCUHomeMark.kt",
+  "docs/design/*.png",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 The MCUHome Contributors"
+SPDX-License-Identifier = "LicenseRef-MCUHome-Brand"

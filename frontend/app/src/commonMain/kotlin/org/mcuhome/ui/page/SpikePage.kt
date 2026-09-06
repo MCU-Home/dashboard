@@ -80,7 +80,7 @@ fun SpikePage(modifier: Modifier = Modifier) {
                 line = 26,
                 message = "hardware.peripherals.relay — no pin given; the driver default GPIO5 is used.",
                 severity = DiagnosticSeverity.Warning,
-            )
+            ),
         )
     }
 

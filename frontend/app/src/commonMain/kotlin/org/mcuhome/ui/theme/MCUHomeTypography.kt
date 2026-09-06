@@ -21,11 +21,7 @@ import org.mcuhome.ui.resource.sora_semibold
  * interface must not depend on a font server being reachable.
  */
 @Immutable
-data class MCUHomeTypography(
-    val heading: FontFamily,
-    val body: FontFamily,
-    val mono: FontFamily,
-)
+data class MCUHomeTypography(val heading: FontFamily, val body: FontFamily, val mono: FontFamily)
 
 @Composable
 fun rememberMCUHomeTypography(): MCUHomeTypography = MCUHomeTypography(

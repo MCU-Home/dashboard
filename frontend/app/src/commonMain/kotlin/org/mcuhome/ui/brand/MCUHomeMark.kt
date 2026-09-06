@@ -1,6 +1,11 @@
 // SPDX-FileCopyrightText: 2026 The MCUHome Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+// Every literal below is a coordinate, radius or stroke width taken
+// from the logo artwork on its 64 by 64 grid. Naming them would not
+// explain anything the drawing does not already say.
+@file:Suppress("MagicNumber")
+
 package org.mcuhome.ui.brand
 
 import androidx.compose.foundation.Canvas
@@ -21,11 +26,11 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import org.mcuhome.ui.theme.MCUHomeTheme
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.sqrt
-import org.mcuhome.ui.theme.MCUHomeTheme
 
 /**
  * The MCUHome mark, drawn from the geometry of the brand's logo artwork:
@@ -88,7 +93,7 @@ private fun DrawScope.drawHouse(accent: Color) {
             RoundRect(
                 rect = Rect(offset = Offset(27f, 43f), size = Size(10f, 14f)),
                 cornerRadius = CornerRadius(3f, 3f),
-            )
+            ),
         )
     }
     // The artwork widens the house body with a round-joined stroke of its
@@ -104,7 +109,7 @@ private fun Path.pinAt(x: Float, y: Float) = addRoundRect(
     RoundRect(
         rect = Rect(offset = Offset(x, y), size = Size(8f, 5f)),
         cornerRadius = CornerRadius(2f, 2f),
-    )
+    ),
 )
 
 /**
@@ -113,7 +118,13 @@ private fun Path.pinAt(x: Float, y: Float) = addRoundRect(
  * bending it away from the house. Compose describes an arc by its
  * bounding box and two angles, so the center has to be reconstructed.
  */
-private fun Path.signalArc(startX: Float, startY: Float, endX: Float, endY: Float, radius: Float) {
+private fun Path.signalArc(
+    startX: Float,
+    startY: Float,
+    endX: Float,
+    endY: Float,
+    radius: Float,
+) {
     val chord = hypot(endX - startX, endY - startY)
     val halfChord = chord / 2f
     val distanceToCenter = sqrt((radius * radius - halfChord * halfChord).coerceAtLeast(0f))

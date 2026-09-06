@@ -20,7 +20,11 @@ import org.mcuhome.ui.theme.MCUHomeTheme
  * disappears when its screen arrives.
  */
 @Composable
-fun PlaceholderPage(title: String, description: String, modifier: Modifier = Modifier) {
+fun PlaceholderPage(
+    title: String,
+    description: String,
+    modifier: Modifier = Modifier,
+) {
     val colors = MCUHomeTheme.colors
     Column(modifier.fillMaxSize().padding(32.dp)) {
         Text(

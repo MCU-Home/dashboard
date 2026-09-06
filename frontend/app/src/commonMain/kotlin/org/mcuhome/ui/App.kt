@@ -78,9 +78,6 @@ fun App(onNavHostReady: suspend (NavHostController) -> Unit = {}) {
 }
 
 @Composable
-private fun LaunchNavHostReady(
-    navController: NavHostController,
-    onNavHostReady: suspend (NavHostController) -> Unit,
-) {
+private fun LaunchNavHostReady(navController: NavHostController, onNavHostReady: suspend (NavHostController) -> Unit) {
     LaunchedEffect(navController) { onNavHostReady(navController) }
 }

@@ -48,9 +48,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.roundToInt
 import org.mcuhome.ui.theme.MCUHomeColors
 import org.mcuhome.ui.theme.MCUHomeTheme
+import kotlin.math.roundToInt
 
 /**
  * A YAML editor: a line-number gutter, syntax highlighting, and the
@@ -131,7 +131,7 @@ fun YamlEditor(
                             }
                         }
                     }
-                }
+                },
         ) {
             val result = layout ?: return@Canvas
             translate(top = contentOffset.y - scrollState.value) {
@@ -174,7 +174,7 @@ fun YamlEditor(
                             }
                         }
                     }
-                }
+                },
         ) {
             Canvas(Modifier.fillMaxSize()) {
                 val result = layout ?: return@Canvas
@@ -218,7 +218,7 @@ fun YamlEditor(
                     diagnostics.firstOrNull { diagnostic ->
                         underlineRect(result, lineStarts, documentText, diagnostic)
                             ?.translate(contentOffset.x, contentOffset.y - scrollState.value)
-                            ?.inflate(6f)
+                            ?.inflate(HOVER_TOLERANCE)
                             ?.contains(position) == true
                     }
                 }
@@ -257,7 +257,7 @@ private fun DiagnosticTooltip(diagnostic: EditorDiagnostic, anchor: Rect?) {
             }
             .background(colors.surface, RoundedCornerShape(6.dp))
             .border(1.dp, colors.border, RoundedCornerShape(6.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Text(
             text = diagnostic.message,
@@ -269,9 +269,7 @@ private fun DiagnosticTooltip(diagnostic: EditorDiagnostic, anchor: Rect?) {
 }
 
 /** Applies the syntax colors to the text the field shows, leaving the document untouched. */
-private data class YamlOutputTransformation(
-    private val styles: Map<YamlToken, SpanStyle>,
-) : OutputTransformation {
+private data class YamlOutputTransformation(private val styles: Map<YamlToken, SpanStyle>) : OutputTransformation {
     override fun TextFieldBuffer.transformOutput() {
         highlightYaml(asCharSequence()).forEach { span ->
             styles[span.token]?.let { addStyle(it, span.start, span.end) }
@@ -287,12 +285,11 @@ private fun MCUHomeColors.spanStyles(): Map<YamlToken, SpanStyle> = mapOf(
     YamlToken.Comment to SpanStyle(color = editorComment),
 )
 
-private fun MCUHomeColors.severityColor(diagnostic: EditorDiagnostic): Color =
-    when (diagnostic.severity) {
-        DiagnosticSeverity.Error -> error
-        DiagnosticSeverity.Warning -> warning
-        DiagnosticSeverity.Info -> info
-    }
+private fun MCUHomeColors.severityColor(diagnostic: EditorDiagnostic): Color = when (diagnostic.severity) {
+    DiagnosticSeverity.Error -> error
+    DiagnosticSeverity.Warning -> warning
+    DiagnosticSeverity.Info -> info
+}
 
 private fun lineStartOffsets(text: String): List<Int> {
     val starts = mutableListOf(0)
@@ -306,13 +303,24 @@ private fun lineIndexOf(lineStarts: List<Int>, offset: Int): Int? {
     return index.takeIf { it >= 0 }
 }
 
-private fun lineAtY(result: TextLayoutResult, y: Float, lineStarts: List<Int>): Int? {
+private fun lineAtY(
+    result: TextLayoutResult,
+    y: Float,
+    lineStarts: List<Int>,
+): Int? {
     val visualLine = result.getLineForVerticalPosition(y)
     val offset = result.getLineStart(visualLine)
     return lineIndexOf(lineStarts, offset)
 }
 
+/**
+ * How far outside its underline a diagnostic still reacts to the
+ * pointer, in pixels — a line of squiggle is too thin to hit exactly.
+ */
+private const val HOVER_TOLERANCE = 6f
+
 /** The stretch of a line a diagnostic underlines: its content, without the indent. */
+@Suppress("ReturnCount")
 private fun underlineRect(
     result: TextLayoutResult,
     lineStarts: List<Int>,

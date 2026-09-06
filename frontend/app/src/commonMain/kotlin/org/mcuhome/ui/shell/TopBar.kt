@@ -114,7 +114,11 @@ fun TopBar(
 }
 
 @Composable
-private fun NavigationItem(destination: Destination, active: Boolean, onClick: () -> Unit) {
+private fun NavigationItem(
+    destination: Destination,
+    active: Boolean,
+    onClick: () -> Unit,
+) {
     val colors = MCUHomeTheme.colors
     // No hover or press indication: the design marks the active item with
     // the accent underline and nothing else.
@@ -147,6 +151,9 @@ private fun NavigationItem(destination: Destination, active: Boolean, onClick: (
     }
 }
 
+/** How long one half of the jobs dot's pulse takes, in milliseconds. */
+private const val JOBS_PULSE_MILLIS = 900
+
 @Composable
 private fun JobsChip(runningJobs: Int) {
     val colors = MCUHomeTheme.colors
@@ -154,7 +161,7 @@ private fun JobsChip(runningJobs: Int) {
     val dotAlpha by pulse.animateFloat(
         initialValue = 1f,
         targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(JOBS_PULSE_MILLIS), RepeatMode.Reverse),
         label = "jobs-dot-alpha",
     )
 
@@ -172,7 +179,7 @@ private fun JobsChip(runningJobs: Int) {
                 .size(7.dp)
                 .alpha(dotAlpha)
                 .clip(CircleShape)
-                .background(colors.accent)
+                .background(colors.accent),
         )
         Text(
             text = "$runningJobs running",
@@ -194,7 +201,7 @@ private fun ConnectionState(connected: Boolean) {
             Modifier
                 .size(7.dp)
                 .clip(CircleShape)
-                .background(if (connected) colors.success else colors.error)
+                .background(if (connected) colors.success else colors.error),
         )
         Text(
             text = if (connected) "connected" else "disconnected",

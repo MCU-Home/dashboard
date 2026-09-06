@@ -27,10 +27,12 @@ private val LocalMCUHomeTypography = staticCompositionLocalOf {
 /** The brand colors and type roles in scope, for any composable below [MCUHomeTheme]. */
 object MCUHomeTheme {
     val colors: MCUHomeColors
-        @Composable @ReadOnlyComposable get() = LocalMCUHomeColors.current
+        @Composable @ReadOnlyComposable
+        get() = LocalMCUHomeColors.current
 
     val typography: MCUHomeTypography
-        @Composable @ReadOnlyComposable get() = LocalMCUHomeTypography.current
+        @Composable @ReadOnlyComposable
+        get() = LocalMCUHomeTypography.current
 }
 
 /**
@@ -44,10 +46,7 @@ object MCUHomeTheme {
  * introduce a color of their own.
  */
 @Composable
-fun MCUHomeTheme(
-    darkScheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit,
-) {
+fun MCUHomeTheme(darkScheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val colors = remember(darkScheme) { MCUHomeColors(darkScheme) }
     val typography = rememberMCUHomeTypography()
 

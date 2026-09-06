@@ -38,7 +38,16 @@ fun highlightYaml(text: CharSequence): List<YamlSpan> {
     return spans
 }
 
-private fun scanLine(text: CharSequence, lineStart: Int, lineEnd: Int, out: MutableList<YamlSpan>) {
+// A lexer decides one thing per character class and leaves as soon as a
+// line turns out to hold nothing more; both counts are what that shape
+// costs, not a sign the function does too much.
+@Suppress("CyclomaticComplexMethod", "ReturnCount")
+private fun scanLine(
+    text: CharSequence,
+    lineStart: Int,
+    lineEnd: Int,
+    out: MutableList<YamlSpan>,
+) {
     var cursor = lineStart
     while (cursor < lineEnd && (text[cursor] == ' ' || text[cursor] == '\t')) cursor++
     if (cursor >= lineEnd) return
@@ -75,7 +84,12 @@ private fun scanLine(text: CharSequence, lineStart: Int, lineEnd: Int, out: Muta
     scanValue(text, valueStart, contentEnd, out)
 }
 
-private fun scanValue(text: CharSequence, start: Int, end: Int, out: MutableList<YamlSpan>) {
+private fun scanValue(
+    text: CharSequence,
+    start: Int,
+    end: Int,
+    out: MutableList<YamlSpan>,
+) {
     var cursor = start
     if (text[cursor] == '!') {
         var tagEnd = cursor
@@ -91,14 +105,17 @@ private fun scanValue(text: CharSequence, start: Int, end: Int, out: MutableList
     out += YamlSpan(cursor, cursor + scalar.length, token)
 }
 
-private fun isNumber(scalar: String): Boolean =
-    scalar.toDoubleOrNull() != null ||
-        (scalar.startsWith("0x") && scalar.drop(2).isNotEmpty() && scalar.drop(2).all { it.isHexDigit() })
+private fun isNumber(scalar: String): Boolean = scalar.toDoubleOrNull() != null ||
+    (scalar.startsWith("0x") && scalar.drop(2).isNotEmpty() && scalar.drop(2).all { it.isHexDigit() })
 
 private fun Char.isHexDigit(): Boolean = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
 
 /** The first `:` that ends a key: followed by a space or by the end of the content, outside quotes. */
-private fun findKeyColon(text: CharSequence, start: Int, end: Int): Int? {
+private fun findKeyColon(
+    text: CharSequence,
+    start: Int,
+    end: Int,
+): Int? {
     var quote: Char? = null
     for (index in start until end) {
         val char = text[index]
@@ -112,7 +129,11 @@ private fun findKeyColon(text: CharSequence, start: Int, end: Int): Int? {
 }
 
 /** The `#` that starts a trailing comment: preceded by a space, outside quotes. */
-private fun findTrailingComment(text: CharSequence, start: Int, end: Int): Int? {
+private fun findTrailingComment(
+    text: CharSequence,
+    start: Int,
+    end: Int,
+): Int? {
     var quote: Char? = null
     for (index in start until end) {
         val char = text[index]

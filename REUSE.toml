@@ -23,3 +23,12 @@ path = [
 precedence = "override"
 SPDX-FileCopyrightText = "Gradle Inc."
 SPDX-License-Identifier = "Apache-2.0"
+
+# The Sora typeface, bundled as an application resource. It is not this
+# project's work and carries its own license; the files are binary and
+# cannot hold a header.
+[[annotations]]
+path = "frontend/app/src/commonMain/composeResources/font/**.ttf"
+precedence = "override"
+SPDX-FileCopyrightText = "2019 The Sora Project Authors <https://github.com/sora-xor/sora-font>"
+SPDX-License-Identifier = "OFL-1.1"

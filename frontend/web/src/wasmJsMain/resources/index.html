@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<!--
+SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+SPDX-License-Identifier: Apache-2.0
+
+The page the application starts from. The script is referenced without a
+leading slash on purpose: the whole distribution addresses itself
+relatively, so it can be served from the site root as well as from a base
+path.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <title>MCUHome</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: light-dark(#fdfbf8, #1d1815);
+      }
+      canvas {
+        outline: none;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="mcuhome-ui.js"></script>
+  </body>
+</html>

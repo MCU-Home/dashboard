@@ -2,9 +2,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Test gate: one job per wrapper in scripts/test.d/, plus a pre-check
-# that every wrapper has a job here. There are no wrappers yet — the
-# repository holds no code to test — so the pre-check is the whole gate
-# for now, and it fails the moment a wrapper is added without its job.
+# that every wrapper has a job here.
+#
+# The front-end tests are compiled to WebAssembly and run in headless
+# Chrome under Karma, which the Kotlin Gradle plugin starts itself. The
+# Ubuntu runner image ships Google Chrome, so nothing installs a browser;
+# everything else the build needs — the Gradle distribution, the Kotlin
+# toolchain, the Node-based Wasm tooling — the checked-in Gradle wrapper
+# fetches on its own. Only the JDK comes from an action.
 #
 # All actions are pinned to commit SHAs, not tags.
 
@@ -28,3 +33,28 @@ jobs:
 
       - name: scripts/test check-ci
         run: scripts/test check-ci
+
+  test-kotlin-test:
+    name: Test (kotlin-test)
+    needs: check-gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up the JDK
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          build-root-directory: frontend
+          # Dependency-graph submission writes to the repository's
+          # dependency graph; this workflow only reads.
+          dependency-graph: disabled
+
+      - name: scripts/test kotlin-test
+        run: scripts/test kotlin-test

@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2026 The MCUHome Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Build gate: proves that the front end still produces a distribution.
+# The result — the static files a web server hands to the browser — is
+# kept as a workflow artifact so a build can be looked at without
+# reproducing it locally. It is a check, not a release: the retention is
+# short and nothing downstream consumes it.
+#
+# The checked-in Gradle wrapper fetches the Gradle distribution, the
+# Kotlin toolchain and the Node-based WebAssembly tooling itself, so the
+# JDK is the only thing an action installs.
+#
+# All actions are pinned to commit SHAs, not tags.
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-frontend:
+    name: Build the front end
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up the JDK
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          build-root-directory: frontend
+          # Dependency-graph submission writes to the repository's
+          # dependency graph; this workflow only reads.
+          dependency-graph: disabled
+
+      - name: Build the distribution
+        working-directory: frontend
+        run: ./gradlew --console=plain :web:wasmJsBrowserDistribution
+
+      - name: Upload the distribution
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: frontend-distribution
+          path: frontend/web/build/dist/wasmJs/productionExecutable/
+          if-no-files-found: error
+          retention-days: 7

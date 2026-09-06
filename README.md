@@ -18,16 +18,19 @@ the tree.
 The front end is Kotlin / Compose Multiplatform, built for the web platform
 first. What exists so far is the application shell: the top bar, the
 navigation tied to the browser's address bar and history, the theme built
-from the brand tokens, and a placeholder for each screen. The back end — a
-Python service on top of
+from the brand tokens, and a placeholder for each screen. It talks to an
+in-memory mock of the API described in [`docs/api.md`](docs/api.md), so
+screens can be built before the back end exists. The back end — a Python
+service on top of
 [mcuhome-workbench](https://github.com/mcu-home/mcuhome-workbench), talking
-to the front end only through an API over HTTP and WebSocket — is still to
-come.
+to the front end only through that API over HTTP and WebSocket — is still
+to come.
 
 ## Layout
 
 | Path | Purpose |
 |---|---|
+| `docs/api.md` | The API between the front end and the back end |
 | `docs/design/` | The design reference: rendered screens and design notes |
 | `frontend/` | The Kotlin / Compose Multiplatform front end |
 | `scripts/` | The development gates — the `test` and `lint` dispatchers and their wrappers |

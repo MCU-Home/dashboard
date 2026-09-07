@@ -61,3 +61,17 @@ fun editorDiagnostics(diagnostics: List<Diagnostic>): List<EditorDiagnostic> = d
         },
     )
 }
+
+/**
+ * How many blank lines the editor keeps below the last one.
+ *
+ * Without them the last line of a file sits on the lower edge of the
+ * column while it is being typed, which is where a text cursor is
+ * hardest to read. The lines are added to what the editor *shows*, never
+ * to the document: they carry no line number, the caret cannot reach
+ * them, and nothing of them is ever saved.
+ */
+const val EDITOR_OVERSCROLL_LINES: Int = 8
+
+/** The blank lines themselves, as the output transformation appends them. */
+fun overscrollText(lines: Int = EDITOR_OVERSCROLL_LINES): String = "\n".repeat(lines.coerceAtLeast(0))

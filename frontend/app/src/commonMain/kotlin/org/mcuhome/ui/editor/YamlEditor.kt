@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -30,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -58,6 +60,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
+import org.mcuhome.ui.component.ThinHorizontalScrollbar
+import org.mcuhome.ui.component.ThinVerticalScrollbar
 import org.mcuhome.ui.theme.MCUHomeColors
 import org.mcuhome.ui.theme.MCUHomeTheme
 import kotlin.math.roundToInt
@@ -144,7 +148,9 @@ fun YamlEditor(
 
     // Keyed on the color scheme only: a new OutputTransformation instance
     // restarts the text-input session, which drops keystrokes on wasmJs.
-    val highlighting = remember(colors.darkScheme) { YamlOutputTransformation(colors.spanStyles()) }
+    val highlighting = remember(colors.darkScheme) {
+        YamlOutputTransformation(colors.spanStyles(), EDITOR_OVERSCROLL_LINES)
+    }
 
     // The width the longest line needs, so nothing has to wrap. Only that
     // one line is measured, and only when the document changes.
@@ -159,6 +165,11 @@ fun YamlEditor(
                 .width(GutterWidth)
                 .fillMaxHeight()
                 .background(colors.backgroundAlt)
+                // The numbers are drawn at the document's coordinates and
+                // shifted by the scroll offset, so a scrolled document puts
+                // them above the top edge. Without this they are painted
+                // over the header and the top bar.
+                .clipToBounds()
                 .pointerInput(diagnostics, layout) {
                     awaitPointerEventScope {
                         while (true) {
@@ -283,6 +294,9 @@ fun YamlEditor(
                     }
                 }
             }
+
+            ThinVerticalScrollbar(verticalScroll, Modifier.align(Alignment.TopEnd).fillMaxHeight())
+            ThinHorizontalScrollbar(horizontalScroll, Modifier.align(Alignment.BottomStart).fillMaxWidth())
         }
     }
 
@@ -354,11 +368,15 @@ private fun DiagnosticTooltip(
 }
 
 /** Applies the syntax colors to the text the field shows, leaving the document untouched. */
-private data class YamlOutputTransformation(private val styles: Map<YamlToken, SpanStyle>) : OutputTransformation {
+private data class YamlOutputTransformation(
+    private val styles: Map<YamlToken, SpanStyle>,
+    private val trailingBlankLines: Int,
+) : OutputTransformation {
     override fun TextFieldBuffer.transformOutput() {
         highlightYaml(asCharSequence()).forEach { span ->
             styles[span.token]?.let { addStyle(it, span.start, span.end) }
         }
+        append(overscrollText(trailingBlankLines))
     }
 }
 

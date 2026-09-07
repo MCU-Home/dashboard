@@ -109,6 +109,9 @@ internal class MockBuildEngine(private val context: MockContext, private val sco
     fun status(buildId: String): BuildSnapshot =
         runs[buildId]?.snapshot ?: throw notFound("There is no build with the id \"$buildId\".")
 
+    /** The files of a build this engine ran, or null when it never ran one. */
+    fun artifactsOrNull(buildId: String): List<ArtifactInfo>? = runs[buildId]?.snapshot?.artifacts
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun stream(buildId: String): Flow<BuildEvent> {
         val run = runs[buildId] ?: throw notFound("There is no build with the id \"$buildId\".")

@@ -3,7 +3,6 @@
 
 package org.mcuhome.ui.api.mock
 
-import kotlinx.coroutines.flow.update
 import org.mcuhome.ui.api.PairingApi
 import org.mcuhome.ui.api.PairingCredentials
 import org.mcuhome.ui.api.PairingDrawResult
@@ -49,19 +48,23 @@ internal class MockPairingApi(private val context: MockContext) : PairingApi {
             )
         }
         val credentials = drawCredentials(device, known.pairing != null)
-        val updated = known.copy(pairing = credentials, text = withPairingReferences(known.text))
-        context.state.update { state ->
-            state.withDevice(updated).copy(
-                secrets = state.secrets + (
-                    SecretScope.Device(device) to linkedMapOf(
-                        "matter_discriminator" to credentials.discriminator.toString(),
-                        "matter_passcode" to credentials.passcode.toString(),
-                        "matter_salt" to "U1BBS0UyUCBTYW1wbGUgU2FsdA==",
-                        "matter_iterations" to "1000",
-                    )
-                    ),
-            )
-        }
+        val text = withPairingReferences(known.text)
+        // Adding the two `!secret` lines changes the file, so the file
+        // gets a new revision: an editor that still holds the old one is
+        // told that it lost the race instead of writing over the change.
+        val state = context.state.value
+        val (revision, next) = if (text == known.text) known.revision to state else state.nextRevision()
+        val updated = known.copy(pairing = credentials, text = text, revision = revision)
+        context.state.value = next.withDevice(updated).copy(
+            secrets = next.secrets + (
+                SecretScope.Device(device) to linkedMapOf(
+                    "matter_discriminator" to credentials.discriminator.toString(),
+                    "matter_passcode" to credentials.passcode.toString(),
+                    "matter_salt" to "U1BBS0UyUCBTYW1wbGUgU2FsdA==",
+                    "matter_iterations" to "1000",
+                )
+                ),
+        )
         context.deviceChanged(updated)
         return PairingDrawResult(credentials, replaced = known.pairing != null)
     }

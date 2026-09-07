@@ -132,17 +132,25 @@ private class MockBuildApi(private val context: MockContext, private val engine:
 
     override fun stream(buildId: String): Flow<BuildEvent> = engine.stream(buildId)
 
-    override suspend fun artifacts(buildId: String): List<ArtifactInfo> = engine.status(buildId).artifacts
+    override suspend fun artifacts(buildId: String): List<ArtifactInfo> = artifactsOf(buildId)
 
     override suspend fun download(buildId: String, path: String): ArtifactDownload {
-        val artifact = engine.status(buildId).artifacts.firstOrNull { it.path == path }
+        val artifact = artifactsOf(buildId).firstOrNull { it.path == path }
             ?: throw notFound("The build \"$buildId\" produced no file called \"$path\".")
         return ArtifactDownload(
-            url = "/api/build/$buildId/artifact/$path",
+            url = mockArtifactUrl(artifact),
             fileName = artifact.fileName,
             sizeBytes = artifact.sizeBytes,
         )
     }
+
+    /**
+     * The files of a build, whether it ran in this session or is the last
+     * good build a device carries from the sample project.
+     */
+    private fun artifactsOf(buildId: String): List<ArtifactInfo> = engine.artifactsOrNull(buildId)
+        ?: context.state.value.devices.firstOrNull { it.lastGoodBuild?.buildId == buildId }?.artifacts
+        ?: emptyList()
 
     override suspend fun sign(device: String): BuildSnapshot {
         val known = context.requireDevice(device)

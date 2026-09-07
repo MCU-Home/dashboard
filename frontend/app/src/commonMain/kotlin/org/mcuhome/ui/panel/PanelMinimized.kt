@@ -22,8 +22,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.api.StageState
@@ -36,7 +38,26 @@ private val ProgressBarWidth = 220.dp
 
 /** The strip reads from top to bottom: a quarter turn clockwise. */
 private const val QUARTER_TURN = 90f
-private val StripTextHeight = 160.dp
+
+/**
+ * Lays its content out sideways: measured as wide as it wants to be, but
+ * reported — and drawn — turned a quarter clockwise, so a line of text
+ * reads from top to bottom in a strip that is narrower than the words.
+ *
+ * Rotating with a draw modifier alone would leave the layout thinking the
+ * text is still lying flat, and the column around it would reserve the
+ * wrong space.
+ */
+private fun Modifier.turnedSideways(): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(Constraints(maxHeight = constraints.maxWidth))
+    layout(placeable.height, placeable.width) {
+        placeable.placeWithLayer(x = 0, y = 0) {
+            rotationZ = QUARTER_TURN
+            transformOrigin = TransformOrigin(0f, 0f)
+            translationX = placeable.height.toFloat()
+        }
+    }
+}
 
 /**
  * The panel as a status bar across the bottom of the page: what the build
@@ -218,15 +239,14 @@ fun PanelMinimizedStrip(
             )
             val stage = data.build.snapshot?.stages?.firstOrNull { it.state == StageState.Running }
             if (stage != null) {
-                Box(Modifier.height(StripTextHeight), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = stageLabel(stage.stage, stage.progress, stage.durationMillis),
-                        color = colors.accent,
-                        fontFamily = MCUHomeTheme.typography.body,
-                        fontSize = 12.sp,
-                        modifier = Modifier.width(StripTextHeight).rotate(QUARTER_TURN),
-                    )
-                }
+                Text(
+                    text = stageLabel(stage.stage, stage.progress, stage.durationMillis),
+                    color = colors.accent,
+                    fontFamily = MCUHomeTheme.typography.body,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    modifier = Modifier.padding(top = 8.dp).turnedSideways(),
+                )
                 Box(
                     Modifier
                         .width(6.dp)

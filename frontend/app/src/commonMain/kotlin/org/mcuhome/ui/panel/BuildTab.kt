@@ -5,8 +5,10 @@ package org.mcuhome.ui.panel
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -41,6 +44,9 @@ import org.mcuhome.ui.theme.MCUHomeTheme
 import org.mcuhome.ui.time.formatTimeOfDaySeconds
 
 private val StageRowHeight = 38.dp
+
+/** Below this width the stage row puts its progress bar on its own line. */
+private val StageRowWideWidth = 640.dp
 private val FooterHeight = 34.dp
 
 /**
@@ -76,22 +82,44 @@ fun BuildTab(
     }
 }
 
+/**
+ * The five stages and how far the build has come.
+ *
+ * The bar sits between the stages while there is room for it — which is
+ * how the design draws it, and how it reads when the panel is docked
+ * along the bottom. In a panel docked at the side the stages alone fill
+ * the width, so the bar moves to a line of its own and the stages scroll
+ * rather than overlap each other.
+ */
 @Composable
 private fun StageRow(run: BuildRun) {
     val snapshot = run.snapshot ?: return
-    Row(
-        modifier = Modifier.fillMaxWidth().height(StageRowHeight).padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        snapshot.stages.forEach { status ->
-            Stage(status)
-            if (status.state == StageState.Running) {
-                ProgressBar(run.progressFraction(), Modifier.weight(1f))
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val wide = maxWidth >= StageRowWideWidth
+        if (wide) {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(StageRowHeight).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                val running = snapshot.stages.indexOfFirst { it.state == StageState.Running }
+                snapshot.stages.forEachIndexed { index, status ->
+                    Stage(status)
+                    if (index == running) ProgressBar(run.progressFraction(), Modifier.weight(1f))
+                }
+                if (running < 0) ProgressBar(run.progressFraction(), Modifier.weight(1f))
             }
-        }
-        if (snapshot.stages.none { it.state == StageState.Running }) {
-            ProgressBar(run.progressFraction(), Modifier.weight(1f))
+        } else {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    snapshot.stages.forEach { status -> Stage(status) }
+                }
+                ProgressBar(run.progressFraction(), Modifier.fillMaxWidth().padding(top = 8.dp))
+            }
         }
     }
 }

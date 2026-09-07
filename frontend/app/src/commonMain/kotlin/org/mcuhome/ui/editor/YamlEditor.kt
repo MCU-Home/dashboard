@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -29,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -57,6 +57,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
 import org.mcuhome.ui.theme.MCUHomeColors
 import org.mcuhome.ui.theme.MCUHomeTheme
 import kotlin.math.roundToInt
@@ -79,6 +80,9 @@ private const val HOVER_TOLERANCE = 6f
 
 /** How far above the top edge a line jumped to is placed. */
 private val JUMP_MARGIN = 60.dp
+
+/** Roughly how tall the message box is; enough to decide which side of the line it goes on. */
+private val TooltipHeight = 34.dp
 
 /**
  * A YAML editor: a line-number gutter, syntax highlighting, and the
@@ -200,6 +204,7 @@ fun YamlEditor(
 
         BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
             val contentWidth = maxOf(textWidth, maxWidth)
+            val viewportHeight = constraints.maxHeight
             Box(
                 Modifier
                     .fillMaxSize()
@@ -273,6 +278,7 @@ fun YamlEditor(
                                 underlineRect(result, documentText, shown)
                                     ?.translate(contentOffset.x, contentOffset.y - verticalScroll.value)
                             },
+                            viewportHeight = viewportHeight,
                         )
                     }
                 }
@@ -307,27 +313,43 @@ private fun insertIndentOnTab(
     return true
 }
 
+/**
+ * The message of the diagnostic under the pointer.
+ *
+ * It is a popup rather than a box inside the editor: a diagnostic on the
+ * last visible line would otherwise have its message cut off by the edge
+ * of the column. For the same reason it moves above the line it belongs
+ * to when there is no room below it.
+ */
 @Composable
-private fun DiagnosticTooltip(diagnostic: EditorDiagnostic, anchor: Rect?) {
+private fun DiagnosticTooltip(
+    diagnostic: EditorDiagnostic,
+    anchor: Rect?,
+    viewportHeight: Int,
+) {
     val colors = MCUHomeTheme.colors
-    Box(
-        Modifier
-            .offset {
-                IntOffset(
-                    x = (anchor?.left ?: 0f).roundToInt(),
-                    y = ((anchor?.bottom ?: 0f) + 4f).roundToInt(),
-                )
-            }
-            .background(colors.surface, RoundedCornerShape(6.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(6.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = diagnostic.message,
-            color = colors.ink,
-            fontFamily = MCUHomeTheme.typography.body,
-            fontSize = 13.sp,
-        )
+    val density = LocalDensity.current
+    val height = with(density) { TooltipHeight.toPx() }
+    val bottom = anchor?.bottom ?: 0f
+    val above = bottom + height > viewportHeight
+    val offset = IntOffset(
+        x = (anchor?.left ?: 0f).roundToInt(),
+        y = (if (above) (anchor?.top ?: 0f) - height else bottom + 4f).roundToInt(),
+    )
+    Popup(alignment = Alignment.TopStart, offset = offset) {
+        Box(
+            Modifier
+                .background(colors.surface, RoundedCornerShape(6.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(6.dp))
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+        ) {
+            Text(
+                text = diagnostic.message,
+                color = colors.ink,
+                fontFamily = MCUHomeTheme.typography.body,
+                fontSize = 13.sp,
+            )
+        }
     }
 }
 

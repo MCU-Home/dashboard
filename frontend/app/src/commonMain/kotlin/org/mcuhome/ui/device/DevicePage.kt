@@ -378,6 +378,7 @@ fun DevicePage(
             onDismiss = { dialog = null },
             onOpenDevice = onOpenDevice,
             onOpenDevices = onOpenDevices,
+            onDeviceChanged = { call { detail = api.device.get(name) } },
         ),
     )
 }
@@ -388,6 +389,12 @@ private data class DeviceDialogActions(
     val onDismiss: () -> Unit,
     val onOpenDevice: (String) -> Unit,
     val onOpenDevices: () -> Unit,
+    /**
+     * Something outside the editor changed the device — read it again.
+     * The open document is deliberately left alone: its revision is what
+     * makes the next write notice that the file moved on.
+     */
+    val onDeviceChanged: () -> Unit,
 )
 
 /** The device page's own overlays, kept out of the screen's body. */
@@ -411,7 +418,11 @@ private fun DeviceDialogs(
             buildRunning = buildRunning,
         )
 
-        DeviceDialog.Pairing -> PairingDialog(device = detail.summary.name, onDismiss = onDismiss)
+        DeviceDialog.Pairing -> PairingDialog(
+            device = detail.summary.name,
+            onDismiss = onDismiss,
+            onCredentialsChanged = actions.onDeviceChanged,
+        )
 
         DeviceDialog.Rename -> RenameDeviceDialog(
             device = detail.summary.name,

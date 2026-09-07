@@ -5,6 +5,7 @@ package org.mcuhome.ui.panel
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -90,15 +92,22 @@ private fun PanelHeader(
             .padding(start = 12.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PanelTab.entries.forEach { tab ->
-            PanelTabItem(
-                tab = tab,
-                active = tab == layout.tab,
-                count = if (tab == PanelTab.Diagnostics) data.diagnostics.size else 0,
-                onClick = { actions.onLayout(layout.showing(tab)) },
-            )
+        // The tabs give way before the dock controls do: a narrow panel
+        // must still be movable and closable, and a tab that is out of
+        // sight is one scroll away.
+        Row(
+            modifier = Modifier.weight(1f).fillMaxHeight().horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PanelTab.entries.forEach { tab ->
+                PanelTabItem(
+                    tab = tab,
+                    active = tab == layout.tab,
+                    count = if (tab == PanelTab.Diagnostics) data.diagnostics.size else 0,
+                    onClick = { actions.onLayout(layout.showing(tab)) },
+                )
+            }
         }
-        Box(Modifier.weight(1f))
         DockControls(layout, actions)
     }
 }

@@ -63,7 +63,11 @@ private const val PASSCODE_MASK = "••••••••"
  * next to it, and a screenshot outlives the moment.
  */
 @Composable
-fun PairingDialog(device: String, onDismiss: () -> Unit) {
+fun PairingDialog(
+    device: String,
+    onDismiss: () -> Unit,
+    onCredentialsChanged: () -> Unit = {},
+) {
     val api = LocalMcuHomeApi.current
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
@@ -88,6 +92,9 @@ fun PairingDialog(device: String, onDismiss: () -> Unit) {
             try {
                 credentials = api.pairing.draw(device, force).credentials
                 revealed = false
+                // The file and the device's secrets have changed; the rail
+                // beside the dialog is showing the state from before.
+                onCredentialsChanged()
             } catch (failure: ApiException) {
                 error = failure.error
             }

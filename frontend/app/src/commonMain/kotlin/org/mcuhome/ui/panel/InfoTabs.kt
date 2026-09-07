@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -27,6 +29,8 @@ import org.mcuhome.ui.component.ErrorNotice
 import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
 import org.mcuhome.ui.component.NotAvailableNotice
+import org.mcuhome.ui.component.ThinHorizontalScrollbar
+import org.mcuhome.ui.component.ThinVerticalScrollbar
 import org.mcuhome.ui.component.formatByteSize
 import org.mcuhome.ui.theme.MCUHomeTheme
 
@@ -68,19 +72,23 @@ fun ModelTab(state: ModelState, modifier: Modifier = Modifier) {
             ErrorNotice(state.error, Modifier.fillMaxWidth())
         }
 
-        is ModelState.Ready -> Box(
-            modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .horizontalScroll(rememberScrollState())
-                .padding(12.dp),
-        ) {
-            Text(
-                text = state.model.json,
-                color = MCUHomeTheme.colors.ink,
-                fontFamily = MCUHomeTheme.typography.mono,
-                fontSize = 12.sp,
-            )
+        is ModelState.Ready -> {
+            val vertical = rememberScrollState()
+            val horizontal = rememberScrollState()
+            Box(modifier.fillMaxSize()) {
+                Text(
+                    text = state.model.json,
+                    color = MCUHomeTheme.colors.ink,
+                    fontFamily = MCUHomeTheme.typography.mono,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .verticalScroll(vertical)
+                        .horizontalScroll(horizontal)
+                        .padding(12.dp),
+                )
+                ThinVerticalScrollbar(vertical, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
+                ThinHorizontalScrollbar(horizontal, Modifier.align(Alignment.BottomCenter).fillMaxWidth())
+            }
         }
     }
 }
@@ -103,8 +111,15 @@ fun ArtifactsTab(
         }
         return
     }
-    LazyColumn(modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp)) {
-        items(artifacts) { artifact -> ArtifactRow(artifact, onDownload) }
+    val listState = rememberLazyListState()
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            items(artifacts) { artifact -> ArtifactRow(artifact, onDownload) }
+        }
+        ThinVerticalScrollbar(listState, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
     }
 }
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,6 +40,7 @@ import org.mcuhome.ui.api.OutputLine
 import org.mcuhome.ui.api.StageState
 import org.mcuhome.ui.api.StageStatus
 import org.mcuhome.ui.component.TextAction
+import org.mcuhome.ui.component.ThinVerticalScrollbar
 import org.mcuhome.ui.theme.MCUHomeColors
 import org.mcuhome.ui.theme.MCUHomeTheme
 import org.mcuhome.ui.time.formatTimeOfDaySeconds
@@ -184,26 +186,29 @@ private fun OutputLines(lines: List<OutputLine>, modifier: Modifier = Modifier) 
     LaunchedEffect(lines.size) {
         if (atEnd && lines.isNotEmpty()) listState.scrollToItem(lines.lastIndex)
     }
-    LazyColumn(
-        state = listState,
-        modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-    ) {
-        items(lines) { line ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = formatTimeOfDaySeconds(line.timestampEpochMillis),
-                    color = colors.muted,
-                    fontFamily = MCUHomeTheme.typography.mono,
-                    fontSize = 12.sp,
-                )
-                Text(
-                    text = line.text,
-                    color = colors.outputColor(line.level),
-                    fontFamily = MCUHomeTheme.typography.mono,
-                    fontSize = 12.sp,
-                )
+    Box(modifier) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            items(lines) { line ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = formatTimeOfDaySeconds(line.timestampEpochMillis),
+                        color = colors.muted,
+                        fontFamily = MCUHomeTheme.typography.mono,
+                        fontSize = 12.sp,
+                    )
+                    Text(
+                        text = line.text,
+                        color = colors.outputColor(line.level),
+                        fontFamily = MCUHomeTheme.typography.mono,
+                        fontSize = 12.sp,
+                    )
+                }
             }
         }
+        ThinVerticalScrollbar(listState, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
     }
 }
 

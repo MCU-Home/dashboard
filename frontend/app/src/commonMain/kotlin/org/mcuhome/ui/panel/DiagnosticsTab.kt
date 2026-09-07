@@ -5,13 +5,16 @@ package org.mcuhome.ui.panel
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -20,6 +23,7 @@ import org.mcuhome.ui.api.DiagnosticSeverity
 import org.mcuhome.ui.component.MCUHomeIcons
 import org.mcuhome.ui.component.Notice
 import org.mcuhome.ui.component.PillTone
+import org.mcuhome.ui.component.ThinVerticalScrollbar
 import org.mcuhome.ui.theme.MCUHomeTheme
 
 /**
@@ -44,13 +48,18 @@ fun DiagnosticsTab(
         }
         return
     }
-    LazyColumn(
-        modifier = modifier.fillMaxSize().padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items(diagnostics) { diagnostic ->
-            DiagnosticNotice(diagnostic, onJumpToLine, Modifier.fillMaxWidth())
+    val listState = rememberLazyListState()
+    Box(modifier) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(diagnostics) { diagnostic ->
+                DiagnosticNotice(diagnostic, onJumpToLine, Modifier.fillMaxWidth())
+            }
         }
+        ThinVerticalScrollbar(listState, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
     }
 }
 

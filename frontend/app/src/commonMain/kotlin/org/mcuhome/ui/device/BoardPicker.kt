@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -29,6 +30,7 @@ import org.mcuhome.ui.api.BoardInfo
 import org.mcuhome.ui.api.NetworkTransport
 import org.mcuhome.ui.component.Pill
 import org.mcuhome.ui.component.PillTone
+import org.mcuhome.ui.component.ThinVerticalScrollbar
 import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.MCUHomeTheme
 
@@ -73,26 +75,31 @@ fun BoardList(
     modifier: Modifier = Modifier,
 ) {
     val colors = MCUHomeTheme.colors
-    Column(
-        modifier = modifier
-            .clip(ListShape)
-            .border(width = 1.dp, color = colors.border, shape = ListShape)
-            .heightIn(max = 176.dp)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        if (boards.isEmpty()) {
-            Text(
-                text = "No board matches that.",
-                color = colors.muted,
-                fontFamily = MCUHomeTheme.typography.body,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(all = 12.dp),
-            )
+    val scroll = rememberScrollState()
+    Box(modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ListShape)
+                .border(width = 1.dp, color = colors.border, shape = ListShape)
+                .heightIn(max = 176.dp)
+                .verticalScroll(scroll),
+        ) {
+            if (boards.isEmpty()) {
+                Text(
+                    text = "No board matches that.",
+                    color = colors.muted,
+                    fontFamily = MCUHomeTheme.typography.body,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(all = 12.dp),
+                )
+            }
+            boards.forEachIndexed { index, board ->
+                if (index > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+                BoardRow(board = board, selected = board.target == selected, onSelect = { onSelect(board) })
+            }
         }
-        boards.forEachIndexed { index, board ->
-            if (index > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-            BoardRow(board = board, selected = board.target == selected, onSelect = { onSelect(board) })
-        }
+        ThinVerticalScrollbar(scroll, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
     }
 }
 

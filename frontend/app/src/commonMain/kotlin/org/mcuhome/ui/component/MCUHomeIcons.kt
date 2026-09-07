@@ -392,6 +392,76 @@ object MCUHomeIcons {
         }
     }
 
+    /** Opening the navigation menu on narrow layouts. */
+    val menu: ImageVector by lazy {
+        icon("menu") {
+            moveTo(4f, 7f)
+            lineTo(20f, 7f)
+            moveTo(4f, 12f)
+            lineTo(20f, 12f)
+            moveTo(4f, 17f)
+            lineTo(20f, 17f)
+        }
+    }
+
+    /** Opening the status rail on narrow layouts. */
+    val sidebar: ImageVector by lazy {
+        icon("sidebar") {
+            moveTo(3f, 5f)
+            lineTo(21f, 5f)
+            lineTo(21f, 19f)
+            lineTo(3f, 19f)
+            close()
+            moveTo(15f, 5f)
+            lineTo(15f, 19f)
+        }
+    }
+
+    /** The YAML editor's indent action. */
+    val indent: ImageVector by lazy {
+        icon("indent") {
+            moveTo(4f, 12f)
+            lineTo(7f, 12f)
+            moveTo(5.5f, 9f)
+            lineTo(9f, 12f)
+            lineTo(5.5f, 15f)
+            moveTo(12f, 7f)
+            lineTo(20f, 7f)
+            moveTo(12f, 12f)
+            lineTo(20f, 12f)
+            moveTo(12f, 17f)
+            lineTo(20f, 17f)
+        }
+    }
+
+    /** The YAML editor's outdent action. */
+    val outdent: ImageVector by lazy {
+        icon("outdent") {
+            moveTo(9f, 12f)
+            lineTo(6f, 12f)
+            moveTo(7.5f, 9f)
+            lineTo(4f, 12f)
+            lineTo(7.5f, 15f)
+            moveTo(12f, 7f)
+            lineTo(20f, 7f)
+            moveTo(12f, 12f)
+            lineTo(20f, 12f)
+            moveTo(12f, 17f)
+            lineTo(20f, 17f)
+        }
+    }
+
+    /** The YAML editor's undo action. */
+    val undo: ImageVector by lazy {
+        icon("undo") {
+            moveTo(15f, 6f)
+            arcTo(7f, 7f, 0f, true, true, 6f, 17f)
+            moveTo(3.5f, 15.5f)
+            lineTo(6f, 17f)
+            lineTo(4f, 19.5f)
+        }
+    }
+
     /**
      * Builds one icon on the shared 24 by 24 viewport, as a single
      * round-capped, round-joined stroke so the same geometry stays

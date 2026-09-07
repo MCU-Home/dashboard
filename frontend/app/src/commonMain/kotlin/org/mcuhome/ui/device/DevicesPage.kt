@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,11 +34,14 @@ import org.mcuhome.ui.api.ApiException
 import org.mcuhome.ui.api.BuildMethod
 import org.mcuhome.ui.api.DeviceSummary
 import org.mcuhome.ui.api.LocalMcuHomeApi
+import org.mcuhome.ui.component.ControlHeight
 import org.mcuhome.ui.component.ErrorNotice
 import org.mcuhome.ui.component.MCUHomeIcons
 import org.mcuhome.ui.component.MCUHomeTextField
 import org.mcuhome.ui.component.PrimaryButton
 import org.mcuhome.ui.component.SegmentedControl
+import org.mcuhome.ui.component.TouchControlHeight
+import org.mcuhome.ui.shell.LocalWindowSize
 import org.mcuhome.ui.theme.MCUHomeTheme
 import org.mcuhome.ui.time.rememberNowEpochMillis
 
@@ -101,9 +106,16 @@ fun DevicesPage(onOpenDevice: (String) -> Unit, modifier: Modifier = Modifier) {
         }
     }
 
+    val window = LocalWindowSize.current
     Column(
-        modifier = modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(
+                horizontal = if (window.expanded) 32.dp else 16.dp,
+                vertical = if (window.expanded) 24.dp else 16.dp,
+            ),
+        verticalArrangement = Arrangement.spacedBy(if (window.compact) 12.dp else 16.dp),
     ) {
         DevicesHeader(
             count = rows.size,
@@ -113,14 +125,19 @@ fun DevicesPage(onOpenDevice: (String) -> Unit, modifier: Modifier = Modifier) {
             onNewDevice = { dialog = DevicesDialog.New },
         )
         error?.let { ErrorNotice(it, Modifier.fillMaxWidth(), onDismiss = { error = null }) }
-        DeviceTable(
-            devices = rows,
-            sort = sort,
-            nowEpochMillis = now,
-            onSort = { column -> sort = sort.clicked(column) },
-            onRowAction = ::act,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        if (window.compact) {
+            DeviceRows(devices = rows, onOpenDevice = onOpenDevice, modifier = Modifier.fillMaxWidth())
+        } else {
+            DeviceTable(
+                devices = rows,
+                sort = sort,
+                nowEpochMillis = now,
+                onSort = { column -> sort = sort.clicked(column) },
+                onRowAction = ::act,
+                modifier = Modifier.fillMaxWidth(),
+                columns = deviceColumns(window.sizeClass),
+            )
+        }
     }
 
     when (val open = dialog) {
@@ -165,20 +182,60 @@ private fun DevicesHeader(
     onMode: (DeviceFilterMode) -> Unit,
     onNewDevice: () -> Unit,
 ) {
+    val window = LocalWindowSize.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (maxWidth >= WIDE_LAYOUT) {
+        if (window.expanded && maxWidth >= WIDE_LAYOUT) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 DevicesTitle(count)
                 Box(Modifier.weight(1f))
                 DevicesControls(filter, mode, onMode, onNewDevice)
             }
-        } else {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            return@BoxWithConstraints
+        }
+        // Below a desktop width the row breaks up rather than shrinks:
+        // the action that adds a device stays beside the title where it
+        // is expected, and the two controls that narrow the list take a
+        // line each, in the order they are used.
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 DevicesTitle(count)
-                DevicesControls(filter, mode, onMode, onNewDevice)
+                Box(Modifier.weight(1f))
+                NewDeviceButton(onNewDevice)
             }
+            MCUHomeTextField(
+                state = filter,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = "Filter devices…",
+                leadingIcon = MCUHomeIcons.search,
+                height = controlHeight(window.compact),
+            )
+            SegmentedControl(
+                options = DeviceFilterMode.entries,
+                selected = mode,
+                onSelect = onMode,
+                label = { it.label },
+                modifier = if (window.compact) Modifier.fillMaxWidth() else Modifier,
+                fill = window.compact,
+                segmentHeight = controlHeight(window.compact) - 4.dp,
+            )
         }
     }
+}
+
+/** The height a control in the toolbar row is given: a finger's on a phone, a pointer's elsewhere. */
+private fun controlHeight(compact: Boolean) = if (compact) TouchControlHeight else ControlHeight
+
+@Composable
+private fun NewDeviceButton(onNewDevice: () -> Unit) {
+    val window = LocalWindowSize.current
+    PrimaryButton(
+        // A phone's button says the verb alone: what is being added is
+        // written above it in letters twice the size.
+        text = if (window.compact) "New" else "New device",
+        onClick = onNewDevice,
+        icon = MCUHomeIcons.plus,
+        height = controlHeight(window.compact),
+    )
 }
 
 @Composable
@@ -224,6 +281,6 @@ private fun DevicesControls(
             onSelect = onMode,
             label = { it.label },
         )
-        PrimaryButton(text = "New device", onClick = onNewDevice, icon = MCUHomeIcons.plus)
+        NewDeviceButton(onNewDevice)
     }
 }

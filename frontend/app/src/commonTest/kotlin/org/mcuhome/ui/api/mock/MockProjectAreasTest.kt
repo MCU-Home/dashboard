@@ -148,6 +148,34 @@ class MockProjectAreasTest {
     }
 
     @Test
+    fun drawingCredentialsThatChangeTheFileGivesItANewRevision() = runTest {
+        val api = mockApi()
+        val before = api.device.get("balcony-climate")
+
+        api.pairing.draw("balcony-climate")
+        val after = api.device.get("balcony-climate")
+
+        assertTrue(after.revision != before.revision)
+        val conflict = assertIs<SaveResult.Conflict>(
+            api.device.save("balcony-climate", "device:\n  name: balcony-climate\n", before.revision),
+        )
+        assertEquals(after.revision, conflict.currentRevision)
+        assertEquals(after.yaml, conflict.currentText)
+    }
+
+    @Test
+    fun drawingCredentialsThatAreAlreadyReferencedLeavesTheFileAlone() = runTest {
+        val api = mockApi()
+        val before = api.device.get("garage-door")
+
+        api.pairing.draw("garage-door", force = true)
+        val after = api.device.get("garage-door")
+
+        assertEquals(before.revision, after.revision)
+        assertEquals(before.yaml, after.yaml)
+    }
+
+    @Test
     fun drawingOverExistingCredentialsNeedsAConfirmation() = runTest {
         val api = mockApi()
         assertFailsWith<ApiException> { api.pairing.draw("garage-door") }

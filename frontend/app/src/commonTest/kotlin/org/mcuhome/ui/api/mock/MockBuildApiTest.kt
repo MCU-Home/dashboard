@@ -122,8 +122,11 @@ class MockBuildApiTest {
 
         val download = api.build.download(started.buildId, "firmware.signed.bin")
 
-        assertEquals("/api/build/${started.buildId}/artifact/firmware.signed.bin", download.url)
+        // The mock has no server to serve bytes from, so it answers with
+        // the content itself; the back end answers with its own route.
+        assertTrue(download.url.startsWith("data:"))
         assertEquals("firmware.signed.bin", download.fileName)
+        assertEquals(421_888, download.sizeBytes)
     }
 
     @Test

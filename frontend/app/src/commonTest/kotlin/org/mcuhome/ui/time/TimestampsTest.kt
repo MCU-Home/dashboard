@@ -75,4 +75,11 @@ class TimestampsTest {
     fun aNegativeDurationIsNoDuration() {
         assertEquals("0 s", formatDuration(-5_000L))
     }
+
+    @Test
+    fun build_output_is_timed_to_the_second() {
+        assertEquals("12:51:56", formatTimeOfDaySeconds(1_788_785_516_000))
+        assertEquals("00:00:00", formatTimeOfDaySeconds(0))
+        assertEquals("23:59:59", formatTimeOfDaySeconds(86_399_000))
+    }
 }

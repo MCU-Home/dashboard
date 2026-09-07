@@ -25,14 +25,19 @@ import org.mcuhome.ui.api.ConnectionState
 import org.mcuhome.ui.api.LocalMcuHomeApi
 import org.mcuhome.ui.api.McuHomeApi
 import org.mcuhome.ui.api.ServerInfo
+import org.mcuhome.ui.device.DevicePage
 import org.mcuhome.ui.device.DevicesPage
+import org.mcuhome.ui.download.FileDownloader
+import org.mcuhome.ui.download.LocalFileDownloader
 import org.mcuhome.ui.job.JobsChip
 import org.mcuhome.ui.job.rememberJobList
 import org.mcuhome.ui.page.PlaceholderPage
-import org.mcuhome.ui.page.SpikePage
+import org.mcuhome.ui.panel.LocalPanelSession
+import org.mcuhome.ui.panel.PanelSession
 import org.mcuhome.ui.shell.Destination
 import org.mcuhome.ui.shell.DeviceRoute
-import org.mcuhome.ui.shell.SPIKE_ROUTE
+import org.mcuhome.ui.shell.LocalNavigationGuard
+import org.mcuhome.ui.shell.NavigationGuard
 import org.mcuhome.ui.shell.TopBar
 import org.mcuhome.ui.theme.MCUHomeTheme
 
@@ -46,6 +51,10 @@ import org.mcuhome.ui.theme.MCUHomeTheme
  * the composition once, here, and read from `LocalMcuHomeApi` wherever it
  * is needed.
  *
+ * [downloader] is the second: how a file the server offers reaches the
+ * user is the one thing a browser and a desktop application genuinely do
+ * differently, and it is installed here for the same reason.
+ *
  * [onNavHostReady] hands the freshly created controller to the entry
  * point of the platform. The browser entry point uses it to tie the
  * navigation to the address bar and the back button; a future desktop or
@@ -53,8 +62,17 @@ import org.mcuhome.ui.theme.MCUHomeTheme
  * none at all.
  */
 @Composable
-fun App(api: McuHomeApi, onNavHostReady: suspend (NavHostController) -> Unit = {}) {
-    CompositionLocalProvider(LocalMcuHomeApi provides api) {
+fun App(
+    api: McuHomeApi,
+    onNavHostReady: suspend (NavHostController) -> Unit = {},
+    downloader: FileDownloader = FileDownloader { },
+) {
+    CompositionLocalProvider(
+        LocalMcuHomeApi provides api,
+        LocalFileDownloader provides downloader,
+        LocalPanelSession provides remember { PanelSession() },
+        LocalNavigationGuard provides remember { NavigationGuard() },
+    ) {
         AppContent(onNavHostReady)
     }
 }
@@ -71,7 +89,18 @@ private fun AppContent(onNavHostReady: suspend (NavHostController) -> Unit) {
             currentRoute == destination.route || currentRoute?.startsWith("${destination.route}/") == true
         }
         val jobs by rememberJobList(api)
-        val openDevice: (String) -> Unit = { name -> navController.navigate(DeviceRoute(name)) }
+        val guard = LocalNavigationGuard.current
+        val openDevice: (String) -> Unit = { name ->
+            guard.navigate { navController.navigate(DeviceRoute(name)) }
+        }
+        val openDevices: () -> Unit = {
+            guard.navigate {
+                navController.navigate(Destination.Devices.route) {
+                    popUpTo(Destination.start.route) { inclusive = false }
+                    launchSingleTop = true
+                }
+            }
+        }
 
         Column(Modifier.fillMaxSize().background(MCUHomeTheme.colors.background)) {
             val connection by api.connection.collectAsState()
@@ -79,9 +108,11 @@ private fun AppContent(onNavHostReady: suspend (NavHostController) -> Unit) {
                 projectName = serverInfo?.projectName.orEmpty(),
                 current = currentDestination,
                 onNavigate = { destination ->
-                    navController.navigate(destination.route) {
-                        popUpTo(Destination.start.route) { inclusive = false }
-                        launchSingleTop = true
+                    guard.navigate {
+                        navController.navigate(destination.route) {
+                            popUpTo(Destination.start.route) { inclusive = false }
+                            launchSingleTop = true
+                        }
                     }
                 },
                 connected = connection == ConnectionState.Connected,
@@ -98,9 +129,10 @@ private fun AppContent(onNavHostReady: suspend (NavHostController) -> Unit) {
                 }
                 composable<DeviceRoute> { entry ->
                     val route = entry.toRoute<DeviceRoute>()
-                    PlaceholderPage(
-                        title = "Devices / ${route.name}",
-                        description = "The device's configuration, its build output and everything it is made of.",
+                    DevicePage(
+                        name = route.name,
+                        onOpenDevices = openDevices,
+                        onOpenDevice = openDevice,
                     )
                 }
                 composable(Destination.Configs.route) {
@@ -112,7 +144,6 @@ private fun AppContent(onNavHostReady: suspend (NavHostController) -> Unit) {
                 composable(Destination.Project.route) {
                     PlaceholderPage("Project", "Project options, the project file, boards and the doctor report.")
                 }
-                composable(SPIKE_ROUTE) { SpikePage() }
             }
         }
 

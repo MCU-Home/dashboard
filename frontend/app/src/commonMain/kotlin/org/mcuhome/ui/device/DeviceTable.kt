@@ -21,11 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.api.BuildState
-import org.mcuhome.ui.api.ConfigState
 import org.mcuhome.ui.api.DeviceSummary
 import org.mcuhome.ui.api.NetworkTransport
-import org.mcuhome.ui.api.SignedState
-import org.mcuhome.ui.component.MCUHomeIcons
 import org.mcuhome.ui.component.Pill
 import org.mcuhome.ui.component.PillTone
 import org.mcuhome.ui.component.SurfaceCard
@@ -124,9 +121,9 @@ private fun DeviceRow(
             fontSize = 12.sp,
             modifier = Modifier.weight(ColumnWeights.getValue(DeviceColumn.Board)),
         )
-        Box(Modifier.weight(ColumnWeights.getValue(DeviceColumn.Config))) { ConfigPill(device) }
+        Box(Modifier.weight(ColumnWeights.getValue(DeviceColumn.Config))) { ConfigStatusPill(device.config) }
         BuildCell(device, nowEpochMillis, Modifier.weight(ColumnWeights.getValue(DeviceColumn.Build)))
-        Box(Modifier.weight(ColumnWeights.getValue(DeviceColumn.Signed))) { SignedPill(device) }
+        Box(Modifier.weight(ColumnWeights.getValue(DeviceColumn.Signed))) { SignedStatePill(device.signed) }
         Text(
             text = networkLabel(device),
             color = colors.ink,
@@ -161,33 +158,6 @@ private fun NameCell(device: DeviceSummary, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ConfigPill(device: DeviceSummary) {
-    val config = device.config
-    when (config.state) {
-        ConfigState.Valid -> Pill(text = "valid", tone = PillTone.Success, icon = MCUHomeIcons.check)
-
-        ConfigState.Errors -> Pill(
-            text = countLabel(config.errorCount, "error"),
-            tone = PillTone.Error,
-            icon = MCUHomeIcons.errorCircle,
-        )
-
-        ConfigState.Warnings -> Pill(text = countLabel(config.warningCount, "warning"), tone = PillTone.Warning)
-
-        ConfigState.Unknown -> Pill(text = "not checked", tone = PillTone.Neutral)
-    }
-}
-
-@Composable
-private fun SignedPill(device: DeviceSummary) {
-    when (device.signed) {
-        SignedState.Signed -> Pill(text = "signed", tone = PillTone.Success)
-        SignedState.Unsigned -> Pill(text = "unsigned", tone = PillTone.Warning)
-        SignedState.Unknown -> EmptyCell()
-    }
-}
-
-@Composable
 private fun BuildCell(
     device: DeviceSummary,
     nowEpochMillis: Long,
@@ -215,7 +185,7 @@ private fun BuildCell(
         return
     }
     if (build.state == BuildState.NeverBuilt) {
-        Box(modifier) { EmptyCell() }
+        Box(modifier) { EmptyValue() }
         return
     }
     Column(modifier) {
@@ -240,19 +210,6 @@ private fun BuildCell(
         }
     }
 }
-
-/** The dash a column shows where a device has nothing to report yet. */
-@Composable
-private fun EmptyCell() {
-    Text(
-        text = "—",
-        color = MCUHomeTheme.colors.muted,
-        fontFamily = MCUHomeTheme.typography.body,
-        fontSize = 13.sp,
-    )
-}
-
-private fun countLabel(count: Int, noun: String): String = if (count == 1) "1 $noun" else "$count ${noun}s"
 
 private fun networkLabel(device: DeviceSummary): String {
     val transport = when (device.network.transport) {

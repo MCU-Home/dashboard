@@ -27,7 +27,12 @@ fun main() {
     // Until the back end exists, every screen runs against the in-memory
     // mock. Switching to the real client is a change to this one line.
     val api = MockApi(scope = CoroutineScope(SupervisorJob() + Dispatchers.Main))
+    val downloader = BrowserFileDownloader()
     ComposeViewport(body) {
-        App(api = api, onNavHostReady = { navController -> navController.bindToBrowserNavigation() })
+        App(
+            api = api,
+            onNavHostReady = { navController -> navController.bindToBrowserNavigation() },
+            downloader = downloader,
+        )
     }
 }

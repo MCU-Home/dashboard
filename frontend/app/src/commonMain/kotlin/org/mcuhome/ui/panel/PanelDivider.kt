@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,6 +22,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import org.mcuhome.ui.component.horizontalResizeCursor
+import org.mcuhome.ui.component.verticalResizeCursor
 import org.mcuhome.ui.theme.MCUHomeTheme
 
 /** How thick the draggable strip between two areas is. */
@@ -38,15 +42,22 @@ private val GripThickness = 3.dp
 fun HorizontalPanelDivider(onDrag: (Dp) -> Unit, modifier: Modifier = Modifier) {
     val colors = MCUHomeTheme.colors
     val density = LocalDensity.current
+    // The gesture detector is started once and outlives every
+    // recomposition, so it must not close over the callback it was given
+    // on the first one — that callback still holds the panel size of the
+    // moment the divider appeared, and every drag would apply its few
+    // pixels to that same starting size instead of to the current one.
+    val drag by rememberUpdatedState(onDrag)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(DividerThickness)
             .background(colors.background)
+            .verticalResizeCursor()
             .pointerInput(Unit) {
                 detectDragGestures { change, amount ->
                     change.consume()
-                    onDrag(with(density) { (-amount.y).toDp() })
+                    drag(with(density) { (-amount.y).toDp() })
                 }
             },
         contentAlignment = Alignment.Center,
@@ -68,15 +79,17 @@ fun HorizontalPanelDivider(onDrag: (Dp) -> Unit, modifier: Modifier = Modifier) 
 fun VerticalPanelDivider(onDrag: (Dp) -> Unit, modifier: Modifier = Modifier) {
     val colors = MCUHomeTheme.colors
     val density = LocalDensity.current
+    val drag by rememberUpdatedState(onDrag)
     Box(
         modifier = modifier
             .fillMaxHeight()
             .width(DividerThickness)
             .background(colors.background)
+            .horizontalResizeCursor()
             .pointerInput(Unit) {
                 detectDragGestures { change, amount ->
                     change.consume()
-                    onDrag(with(density) { (-amount.x).toDp() })
+                    drag(with(density) { (-amount.x).toDp() })
                 }
             },
         contentAlignment = Alignment.Center,

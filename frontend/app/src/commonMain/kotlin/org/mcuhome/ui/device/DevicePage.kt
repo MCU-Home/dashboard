@@ -340,7 +340,11 @@ fun DevicePage(
             )
             DeviceBody(
                 layout = layout,
-                onResize = { delta -> session.layout = layout.resized(delta) },
+                // The drag reads the session rather than the `layout`
+                // value this composition was drawn with: a drag delivers
+                // its pixels faster than the tree recomposes, and each of
+                // them has to build on the size the one before it left.
+                onResize = { delta -> session.layout = session.layout.resized(delta) },
                 slots = DeviceBodySlots(
                     editor = {
                         YamlEditor(

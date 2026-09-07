@@ -23,3 +23,28 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
  */
 @Stable
 fun Modifier.handCursor(enabled: Boolean = true): Modifier = if (enabled) pointerHoverIcon(PointerIcon.Hand) else this
+
+/**
+ * The pointer over the divider between two areas that are stacked, so
+ * that dragging it makes the upper one taller or shorter.
+ */
+@Stable
+fun Modifier.verticalResizeCursor(): Modifier = pointerHoverIcon(VerticalResizeCursor)
+
+/** The pointer over the divider between two areas that stand side by side. */
+@Stable
+fun Modifier.horizontalResizeCursor(): Modifier = pointerHoverIcon(HorizontalResizeCursor)
+
+/**
+ * The two resize pointers, named by the platform underneath.
+ *
+ * `PointerIcon` carries four shapes every platform agrees on — the arrow,
+ * the hand, the text caret and the crosshair — and a resize pointer is not
+ * one of them. Each platform therefore names its own: in the browser that
+ * is a CSS cursor keyword, elsewhere it would be the window system's
+ * equivalent. The pair is declared here so that the code that draws a
+ * divider asks for "the resize pointer" and nothing else.
+ */
+internal expect val VerticalResizeCursor: PointerIcon
+
+internal expect val HorizontalResizeCursor: PointerIcon

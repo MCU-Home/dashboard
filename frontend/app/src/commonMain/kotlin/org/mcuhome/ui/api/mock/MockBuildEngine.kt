@@ -154,7 +154,13 @@ internal class MockBuildEngine(private val context: MockContext, private val sco
             },
         )
         val device = context.state.value.device(run.snapshot.device) ?: return
-        context.state.update { it.withDevice(device.copy(build = device.build.copy(progress = tick.progress))) }
+        // The device table draws the counted progress beside its
+        // "building" pill, and it draws it from the device topic, so the
+        // device is announced as changed on every tick rather than only
+        // when the build starts and ends.
+        val advanced = device.copy(build = device.build.copy(progress = tick.progress))
+        context.state.update { it.withDevice(advanced) }
+        context.deviceChanged(advanced)
         context.updateJob(journal(run, JobState.Running).copy(progress = tick.progress, stage = tick.stage))
     }
 

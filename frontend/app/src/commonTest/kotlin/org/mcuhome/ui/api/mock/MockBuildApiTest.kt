@@ -5,7 +5,9 @@ package org.mcuhome.ui.api.mock
 
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.mcuhome.ui.api.ApiException
 import org.mcuhome.ui.api.BuildChanged
@@ -14,8 +16,10 @@ import org.mcuhome.ui.api.BuildOutputAppended
 import org.mcuhome.ui.api.BuildRunState
 import org.mcuhome.ui.api.BuildStage
 import org.mcuhome.ui.api.BuildState
+import org.mcuhome.ui.api.DeviceChanged
 import org.mcuhome.ui.api.JobState
 import org.mcuhome.ui.api.OutputLevel
+import org.mcuhome.ui.api.Progress
 import org.mcuhome.ui.api.SignedState
 import org.mcuhome.ui.api.StageState
 import kotlin.test.Test
@@ -57,6 +61,25 @@ class MockBuildApiTest {
         assertEquals(COMPILE_STEPS, compile.last().total)
         assertEquals(COMPILE_STEPS, compile.last().done)
         assertEquals(compile.map { it.done }.sorted(), compile.map { it.done })
+    }
+
+    @Test
+    fun aRunningBuildAnnouncesItsProgressOnTheDeviceTopic() = runTest {
+        val api = mockApi()
+        val progress = mutableListOf<Progress>()
+        val watching = backgroundScope.launch {
+            api.events.filterIsInstance<DeviceChanged>()
+                .mapNotNull { it.summary.build.progress }
+                .toList(progress)
+        }
+
+        val started = api.build.start("balcony-climate", BuildMethod.Local)
+        api.build.stream(started.buildId).toList()
+        watching.cancel()
+
+        assertEquals(COMPILE_STEPS, progress.last().total)
+        assertEquals(COMPILE_STEPS, progress.last().done)
+        assertEquals(progress.map { it.done }.sorted(), progress.map { it.done })
     }
 
     @Test

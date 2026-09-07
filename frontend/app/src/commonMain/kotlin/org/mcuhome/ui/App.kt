@@ -20,13 +20,18 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import org.mcuhome.ui.api.ConnectionState
 import org.mcuhome.ui.api.LocalMcuHomeApi
 import org.mcuhome.ui.api.McuHomeApi
 import org.mcuhome.ui.api.ServerInfo
+import org.mcuhome.ui.device.DevicesPage
+import org.mcuhome.ui.job.JobsChip
+import org.mcuhome.ui.job.rememberJobList
 import org.mcuhome.ui.page.PlaceholderPage
 import org.mcuhome.ui.page.SpikePage
 import org.mcuhome.ui.shell.Destination
+import org.mcuhome.ui.shell.DeviceRoute
 import org.mcuhome.ui.shell.SPIKE_ROUTE
 import org.mcuhome.ui.shell.TopBar
 import org.mcuhome.ui.theme.MCUHomeTheme
@@ -62,7 +67,11 @@ private fun AppContent(onNavHostReady: suspend (NavHostController) -> Unit) {
     MCUHomeTheme {
         val navController = rememberNavController()
         val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-        val currentDestination = Destination.entries.firstOrNull { it.route == currentRoute }
+        val currentDestination = Destination.entries.firstOrNull { destination ->
+            currentRoute == destination.route || currentRoute?.startsWith("${destination.route}/") == true
+        }
+        val jobs by rememberJobList(api)
+        val openDevice: (String) -> Unit = { name -> navController.navigate(DeviceRoute(name)) }
 
         Column(Modifier.fillMaxSize().background(MCUHomeTheme.colors.background)) {
             val connection by api.connection.collectAsState()
@@ -75,8 +84,8 @@ private fun AppContent(onNavHostReady: suspend (NavHostController) -> Unit) {
                         launchSingleTop = true
                     }
                 },
-                runningJobs = 1,
                 connected = connection == ConnectionState.Connected,
+                jobsChip = { JobsChip(jobs = jobs, onOpenDevice = openDevice) },
             )
 
             NavHost(
@@ -85,7 +94,14 @@ private fun AppContent(onNavHostReady: suspend (NavHostController) -> Unit) {
                 modifier = Modifier.weight(1f),
             ) {
                 composable(Destination.Devices.route) {
-                    PlaceholderPage("Devices", "The device table, filters and the New device action.")
+                    DevicesPage(onOpenDevice = openDevice)
+                }
+                composable<DeviceRoute> { entry ->
+                    val route = entry.toRoute<DeviceRoute>()
+                    PlaceholderPage(
+                        title = "Devices / ${route.name}",
+                        description = "The device's configuration, its build output and everything it is made of.",
+                    )
                 }
                 composable(Destination.Configs.route) {
                     PlaceholderPage("Configs", "The shared configuration files of this project and their users.")

@@ -22,10 +22,11 @@ import org.mcuhome.ui.panel.VerticalPanelDivider
  * status rail beside it, and the output panel wherever the panel is
  * docked.
  *
- * The panel docked at the bottom sits under the *editor column* and
- * leaves the rail its full height, while minimized it becomes a bar under
- * everything — which is what the design draws, and the reason the two
- * cases are laid out separately rather than by a single flag.
+ * The panel docked at the bottom belongs to the *editor column*, open as
+ * well as minimized: it is the editor's output, and the rail beside it
+ * keeps its full height either way — a status bar across the whole window
+ * would take the bottom of the rail away for something that does not
+ * belong to it.
  */
 @Composable
 fun DeviceBody(
@@ -35,18 +36,17 @@ fun DeviceBody(
     modifier: Modifier = Modifier,
 ) {
     when (layout.dock) {
-        PanelDock.Bottom -> Column(modifier.fillMaxSize()) {
-            Row(Modifier.weight(1f)) {
-                Column(Modifier.weight(1f)) {
-                    Box(Modifier.weight(1f)) { slots.editor() }
-                    if (!layout.minimized) {
-                        HorizontalPanelDivider(onResize)
-                        Box(Modifier.height(layout.bottomHeight)) { slots.panel() }
-                    }
+        PanelDock.Bottom -> Row(modifier.fillMaxSize()) {
+            Column(Modifier.weight(1f)) {
+                Box(Modifier.weight(1f)) { slots.editor() }
+                if (layout.minimized) {
+                    slots.minimizedBar()
+                } else {
+                    HorizontalPanelDivider(onResize)
+                    Box(Modifier.height(layout.bottomHeight)) { slots.panel() }
                 }
-                slots.rail()
             }
-            if (layout.minimized) slots.minimizedBar()
+            slots.rail()
         }
 
         PanelDock.Right -> Row(modifier.fillMaxSize()) {

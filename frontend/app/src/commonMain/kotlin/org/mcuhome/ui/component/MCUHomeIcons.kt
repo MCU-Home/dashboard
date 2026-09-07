@@ -271,41 +271,70 @@ object MCUHomeIcons {
         }
     }
 
-    /** Docking the output panel below the editor. */
-    val dockBottom: ImageVector by lazy {
-        icon("dockBottom") {
+    /**
+     * Moving the output panel to the other edge, as one button rather than
+     * two: a window cut along its diagonal, carrying the bottom dock's
+     * horizontal split in the lower left half and the right dock's
+     * vertical split in the upper right half. One glyph therefore shows
+     * both places the panel can be, and the tooltip says which of them the
+     * click leads to.
+     */
+    val dockToggle: ImageVector by lazy {
+        icon("dockToggle") {
             moveTo(3.5f, 4.5f)
             lineTo(20.5f, 4.5f)
             lineTo(20.5f, 19.5f)
             lineTo(3.5f, 19.5f)
             close()
+            moveTo(3.5f, 4.5f)
+            lineTo(20.5f, 19.5f)
             moveTo(3.5f, 14f)
-            lineTo(20.5f, 14f)
-        }
-    }
-
-    /** Docking the output panel beside the rail. */
-    val dockRight: ImageVector by lazy {
-        icon("dockRight") {
-            moveTo(3.5f, 4.5f)
-            lineTo(20.5f, 4.5f)
-            lineTo(20.5f, 19.5f)
-            lineTo(3.5f, 19.5f)
-            close()
+            lineTo(13.4f, 14f)
             moveTo(14f, 4.5f)
-            lineTo(14f, 19.5f)
+            lineTo(14f, 13.2f)
         }
     }
 
-    /** Minimizing the output panel. */
-    val minus: ImageVector by lazy {
-        icon("minus") {
-            moveTo(5f, 12f)
-            lineTo(19f, 12f)
+    /**
+     * Putting something away towards the right edge: the status rail, and
+     * the output panel while it is docked there. The bar is the edge the
+     * chevron pushes it against, which is what tells it apart from the
+     * plain chevron that brings it back.
+     */
+    val collapseRight: ImageVector by lazy {
+        icon("collapseRight") {
+            moveTo(10f, 6.5f)
+            lineTo(15.5f, 12f)
+            lineTo(10f, 17.5f)
+            moveTo(19.5f, 5.5f)
+            lineTo(19.5f, 18.5f)
         }
     }
 
-    /** Collapsing the status rail. */
+    /** Putting the output panel away towards the bottom edge. */
+    val collapseDown: ImageVector by lazy {
+        icon("collapseDown") {
+            moveTo(6.5f, 10f)
+            lineTo(12f, 15.5f)
+            lineTo(17.5f, 10f)
+            moveTo(5.5f, 19.5f)
+            lineTo(18.5f, 19.5f)
+        }
+    }
+
+    /** The Device log tab: lines of a log, as the strip shows it. */
+    val logLines: ImageVector by lazy {
+        icon("logLines") {
+            moveTo(4.5f, 7f)
+            lineTo(19.5f, 7f)
+            moveTo(4.5f, 12f)
+            lineTo(19.5f, 12f)
+            moveTo(4.5f, 17f)
+            lineTo(13.5f, 17f)
+        }
+    }
+
+    /** Bringing the status rail or a minimized panel back. */
     val chevronLeft: ImageVector by lazy {
         icon("chevronLeft") {
             moveTo(14.5f, 5.5f)

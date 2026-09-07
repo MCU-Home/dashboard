@@ -48,13 +48,18 @@ data class PanelLayout(
     /** How much room the panel takes in the direction it is docked. */
     val size: Dp get() = if (dock == PanelDock.Bottom) bottomHeight else rightWidth
 
+    /** The edge the dock button moves the panel to when it is pressed. */
+    val otherDock: PanelDock get() = if (dock == PanelDock.Bottom) PanelDock.Right else PanelDock.Bottom
+
     /**
-     * Move the panel to an edge. Pressing the button of the edge it is
-     * already on restores it when it was minimized — otherwise that
-     * button would do nothing at all while the panel is a status bar.
+     * Move the panel to the other edge.
+     *
+     * Whether it is open or minimized is left alone: the button says
+     * where the panel sits, not how much of it is showing, and a panel
+     * that was put away stays away until the button next to it says
+     * otherwise.
      */
-    fun dockedTo(dock: PanelDock): PanelLayout =
-        if (dock == this.dock) copy(minimized = false) else copy(dock = dock, minimized = false)
+    fun dockToggled(): PanelLayout = copy(dock = otherDock)
 
     fun showing(tab: PanelTab): PanelLayout = copy(tab = tab, minimized = false)
 

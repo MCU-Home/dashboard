@@ -29,7 +29,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
 import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.DarkSchemeContent
@@ -113,42 +112,12 @@ private fun PanelHeader(
     }
 }
 
-/** The two dock buttons and the minimize button, in the panel's corner. */
+/** The dock toggle and the minimize button, in the panel's corner. */
 @Composable
 private fun DockControls(layout: PanelLayout, actions: OutputPanelActions) {
-    val colors = MCUHomeTheme.colors
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-        MCUHomeIconButton(
-            icon = MCUHomeIcons.dockBottom,
-            contentDescription = "Dock the panel at the bottom",
-            onClick = { actions.onLayout(layout.dockedTo(PanelDock.Bottom)) },
-            tint = if (layout.dock == PanelDock.Bottom) colors.ink else colors.muted,
-            modifier = Modifier.then(
-                if (layout.dock == PanelDock.Bottom) {
-                    Modifier.clip(RoundedCornerShape(8.dp)).background(colors.backgroundAlt)
-                } else {
-                    Modifier
-                },
-            ),
-        )
-        MCUHomeIconButton(
-            icon = MCUHomeIcons.dockRight,
-            contentDescription = "Dock the panel at the right",
-            onClick = { actions.onLayout(layout.dockedTo(PanelDock.Right)) },
-            tint = if (layout.dock == PanelDock.Right) colors.ink else colors.muted,
-            modifier = Modifier.then(
-                if (layout.dock == PanelDock.Right) {
-                    Modifier.clip(RoundedCornerShape(8.dp)).background(colors.backgroundAlt)
-                } else {
-                    Modifier
-                },
-            ),
-        )
-        MCUHomeIconButton(
-            icon = MCUHomeIcons.minus,
-            contentDescription = "Minimize the panel",
-            onClick = { actions.onLayout(layout.minimized()) },
-        )
+        PanelDockToggle(layout, actions)
+        PanelMinimizeButton(layout, actions)
     }
 }
 

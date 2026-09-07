@@ -193,6 +193,24 @@ changes and its output, and can be cancelled between steps; a cancelled
 build puts the device back as it was, a finished one produces artifacts
 and marks the device built and signed. One build runs at a time.
 
+**Downloads.** `build/artifacts` and `build/download` answer for a build
+that ran in this session and for the last good build a device carries
+from the sample project, so an artifact list is never empty just because
+nothing has been built since the page was opened. There is no server
+behind the mock and therefore no route to fetch from: `build/download`
+answers with a `data:` URL carrying a note that says what the file would
+have been, which is enough to exercise the browser's download path end to
+end. The back end answers with its own
+`/api/build/{build}/artifact/{path}` route instead, and the front end
+does not care which of the two it is handed.
+
+**Revisions.** Anything that changes a file changes its revision, not
+only `device/save`: drawing Matter credentials writes the two `!secret`
+lines into the configuration, and a device page that still holds the
+revision from before is answered with a conflict rather than allowed to
+write over them. The back end has to do the same — a revision is a
+statement about the file, not about who wrote it.
+
 **Determinism.** The mock never reads the system clock: every timestamp
 comes from an injected clock that stands still unless a test moves it,
 identifiers come from a counter, and the build is a fixed list of steps. A

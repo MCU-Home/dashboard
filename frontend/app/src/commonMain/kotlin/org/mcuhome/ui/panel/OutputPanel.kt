@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
+import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.DarkSchemeContent
 import org.mcuhome.ui.theme.MCUHomeTheme
 
@@ -162,7 +163,7 @@ private fun PanelTabItem(
     Row(
         modifier = Modifier
             .fillMaxHeight()
-            .clickable(onClick = onClick)
+            .handCursor().clickable(onClick = onClick)
             .padding(horizontal = 10.dp)
             .drawBehind {
                 if (active) {

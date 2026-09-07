@@ -76,7 +76,7 @@ private fun Segment(
             .clip(SegmentShape)
             .then(if (active) Modifier.background(colors.surface) else Modifier)
             .then(if (active) Modifier.border(1.dp, colors.border, SegmentShape) else Modifier)
-            .clickable(onClick = onClick)
+            .handCursor().clickable(onClick = onClick)
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {

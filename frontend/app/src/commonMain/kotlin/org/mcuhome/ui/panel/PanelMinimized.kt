@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.api.StageState
 import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
+import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.DarkSchemeContent
 import org.mcuhome.ui.theme.MCUHomeTheme
 
@@ -83,7 +84,7 @@ fun PanelMinimizedBar(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
-                modifier = Modifier.clickable { actions.onLayout(layout.showing(PanelTab.Build)) },
+                modifier = Modifier.handCursor().clickable { actions.onLayout(layout.showing(PanelTab.Build)) },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -163,7 +164,7 @@ private fun MinimizedEntry(
 ) {
     val colors = MCUHomeTheme.colors
     Row(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier.handCursor().clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {

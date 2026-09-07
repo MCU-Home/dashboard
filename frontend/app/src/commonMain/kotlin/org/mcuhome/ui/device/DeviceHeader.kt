@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -32,10 +31,12 @@ import org.mcuhome.ui.api.BuildMethod
 import org.mcuhome.ui.api.FlashMode
 import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
+import org.mcuhome.ui.component.MCUHomeMenuItem
 import org.mcuhome.ui.component.Pill
 import org.mcuhome.ui.component.PillTone
 import org.mcuhome.ui.component.SecondaryButton
 import org.mcuhome.ui.component.SplitButton
+import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.MCUHomeTheme
 
 /** The height of the bar that carries the breadcrumb and the actions. */
@@ -112,7 +113,7 @@ private fun Breadcrumb(
             color = colors.muted,
             fontFamily = MCUHomeTheme.typography.body,
             fontSize = 14.sp,
-            modifier = Modifier.clickable(onClick = onOpenDevices),
+            modifier = Modifier.handCursor().clickable(onClick = onOpenDevices),
         )
         Text(text = "/", color = colors.muted, fontFamily = MCUHomeTheme.typography.body, fontSize = 14.sp)
         Text(
@@ -148,14 +149,20 @@ private fun DeviceActions(actions: DeviceHeaderActions, defaultBuildMethod: Buil
                 primary = true,
             )
             DropdownMenu(expanded = buildMenu, onDismissRequest = { buildMenu = false }) {
-                MenuEntry("Build locally") {
-                    buildMenu = false
-                    actions.onBuild(BuildMethod.Local)
-                }
-                MenuEntry("Build on the build server") {
-                    buildMenu = false
-                    actions.onBuild(BuildMethod.Remote)
-                }
+                MCUHomeMenuItem(
+                    label = "Build locally",
+                    onClick = {
+                        buildMenu = false
+                        actions.onBuild(BuildMethod.Local)
+                    },
+                )
+                MCUHomeMenuItem(
+                    label = "Build on the build server",
+                    onClick = {
+                        buildMenu = false
+                        actions.onBuild(BuildMethod.Remote)
+                    },
+                )
             }
         }
         SecondaryButton(text = "Sign", onClick = actions.onSign, icon = MCUHomeIcons.key)
@@ -167,14 +174,20 @@ private fun DeviceActions(actions: DeviceHeaderActions, defaultBuildMethod: Buil
                 icon = MCUHomeIcons.bolt,
             )
             DropdownMenu(expanded = flashMenu, onDismissRequest = { flashMenu = false }) {
-                MenuEntry("Recovery (USB)") {
-                    flashMenu = false
-                    actions.onFlash(FlashMode.Recovery)
-                }
-                MenuEntry("Over the air") {
-                    flashMenu = false
-                    actions.onFlash(FlashMode.Ota)
-                }
+                MCUHomeMenuItem(
+                    label = "Recovery (USB)",
+                    onClick = {
+                        flashMenu = false
+                        actions.onFlash(FlashMode.Recovery)
+                    },
+                )
+                MCUHomeMenuItem(
+                    label = "Over the air",
+                    onClick = {
+                        flashMenu = false
+                        actions.onFlash(FlashMode.Ota)
+                    },
+                )
             }
         }
         SecondaryButton(text = "Pairing", onClick = actions.onPairing, icon = MCUHomeIcons.qr)
@@ -186,48 +199,45 @@ private fun DeviceActions(actions: DeviceHeaderActions, defaultBuildMethod: Buil
                 bordered = true,
             )
             DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
-                MenuEntry("Run first-time setup…") {
-                    moreMenu = false
-                    actions.onFirstTimeSetup()
-                }
-                MenuEntry("Show resolved model") {
-                    moreMenu = false
-                    actions.onResolvedModel()
-                }
-                MenuEntry("Clean build output") {
-                    moreMenu = false
-                    actions.onClean()
-                }
-                MenuEntry("Rename…") {
-                    moreMenu = false
-                    actions.onRename()
-                }
-                MenuEntry("Delete…", danger = true) {
-                    moreMenu = false
-                    actions.onDelete()
-                }
+                MCUHomeMenuItem(
+                    label = "Run first-time setup…",
+                    onClick = {
+                        moreMenu = false
+                        actions.onFirstTimeSetup()
+                    },
+                )
+                MCUHomeMenuItem(
+                    label = "Show resolved model",
+                    onClick = {
+                        moreMenu = false
+                        actions.onResolvedModel()
+                    },
+                )
+                MCUHomeMenuItem(
+                    label = "Clean build output",
+                    onClick = {
+                        moreMenu = false
+                        actions.onClean()
+                    },
+                )
+                MCUHomeMenuItem(
+                    label = "Rename…",
+                    onClick = {
+                        moreMenu = false
+                        actions.onRename()
+                    },
+                )
+                MCUHomeMenuItem(
+                    label = "Delete…",
+                    danger = true,
+                    onClick = {
+                        moreMenu = false
+                        actions.onDelete()
+                    },
+                )
             }
         }
     }
-}
-
-@Composable
-private fun MenuEntry(
-    label: String,
-    danger: Boolean = false,
-    onClick: () -> Unit,
-) {
-    DropdownMenuItem(
-        text = {
-            Text(
-                text = label,
-                color = if (danger) MCUHomeTheme.colors.error else MCUHomeTheme.colors.ink,
-                fontFamily = MCUHomeTheme.typography.body,
-                fontSize = 13.sp,
-            )
-        },
-        onClick = onClick,
-    )
 }
 
 private fun Modifier.bottomBorder(color: Color): Modifier = drawBehind {

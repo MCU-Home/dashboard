@@ -50,6 +50,7 @@ import org.mcuhome.ui.component.AnchoredPopover
 import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
 import org.mcuhome.ui.component.TextAction
+import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.MCUHomeTheme
 import org.mcuhome.ui.time.rememberNowEpochMillis
 
@@ -91,7 +92,7 @@ fun JobsChip(
                     color = if (running > 0) colors.accentTintBorder else colors.border,
                     shape = ChipShape,
                 )
-                .clickable { open = !open }
+                .handCursor().clickable { open = !open }
                 .padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),

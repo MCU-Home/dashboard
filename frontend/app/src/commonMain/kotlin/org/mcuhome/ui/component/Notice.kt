@@ -55,7 +55,7 @@ fun Notice(
             .clip(NoticeShape)
             .background(notice.fill)
             .border(width = 1.dp, color = notice.outline, shape = NoticeShape)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.handCursor().clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top,

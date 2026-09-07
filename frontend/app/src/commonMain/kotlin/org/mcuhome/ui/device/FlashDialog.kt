@@ -47,6 +47,7 @@ import org.mcuhome.ui.component.NotAvailableNotice
 import org.mcuhome.ui.component.PrimaryButton
 import org.mcuhome.ui.component.SecondaryButton
 import org.mcuhome.ui.component.formatByteSize
+import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.MCUHomeTheme
 import org.mcuhome.ui.time.formatTimestamp
 
@@ -193,7 +194,7 @@ private fun FirmwareChoice(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(if (isSelected) colors.accentTint else colors.surface)
-                    .clickable { onSelect(image.path) }
+                    .handCursor().clickable { onSelect(image.path) }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -240,7 +241,7 @@ private fun ModeCard(
             .clip(RoundedCornerShape(8.dp))
             .background(if (selected) colors.accentTint else colors.surface)
             .border(1.dp, if (selected) colors.accent else colors.border, RoundedCornerShape(8.dp))
-            .clickable(onClick = onSelect)
+            .handCursor().clickable(onClick = onSelect)
             .padding(horizontal = 10.dp, vertical = 10.dp),
         verticalAlignment = Alignment.Top,
     ) {

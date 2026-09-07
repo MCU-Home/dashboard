@@ -5,18 +5,15 @@ package org.mcuhome.ui.device
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
-import org.mcuhome.ui.theme.MCUHomeTheme
+import org.mcuhome.ui.component.MCUHomeMenuItem
 
 /**
  * What a row's menu offers.
@@ -52,19 +49,9 @@ fun DeviceRowMenu(
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DeviceRowAction.entries.forEach { action ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = action.label,
-                            color = if (action == DeviceRowAction.Delete) {
-                                MCUHomeTheme.colors.error
-                            } else {
-                                MCUHomeTheme.colors.ink
-                            },
-                            fontFamily = MCUHomeTheme.typography.body,
-                            fontSize = 13.sp,
-                        )
-                    },
+                MCUHomeMenuItem(
+                    label = action.label,
+                    danger = action == DeviceRowAction.Delete,
                     onClick = {
                         open = false
                         onAction(action)

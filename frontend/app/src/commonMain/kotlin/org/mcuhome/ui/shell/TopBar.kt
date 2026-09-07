@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.brand.MCUHomeMark
+import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.MCUHomeTheme
 
 /** The height the design gives the top bar. */
@@ -118,6 +119,7 @@ private fun NavigationItem(
     Box(
         modifier = Modifier
             .fillMaxHeight()
+            .handCursor()
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 12.dp)
             .drawBehind {

@@ -60,7 +60,7 @@ fun PrimaryButton(
             .height(ControlHeight)
             .clip(ButtonShape)
             .background(if (enabled) colors.accent else colors.backgroundAlt)
-            .clickable(enabled = enabled, onClick = onClick)
+            .handCursor(enabled).clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -100,7 +100,7 @@ fun SecondaryButton(
             .clip(ButtonShape)
             .background(colors.surface)
             .border(width = 1.dp, color = colors.border, shape = ButtonShape)
-            .clickable(enabled = enabled, onClick = onClick)
+            .handCursor(enabled).clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -147,7 +147,7 @@ fun SplitButton(
     ) {
         Row(
             modifier = Modifier
-                .clickable(onClick = onClick)
+                .handCursor().clickable(onClick = onClick)
                 .padding(start = 14.dp, end = 8.dp)
                 .height(ControlHeight),
             verticalAlignment = Alignment.CenterVertically,
@@ -167,7 +167,7 @@ fun SplitButton(
         Box(
             modifier = Modifier
                 .height(ControlHeight)
-                .clickable(onClick = onOpenMenu)
+                .handCursor().clickable(onClick = onOpenMenu)
                 .padding(end = 10.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -196,7 +196,7 @@ fun TextAction(
         fontSize = 12.sp,
         modifier = modifier
             .clip(ButtonShape)
-            .clickable(onClick = onClick)
+            .handCursor().clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 6.dp),
     )
 }
@@ -222,7 +222,7 @@ fun MCUHomeIconButton(
             .size(IconButtonSize)
             .clip(ButtonShape)
             .then(if (bordered) Modifier.border(1.dp, colors.border, ButtonShape) else Modifier)
-            .clickable(onClick = onClick),
+            .handCursor().clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

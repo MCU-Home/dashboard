@@ -28,6 +28,7 @@ import org.mcuhome.ui.component.PillTone
 import org.mcuhome.ui.component.SurfaceCard
 import org.mcuhome.ui.component.TableHeaderCell
 import org.mcuhome.ui.component.TableHeaderRow
+import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.MCUHomeTheme
 import org.mcuhome.ui.time.formatTimestamp
 
@@ -109,7 +110,7 @@ private fun DeviceRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(RowHeight)
-            .clickable { onRowAction(DeviceRowAction.Open) }
+            .handCursor().clickable { onRowAction(DeviceRowAction.Open) }
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

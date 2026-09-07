@@ -29,6 +29,7 @@ import org.mcuhome.ui.api.BoardInfo
 import org.mcuhome.ui.api.NetworkTransport
 import org.mcuhome.ui.component.Pill
 import org.mcuhome.ui.component.PillTone
+import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.MCUHomeTheme
 
 private val ListShape = RoundedCornerShape(8.dp)
@@ -107,7 +108,7 @@ private fun BoardRow(
             .fillMaxWidth()
             .height(BoardRowHeight)
             .background(if (selected) colors.accentTint else colors.surface)
-            .clickable(enabled = !board.planned, onClick = onSelect)
+            .handCursor(!board.planned).clickable(enabled = !board.planned, onClick = onSelect)
             .padding(end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),

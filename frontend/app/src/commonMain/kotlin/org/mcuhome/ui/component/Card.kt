@@ -77,7 +77,7 @@ fun TableHeaderCell(
 ) {
     val colors = MCUHomeTheme.colors
     Row(
-        modifier = modifier.fillMaxHeight().clickable(onClick = onClick),
+        modifier = modifier.fillMaxHeight().handCursor().clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {

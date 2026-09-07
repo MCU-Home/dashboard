@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,7 +51,9 @@ import org.mcuhome.ui.component.AnchoredPopover
 import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
 import org.mcuhome.ui.component.TextAction
+import org.mcuhome.ui.component.TouchControlHeight
 import org.mcuhome.ui.component.handCursor
+import org.mcuhome.ui.shell.LocalWindowSize
 import org.mcuhome.ui.theme.MCUHomeTheme
 import org.mcuhome.ui.time.rememberNowEpochMillis
 
@@ -59,6 +62,9 @@ private const val PULSE_MILLIS = 900
 
 private val ChipShape = RoundedCornerShape(14.dp)
 private val PopoverWidth = 420.dp
+
+/** How much of the window the popover leaves free when it cannot have its full width. */
+private val PopoverMargin = 16.dp
 
 /**
  * The jobs chip in the top bar, and the popover it opens.
@@ -77,6 +83,7 @@ fun JobsChip(
     val api = LocalMcuHomeApi.current
     val scope = rememberCoroutineScope()
     val colors = MCUHomeTheme.colors
+    val window = LocalWindowSize.current
     var open by remember { mutableStateOf(false) }
     val running = jobs.count { it.state == JobState.Running }
     val offsetY = with(LocalDensity.current) { 8.dp.roundToPx() }
@@ -93,29 +100,51 @@ fun JobsChip(
                     shape = ChipShape,
                 )
                 .handCursor().clickable { open = !open }
-                .padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+                .then(
+                    if (window.compact) {
+                        Modifier
+                            .height(TouchControlHeight)
+                            .defaultMinSize(minWidth = TouchControlHeight)
+                            .padding(horizontal = 10.dp)
+                    } else {
+                        Modifier.padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp)
+                    },
+                ),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         ) {
             StateDot(color = if (running > 0) colors.accent else colors.pinGray, pulsing = running > 0)
-            Text(
-                text = if (running > 0) "$running running" else "no jobs",
-                color = if (running > 0) colors.accentOnTint else colors.muted,
-                fontFamily = MCUHomeTheme.typography.body,
-                fontSize = 13.sp,
-            )
-            Icon(
-                imageVector = MCUHomeIcons.chevronDown,
-                contentDescription = null,
-                tint = if (running > 0) colors.accentOnTint else colors.muted,
-                modifier = Modifier.size(14.dp),
-            )
+            // On a phone the chip is the count and nothing else: the word
+            // beside it says what the dot's colour already says, and the
+            // chevron says what a chip that opens something always does.
+            if (!window.compact) {
+                Text(
+                    text = if (running > 0) "$running running" else "no jobs",
+                    color = if (running > 0) colors.accentOnTint else colors.muted,
+                    fontFamily = MCUHomeTheme.typography.body,
+                    fontSize = 13.sp,
+                )
+                Icon(
+                    imageVector = MCUHomeIcons.chevronDown,
+                    contentDescription = null,
+                    tint = if (running > 0) colors.accentOnTint else colors.muted,
+                    modifier = Modifier.size(14.dp),
+                )
+            } else if (running > 0) {
+                Text(
+                    text = running.toString(),
+                    color = colors.accentOnTint,
+                    fontFamily = MCUHomeTheme.typography.body,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                )
+            }
         }
 
         if (open) {
             AnchoredPopover(
                 onDismissRequest = { open = false },
-                modifier = Modifier.width(PopoverWidth),
+                modifier = Modifier.width(minOf(PopoverWidth, window.width - PopoverMargin)),
                 offset = IntOffset(offsetX, offsetY),
             ) {
                 JobsPopoverContent(

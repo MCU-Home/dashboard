@@ -7,11 +7,18 @@ The page the application starts from. The script is referenced without a
 leading slash on purpose: the whole distribution addresses itself
 relatively, so it can be served from the site root as well as from a base
 path.
+
+interactive-widget=resizes-content asks the browser to shrink the page
+itself when the on-screen keyboard opens, instead of leaving the page at
+its full height and merely scrolling what can be seen. Chrome and Firefox
+honour it; Safari does not, and there the application measures the visible
+part of the viewport itself and keeps its own layout above the keyboard.
 -->
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="color-scheme" content="light dark">
     <title>MCUHome</title>
     <style>

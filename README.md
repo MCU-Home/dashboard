@@ -25,7 +25,12 @@ page with the YAML editor, its status rail and the output panel, the shared
 configuration files with their users, the secrets of all four scopes, and
 the project's options, file, boards and doctor report. It talks to an
 in-memory mock of the API described in [`docs/api.md`](docs/api.md), so
-screens can be built before the back end exists. The back end — a Python
+screens can be built before the back end exists. It is one interface for
+every screen size: the same screens rearrange themselves for a tablet and
+for a phone — where the navigation moves behind a menu button, the device
+list becomes rows, and the editor gets a YAML toolbar above the on-screen
+keyboard — and every colour comes from the brand tokens in both the light
+and the dark scheme. The back end — a Python
 service on top of
 [mcuhome-workbench](https://github.com/mcu-home/mcuhome-workbench), talking
 to the front end only through that API over HTTP and WebSocket — is still

@@ -42,10 +42,12 @@ fun SideRail(
     width: Dp,
     modifier: Modifier = Modifier,
     scroll: ScrollState = rememberScrollState(),
+    bordered: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = MCUHomeTheme.colors
-    Box(modifier.width(width).fillMaxHeight().background(colors.surface).leftBorder()) {
+    val border = if (bordered) Modifier.leftBorder() else Modifier
+    Box(modifier.width(width).fillMaxHeight().background(colors.surface).then(border)) {
         Column(Modifier.fillMaxWidth().fillMaxHeight().verticalScroll(scroll), content = content)
         ThinVerticalScrollbar(scroll, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
     }
@@ -139,6 +141,16 @@ fun Modifier.rightBorder(): Modifier {
         val stroke = 1.dp.toPx()
         val x = size.width - stroke / 2f
         drawLine(colors.border, Offset(x, 0f), Offset(x, size.height), stroke)
+    }
+}
+
+/** The line above a bar that sits at the bottom edge of a screen. */
+@Composable
+fun Modifier.topBorder(): Modifier {
+    val colors = MCUHomeTheme.colors
+    return drawBehind {
+        val stroke = 1.dp.toPx()
+        drawLine(colors.border, Offset(0f, stroke / 2f), Offset(size.width, stroke / 2f), stroke)
     }
 }
 

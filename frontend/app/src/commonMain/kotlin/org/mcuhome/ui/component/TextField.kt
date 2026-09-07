@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.theme.MCUHomeTheme
@@ -48,6 +49,9 @@ private val FieldShape = RoundedCornerShape(8.dp)
  * [mono] switches the text to the monospace role for values that are
  * identifiers rather than prose — a device name becomes a folder name and
  * a host name, and reads as one here.
+ *
+ * [height] is the row the field is drawn in; it grows where a finger
+ * rather than a pointer has to hit it.
  */
 @Composable
 fun MCUHomeTextField(
@@ -58,6 +62,7 @@ fun MCUHomeTextField(
     mono: Boolean = false,
     invalid: Boolean = false,
     enabled: Boolean = true,
+    height: Dp = ControlHeight,
 ) {
     val colors = MCUHomeTheme.colors
     val typography = MCUHomeTheme.typography
@@ -82,12 +87,12 @@ fun MCUHomeTextField(
         lineLimits = TextFieldLineLimits.SingleLine,
         cursorBrush = SolidColor(colors.accent),
         interactionSource = interactionSource,
-        decorator = remember(placeholder, leadingIcon, outline, textStyle) {
+        decorator = remember(placeholder, leadingIcon, outline, textStyle, height) {
             TextFieldDecorator { innerTextField ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(ControlHeight)
+                        .height(height)
                         .clip(FieldShape)
                         .background(colors.surface)
                         .border(width = 1.dp, color = outline, shape = FieldShape)

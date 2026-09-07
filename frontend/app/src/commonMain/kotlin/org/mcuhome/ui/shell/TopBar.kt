@@ -29,6 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.brand.MCUHomeMark
+import org.mcuhome.ui.component.MCUHomeIconButton
+import org.mcuhome.ui.component.MCUHomeIcons
 import org.mcuhome.ui.component.handCursor
 import org.mcuhome.ui.theme.MCUHomeTheme
 
@@ -43,6 +45,11 @@ val TopBarHeight = 48.dp
  * The jobs chip is passed in as [jobsChip] rather than built here. It
  * carries a popover with the running and finished work, which is a piece
  * of the interface in its own right; the bar only says where it goes.
+ *
+ * What the bar drops as the window narrows it drops in the order the
+ * design does: the project's name goes below a desktop width, and on a
+ * phone the four navigation entries move behind the button that calls
+ * [onOpenMenu] and the connection state is left as its dot alone.
  */
 @Composable
 fun TopBar(
@@ -51,9 +58,11 @@ fun TopBar(
     onNavigate: (Destination) -> Unit,
     connected: Boolean,
     modifier: Modifier = Modifier,
+    onOpenMenu: () -> Unit = {},
     jobsChip: @Composable () -> Unit = {},
 ) {
     val colors = MCUHomeTheme.colors
+    val window = LocalWindowSize.current
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -68,9 +77,19 @@ fun TopBar(
                     strokeWidth = stroke,
                 )
             }
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = if (window.compact) 8.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (window.compact) {
+            MCUHomeIconButton(
+                icon = MCUHomeIcons.menu,
+                contentDescription = "Open the navigation",
+                onClick = onOpenMenu,
+                tint = colors.ink,
+                size = minimumTouchTarget(window.sizeClass),
+            )
+            Spacer(Modifier.width(4.dp))
+        }
         MCUHomeMark(Modifier.size(24.dp))
         Spacer(Modifier.width(8.dp))
         Text(
@@ -80,29 +99,33 @@ fun TopBar(
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
         )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = "· $projectName",
-            color = colors.muted,
-            fontFamily = MCUHomeTheme.typography.body,
-            fontSize = 13.sp,
-        )
+        if (window.expanded) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "· $projectName",
+                color = colors.muted,
+                fontFamily = MCUHomeTheme.typography.body,
+                fontSize = 13.sp,
+            )
+        }
 
-        Spacer(Modifier.width(24.dp))
-        Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-            Destination.entries.forEach { destination ->
-                NavigationItem(
-                    destination = destination,
-                    active = destination == current,
-                    onClick = { onNavigate(destination) },
-                )
+        if (!window.compact) {
+            Spacer(Modifier.width(24.dp))
+            Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+                Destination.entries.forEach { destination ->
+                    NavigationItem(
+                        destination = destination,
+                        active = destination == current,
+                        onClick = { onNavigate(destination) },
+                    )
+                }
             }
         }
 
         Spacer(Modifier.weight(1f))
         jobsChip()
-        Spacer(Modifier.width(16.dp))
-        ConnectionState(connected)
+        Spacer(Modifier.width(if (window.compact) 10.dp else 16.dp))
+        ConnectionState(connected, withLabel = !window.compact)
     }
 }
 
@@ -146,7 +169,7 @@ private fun NavigationItem(
 }
 
 @Composable
-private fun ConnectionState(connected: Boolean) {
+private fun ConnectionState(connected: Boolean, withLabel: Boolean) {
     val colors = MCUHomeTheme.colors
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -158,11 +181,13 @@ private fun ConnectionState(connected: Boolean) {
                 .clip(CircleShape)
                 .background(if (connected) colors.success else colors.error),
         )
-        Text(
-            text = if (connected) "connected" else "disconnected",
-            color = colors.muted,
-            fontFamily = MCUHomeTheme.typography.body,
-            fontSize = 13.sp,
-        )
+        if (withLabel) {
+            Text(
+                text = if (connected) "connected" else "disconnected",
+                color = colors.muted,
+                fontFamily = MCUHomeTheme.typography.body,
+                fontSize = 13.sp,
+            )
+        }
     }
 }

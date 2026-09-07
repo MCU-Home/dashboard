@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.theme.MCUHomeTheme
@@ -39,6 +40,12 @@ val ControlHeight = 36.dp
 /** The smallest square an icon-only control is drawn in. */
 val IconButtonSize = 32.dp
 
+/**
+ * The height a control is given where a finger rather than a pointer
+ * aims at it: the phone's action bar, the buttons of a sheet.
+ */
+val TouchControlHeight = 44.dp
+
 private val ButtonShape = RoundedCornerShape(8.dp)
 
 /**
@@ -52,12 +59,13 @@ fun PrimaryButton(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     enabled: Boolean = true,
+    height: Dp = ControlHeight,
 ) {
     val colors = MCUHomeTheme.colors
     val content = if (enabled) colors.surface else colors.muted
     Row(
         modifier = modifier
-            .height(ControlHeight)
+            .height(height)
             .clip(ButtonShape)
             .background(if (enabled) colors.accent else colors.backgroundAlt)
             .handCursor(enabled).clickable(enabled = enabled, onClick = onClick)
@@ -87,6 +95,7 @@ fun SecondaryButton(
     danger: Boolean = false,
     icon: ImageVector? = null,
     enabled: Boolean = true,
+    height: Dp = ControlHeight,
 ) {
     val colors = MCUHomeTheme.colors
     val content = when {
@@ -96,7 +105,7 @@ fun SecondaryButton(
     }
     Row(
         modifier = modifier
-            .height(ControlHeight)
+            .height(height)
             .clip(ButtonShape)
             .background(colors.surface)
             .border(width = 1.dp, color = colors.border, shape = ButtonShape)
@@ -205,6 +214,10 @@ fun TextAction(
  * An icon on its own that acts: a row's menu button, the cancel of a
  * running job, the close of a dialog. [bordered] draws the outline the
  * table's row menu has; the buttons inside a popover have none.
+ *
+ * [size] is the square the icon is centred in — and the square that has
+ * to be hit. It is the pointer's 32 px by default and is widened to a
+ * finger's 44 px where the interface is used by touch.
  */
 @Composable
 fun MCUHomeIconButton(
@@ -214,12 +227,13 @@ fun MCUHomeIconButton(
     modifier: Modifier = Modifier,
     bordered: Boolean = false,
     tint: Color = MCUHomeTheme.colors.muted,
+    size: Dp = IconButtonSize,
 ) {
     val colors = MCUHomeTheme.colors
     Box(
         modifier = modifier
-            .defaultMinSize(minWidth = IconButtonSize, minHeight = IconButtonSize)
-            .size(IconButtonSize)
+            .defaultMinSize(minWidth = size, minHeight = size)
+            .size(size)
             .clip(ButtonShape)
             .then(if (bordered) Modifier.border(1.dp, colors.border, ButtonShape) else Modifier)
             .handCursor().clickable(onClick = onClick),

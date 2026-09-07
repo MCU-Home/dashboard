@@ -3,13 +3,7 @@
 
 package org.mcuhome.ui.shell
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -23,14 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -45,20 +36,21 @@ val TopBarHeight = 48.dp
 
 /**
  * The bar across the top of every screen: the mark and wordmark, the name
- * of the open project, the navigation, and — on the right — the state of
- * the running jobs and of the connection to the server.
+ * of the open project, the navigation, and — on the right — the running
+ * jobs and the state of the connection to the server.
  *
- * The jobs chip and the connection indicator show fixed values for now;
- * they are wired to the API once it exists.
+ * The jobs chip is passed in as [jobsChip] rather than built here. It
+ * carries a popover with the running and finished work, which is a piece
+ * of the interface in its own right; the bar only says where it goes.
  */
 @Composable
 fun TopBar(
     projectName: String,
     current: Destination?,
     onNavigate: (Destination) -> Unit,
-    runningJobs: Int,
     connected: Boolean,
     modifier: Modifier = Modifier,
+    jobsChip: @Composable () -> Unit = {},
 ) {
     val colors = MCUHomeTheme.colors
     Row(
@@ -107,7 +99,7 @@ fun TopBar(
         }
 
         Spacer(Modifier.weight(1f))
-        JobsChip(runningJobs)
+        jobsChip()
         Spacer(Modifier.width(16.dp))
         ConnectionState(connected)
     }
@@ -147,45 +139,6 @@ private fun NavigationItem(
             fontFamily = MCUHomeTheme.typography.body,
             fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
             fontSize = 14.sp,
-        )
-    }
-}
-
-/** How long one half of the jobs dot's pulse takes, in milliseconds. */
-private const val JOBS_PULSE_MILLIS = 900
-
-@Composable
-private fun JobsChip(runningJobs: Int) {
-    val colors = MCUHomeTheme.colors
-    val pulse = rememberInfiniteTransition(label = "jobs-pulse")
-    val dotAlpha by pulse.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(tween(JOBS_PULSE_MILLIS), RepeatMode.Reverse),
-        label = "jobs-dot-alpha",
-    )
-
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.accentTint)
-            .border(1.dp, colors.accentTintBorder, RoundedCornerShape(14.dp))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Box(
-            Modifier
-                .size(7.dp)
-                .alpha(dotAlpha)
-                .clip(CircleShape)
-                .background(colors.accent),
-        )
-        Text(
-            text = "$runningJobs running",
-            color = colors.accentOnTint,
-            fontFamily = MCUHomeTheme.typography.body,
-            fontSize = 13.sp,
         )
     }
 }

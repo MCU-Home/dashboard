@@ -28,10 +28,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -109,6 +111,11 @@ private val TooltipHeight = 34.dp
  * document — what the diagnostics lists do when one of their entries is
  * clicked. [onJumpHandled] is called once the move has happened, so the
  * caller can forget the request.
+ *
+ * [onFocusChanged] reports whether the text has the focus. On a phone
+ * that is the same question as "is the keyboard up", which is what turns
+ * the page into its editing mode; nothing else in the interface can
+ * answer it, because the browser does not say.
  */
 @Composable
 fun YamlEditor(
@@ -117,6 +124,7 @@ fun YamlEditor(
     modifier: Modifier = Modifier,
     jumpToLine: Int? = null,
     onJumpHandled: () -> Unit = {},
+    onFocusChanged: (Boolean) -> Unit = {},
 ) {
     val colors = MCUHomeTheme.colors
     val density = LocalDensity.current
@@ -141,6 +149,10 @@ fun YamlEditor(
     val documentText = state.text.toString()
     val lineStarts = remember(documentText) { lineStartOffsets(documentText) }
     val cursorLine = remember(documentText, state.selection) { lineIndexOf(lineStarts, state.selection.start) }
+
+    // The callback is read through the latest value rather than captured:
+    // the modifier below outlives the composition it was built in.
+    val reportFocus by rememberUpdatedState(onFocusChanged)
 
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     var pointer by remember { mutableStateOf<Offset?>(null) }
@@ -262,6 +274,7 @@ fun YamlEditor(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(start = EditorContentStart, top = EditorContentTop, end = EditorContentStart)
+                            .onFocusChanged { focus -> reportFocus(focus.isFocused) }
                             .onPreviewKeyEvent { event -> insertIndentOnTab(state, event.key, event.type) },
                         textStyle = textStyle,
                         lineLimits = TextFieldLineLimits.MultiLine(),

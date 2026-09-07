@@ -7,6 +7,7 @@ import org.mcuhome.ui.api.Diagnostic
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import org.mcuhome.ui.api.DiagnosticSeverity as ApiSeverity
 
 class EditorLinesTest {
@@ -63,5 +64,32 @@ class EditorLinesTest {
     fun the_severities_are_carried_over_one_for_one() {
         val info = editorDiagnostics(listOf(Diagnostic(ApiSeverity.Info, "note", line = 1)))
         assertEquals(DiagnosticSeverity.Info, info.single().severity)
+    }
+}
+
+class EditorOverscrollTest {
+    @Test
+    fun theEditorKeepsBlankLinesBelowTheLastOne() {
+        assertEquals(8, EDITOR_OVERSCROLL_LINES)
+        assertEquals("\n".repeat(EDITOR_OVERSCROLL_LINES), overscrollText())
+    }
+
+    @Test
+    fun theBlankLinesAreNothingButLineBreaks() {
+        assertEquals(3, overscrollText(3).length)
+        assertTrue(overscrollText(3).all { it == '\n' })
+    }
+
+    @Test
+    fun anEditorWithoutOverscrollAppendsNothing() {
+        assertEquals("", overscrollText(0))
+        assertEquals("", overscrollText(-4))
+    }
+
+    @Test
+    fun theBlankLinesAreNotPartOfTheDocument() {
+        val document = "a:\n  b: 1"
+        assertEquals(listOf(0, 3), lineStartOffsets(document))
+        assertEquals(2, lineStartOffsets(document).size)
     }
 }

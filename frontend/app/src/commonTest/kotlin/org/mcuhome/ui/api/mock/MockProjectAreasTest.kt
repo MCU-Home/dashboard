@@ -14,6 +14,7 @@ import org.mcuhome.ui.api.SecretScope
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -33,6 +34,21 @@ class MockProjectAreasTest {
 
         val value = api.secret.reveal(SecretScope.Project, "wifi_ssid")
         assertEquals("mcuhome-demo", value)
+    }
+
+    @Test
+    fun theScopeIndexNamesOnlyWhatHasASecretsFile() = runTest {
+        val api = mockApi()
+        val index = api.secret.scopes()
+        val devices = api.device.list().map { it.name }
+
+        assertTrue(index.devices.isNotEmpty())
+        assertTrue(index.devices.all { it in devices })
+        // balcony-climate is the sample device without commissioning
+        // credentials, so it has no secrets file of its own.
+        assertFalse("balcony-climate" in index.devices)
+        index.devices.forEach { device -> api.secret.list(SecretScope.Device(device)) }
+        assertEquals(listOf("workstation"), index.buildServers)
     }
 
     @Test

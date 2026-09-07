@@ -3,6 +3,7 @@
 
 package org.mcuhome.ui.component
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,10 +41,10 @@ import org.mcuhome.ui.theme.MCUHomeTheme
 fun SideRail(
     width: Dp,
     modifier: Modifier = Modifier,
+    scroll: ScrollState = rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = MCUHomeTheme.colors
-    val scroll = rememberScrollState()
     Box(modifier.width(width).fillMaxHeight().background(colors.surface).leftBorder()) {
         Column(Modifier.fillMaxWidth().fillMaxHeight().verticalScroll(scroll), content = content)
         ThinVerticalScrollbar(scroll, Modifier.align(Alignment.CenterEnd).fillMaxHeight())

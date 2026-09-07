@@ -24,6 +24,7 @@ import org.mcuhome.ui.component.PillTone
 import org.mcuhome.ui.component.RailSection
 import org.mcuhome.ui.component.RailValue
 import org.mcuhome.ui.component.SecondaryButton
+import org.mcuhome.ui.component.Tooltip
 import org.mcuhome.ui.panel.BuildRun
 import org.mcuhome.ui.panel.DiagnosticNotice
 import org.mcuhome.ui.theme.MCUHomeTheme
@@ -31,15 +32,22 @@ import org.mcuhome.ui.time.formatTimestamp
 
 /** Whether the configuration checks out, what it pulls in, and how many secrets it resolves. */
 @Composable
-fun ConfigSection(detail: DeviceDetail, onCollapse: () -> Unit) {
+fun ConfigSection(
+    detail: DeviceDetail,
+    onCollapse: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     RailSection(
         title = "Config",
+        modifier = modifier,
         action = {
-            MCUHomeIconButton(
-                icon = MCUHomeIcons.dockRight,
-                contentDescription = "Collapse the status rail",
-                onClick = onCollapse,
-            )
+            Tooltip(text = "Collapse") {
+                MCUHomeIconButton(
+                    icon = MCUHomeIcons.collapseRight,
+                    contentDescription = "Collapse the status rail",
+                    onClick = onCollapse,
+                )
+            }
         },
     ) {
         KeyValueRow("Validation") { ConfigStatusPill(detail.summary.config) }
@@ -56,14 +64,15 @@ fun BuildSection(
     detail: DeviceDetail,
     build: BuildRun,
     nowEpochMillis: Long,
+    modifier: Modifier = Modifier,
 ) {
     val summary = detail.summary
     val snapshot = build.snapshot
-    RailSection(title = "Build") {
+    RailSection(title = "Build", modifier = modifier) {
         KeyValueRow("State") {
             when {
                 build.running || summary.build.state == BuildState.Building ->
-                    Pill(text = runningLabel(build), tone = PillTone.Accent, dot = true)
+                    Pill(text = buildRunningLabel(build), tone = PillTone.Accent, dot = true)
 
                 summary.build.state == BuildState.Built -> Pill(text = "built", tone = PillTone.Success)
 
@@ -86,9 +95,13 @@ fun BuildSection(
 
 /** The files of the last build that produced any, each with a way to fetch it. */
 @Composable
-fun ArtifactsSection(artifacts: List<ArtifactInfo>, onDownload: (ArtifactInfo) -> Unit) {
+fun ArtifactsSection(
+    artifacts: List<ArtifactInfo>,
+    onDownload: (ArtifactInfo) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     if (artifacts.isEmpty()) return
-    RailSection(title = "Artifacts · last good build") {
+    RailSection(title = "Artifacts · last good build", modifier = modifier) {
         artifacts.forEach { artifact ->
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
@@ -114,9 +127,13 @@ fun ArtifactsSection(artifacts: List<ArtifactInfo>, onDownload: (ArtifactInfo) -
 
 /** Whether the device can be commissioned, and the way to the codes. */
 @Composable
-fun PairingSection(detail: DeviceDetail, onShowPairing: () -> Unit) {
+fun PairingSection(
+    detail: DeviceDetail,
+    onShowPairing: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val pairing = detail.pairing
-    RailSection(title = "Matter pairing") {
+    RailSection(title = "Matter pairing", modifier = modifier) {
         KeyValueRow("Credentials") { RailValue(if (pairing?.present == true) "present" else "none yet") }
         if (pairing?.present == true) {
             KeyValueRow("Discriminator") { RailValue(pairing.maskedDiscriminator) }
@@ -131,8 +148,12 @@ fun PairingSection(detail: DeviceDetail, onShowPairing: () -> Unit) {
 
 /** Everything the validator found, in the order it found it. */
 @Composable
-fun DiagnosticsSection(diagnostics: List<Diagnostic>, onJumpToLine: (Int) -> Unit) {
-    RailSection(title = "Diagnostics") {
+fun DiagnosticsSection(
+    diagnostics: List<Diagnostic>,
+    onJumpToLine: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    RailSection(title = "Diagnostics", modifier = modifier) {
         if (diagnostics.isEmpty()) {
             RailValue("Nothing to report.")
             return@RailSection
@@ -142,8 +163,3 @@ fun DiagnosticsSection(diagnostics: List<Diagnostic>, onJumpToLine: (Int) -> Uni
         }
     }
 }
-
-/** The stage a running build is in, as the rail's pill says it: "compiling". */
-private fun runningLabel(build: BuildRun): String = build.snapshot?.currentStage?.name?.lowercase()?.let { stage ->
-    if (stage.endsWith("e")) "${stage.dropLast(1)}ing" else "${stage}ing"
-} ?: "building"

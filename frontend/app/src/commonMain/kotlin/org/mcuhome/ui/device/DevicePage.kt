@@ -136,6 +136,7 @@ fun DevicePage(
     var logNotAvailable by remember(name) { mutableStateOf<Availability.NotAvailable?>(null) }
     var jumpToLine by remember(name) { mutableStateOf<Int?>(null) }
     var railCollapsed by remember { mutableStateOf(false) }
+    var railSection by remember { mutableStateOf<DeviceRailSection?>(null) }
     var dialog by remember(name) { mutableStateOf<DeviceDialog?>(null) }
     var error by remember(name) { mutableStateOf<ApiError?>(null) }
     var notAvailable by remember(name) { mutableStateOf<Availability.NotAvailable?>(null) }
@@ -321,6 +322,10 @@ fun DevicePage(
             val railActions = DeviceRailActions(
                 onCollapse = { railCollapsed = true },
                 onExpand = { railCollapsed = false },
+                onOpenSection = { section ->
+                    railCollapsed = false
+                    railSection = section
+                },
                 onDownload = { artifact -> download(artifact) },
                 onShowPairing = { dialog = DeviceDialog.Pairing },
                 onJumpToLine = { line -> jumpToLine = line },
@@ -359,7 +364,15 @@ fun DevicePage(
                         if (railCollapsed) {
                             CollapsedStatusRail(live, diagnostics, build, railActions)
                         } else {
-                            DeviceStatusRail(live, diagnostics, build, now, railActions)
+                            DeviceStatusRail(
+                                detail = live,
+                                diagnostics = diagnostics,
+                                build = build,
+                                nowEpochMillis = now,
+                                actions = railActions,
+                                scrollTo = railSection,
+                                onScrolled = { railSection = null },
+                            )
                         }
                     },
                     panel = { OutputPanel(layout, panelData, panelActions, Modifier.fillMaxSize()) },

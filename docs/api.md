@@ -122,6 +122,11 @@ that connects late renders the same thing as one that watched from the
 start, and no client keeps a merge algorithm in step with the server's. A
 client that sees `events_dropped` refetches what it is showing.
 
+A device is announced as changed while a build runs, not only when the
+build starts and ends: the device table draws the counted progress beside
+its "building" pill and reads it from the `devices` topic, and a screen
+that never opened the build stream has no other source for it.
+
 ## Diagnostics
 
 A validation report is a list of diagnostics plus an `ok` flag, which is

@@ -16,11 +16,14 @@ the new front end in [`frontend/`](frontend/), and the checks that run over
 the tree.
 
 The front end is Kotlin / Compose Multiplatform, built for the web platform
-first. What exists so far is the application shell: the top bar, the
+first. What exists so far is the application shell — the top bar, the
 navigation tied to the browser's address bar and history, the theme built
-from the brand tokens, and a placeholder for each screen. It talks to an
-in-memory mock of the API described in [`docs/api.md`](docs/api.md), so
-screens can be built before the back end exists. The back end — a Python
+from the brand tokens — the devices screen with its filters, its sortable
+table and the New device dialog, and the jobs chip that keeps a running
+build reachable from every screen; the remaining screens are still
+placeholders. It talks to an in-memory mock of the API described in
+[`docs/api.md`](docs/api.md), so screens can be built before the back end
+exists. The back end — a Python
 service on top of
 [mcuhome-workbench](https://github.com/mcu-home/mcuhome-workbench), talking
 to the front end only through that API over HTTP and WebSocket — is still

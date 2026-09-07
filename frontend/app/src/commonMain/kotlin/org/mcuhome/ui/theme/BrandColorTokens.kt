@@ -24,10 +24,6 @@ data class ColorToken(val light: Color, val dark: Color) {
  * color literal appears, so a change to the brand is a change to this
  * table and nowhere else.
  *
- * The block at the end holds the two roles the design uses that the brand
- * stylesheet does not define yet. They are kept apart deliberately: when
- * the brand gains the matching custom properties, the values move up into
- * the table above and the block disappears.
  */
 object BrandColorTokens {
     // Core
@@ -65,11 +61,9 @@ object BrandColorTokens {
     val errorTintBorder = ColorToken(Color(0xFFE3C2BD), Color(0xFFDD6A5F))
     val errorOnTint = ColorToken(Color(0xFF8F2822), Color(0xFFDD6A5F))
 
-    // Roles the design uses that the brand stylesheet does not define yet:
-    // the accent tint behind the jobs chip and the "building" pill, and
-    // the editor's current-line highlight.
+    // Semantic: accent — the tint behind the jobs chip, the "building"
+    // pill and the editor's current-line band.
     val accentTint = ColorToken(Color(0xFFFDF5EE), Color(0xFF33291F))
     val accentTintBorder = ColorToken(Color(0xFFF2C9AB), Color(0xFFEF7B33))
     val accentOnTint = ColorToken(Color(0xFFA8420F), Color(0xFFF49A5E))
-    val editorCurrentLine = ColorToken(Color(0xFFFDF5EE), Color(0xFF33291F))
 }

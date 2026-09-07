@@ -57,6 +57,18 @@ fun formatTimeOfDay(epochMillis: Long): String {
     return "${twoDigits(hours)}:${twoDigits(minutes)}"
 }
 
+/**
+ * The hour, minute and second of an instant: "12:51:56".
+ *
+ * Build output and a device log are read line by line while they arrive,
+ * and the second is what distinguishes two of them.
+ */
+fun formatTimeOfDaySeconds(epochMillis: Long): String {
+    val millisOfDay = epochMillis.mod(DAY_MILLIS)
+    val seconds = (millisOfDay % MINUTE_MILLIS) / SECOND_MILLIS
+    return "${formatTimeOfDay(epochMillis)}:${twoDigits(seconds)}"
+}
+
 /** The calendar date of an instant: "2026-08-24". */
 fun formatDate(epochMillis: Long): String {
     val (year, month, day) = civilFromEpochDay(epochDay(epochMillis))

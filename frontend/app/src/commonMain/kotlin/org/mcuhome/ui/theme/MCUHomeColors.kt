@@ -59,5 +59,5 @@ class MCUHomeColors(val darkScheme: Boolean) {
     val editorLiteral: Color get() = success
     val editorComment: Color get() = muted
     val editorGutter: Color get() = muted
-    val editorCurrentLine: Color get() = BrandColorTokens.editorCurrentLine.resolve(darkScheme)
+    val editorCurrentLine: Color get() = accentTint
 }

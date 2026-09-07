@@ -6,7 +6,9 @@ package org.mcuhome.ui.editor
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +24,7 @@ import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,12 +39,18 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -51,6 +60,25 @@ import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.theme.MCUHomeColors
 import org.mcuhome.ui.theme.MCUHomeTheme
 import kotlin.math.roundToInt
+
+/** The width the gutter takes; enough for four digits plus the marker. */
+private val GutterWidth = 52.dp
+
+/** How far the text is inset from the left edge and the top of its column. */
+private val EditorContentStart = 8.dp
+private val EditorContentTop = 4.dp
+
+/** What the Tab key inserts. YAML has no tabs; two spaces are one level. */
+private const val INDENT = "  "
+
+/**
+ * How far outside its underline a diagnostic still reacts to the
+ * pointer, in pixels — a line of squiggle is too thin to hit exactly.
+ */
+private const val HOVER_TOLERANCE = 6f
+
+/** How far above the top edge a line jumped to is placed. */
+private val JUMP_MARGIN = 60.dp
 
 /**
  * A YAML editor: a line-number gutter, syntax highlighting, and the
@@ -62,39 +90,49 @@ import kotlin.math.roundToInt
  * `OutputTransformation` that styles the presented text without touching
  * the state behind it; the gutter, the current-line band and the wavy
  * underlines are drawn from the text field's own layout, so they stay
- * aligned with the text through scrolling and wrapping.
+ * aligned with the text through scrolling.
+ *
+ * Long lines are not wrapped. A configuration file's indentation carries
+ * meaning, and a wrapped line puts a continuation where an indent level
+ * would be; the text is laid out at its natural width instead and the
+ * column scrolls sideways.
+ *
+ * [jumpToLine] moves the caret and the viewport to a line of the
+ * document — what the diagnostics lists do when one of their entries is
+ * clicked. [onJumpHandled] is called once the move has happened, so the
+ * caller can forget the request.
  */
 @Composable
 fun YamlEditor(
     state: TextFieldState,
     diagnostics: List<EditorDiagnostic>,
     modifier: Modifier = Modifier,
+    jumpToLine: Int? = null,
+    onJumpHandled: () -> Unit = {},
 ) {
     val colors = MCUHomeTheme.colors
+    val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
-    val scrollState = rememberScrollState()
+    val verticalScroll = rememberScrollState()
+    val horizontalScroll = rememberScrollState()
 
     // The text sits inset from the edge of its column. Everything drawn
     // next to it — the gutter numbers, the current-line band, the
     // underlines — is placed in the text field's own coordinates and has
     // to be shifted by the same inset to line up with the glyphs.
-    val contentOffset = with(LocalDensity.current) {
-        Offset(EditorContentStart.toPx(), EditorContentTop.toPx())
-    }
+    val contentOffset = with(density) { Offset(EditorContentStart.toPx(), EditorContentTop.toPx()) }
 
     val textStyle = TextStyle(
         fontFamily = MCUHomeTheme.typography.mono,
         fontSize = 13.sp,
-        lineHeight = 20.sp,
+        lineHeight = 21.sp,
         color = colors.ink,
     )
     val gutterStyle = textStyle.copy(color = colors.editorGutter)
 
     val documentText = state.text.toString()
     val lineStarts = remember(documentText) { lineStartOffsets(documentText) }
-    val cursorLine = remember(documentText, state.selection) {
-        lineIndexOf(lineStarts, state.selection.start)
-    }
+    val cursorLine = remember(documentText, state.selection) { lineIndexOf(lineStarts, state.selection.start) }
 
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     var pointer by remember { mutableStateOf<Offset?>(null) }
@@ -102,8 +140,13 @@ fun YamlEditor(
 
     // Keyed on the color scheme only: a new OutputTransformation instance
     // restarts the text-input session, which drops keystrokes on wasmJs.
-    val highlighting = remember(colors.darkScheme) {
-        YamlOutputTransformation(colors.spanStyles())
+    val highlighting = remember(colors.darkScheme) { YamlOutputTransformation(colors.spanStyles()) }
+
+    // The width the longest line needs, so nothing has to wrap. Only that
+    // one line is measured, and only when the document changes.
+    val longestLine = remember(documentText) { documentText.lineSequence().maxByOrNull { it.length }.orEmpty() }
+    val textWidth = with(density) {
+        textMeasurer.measure(longestLine, textStyle).size.width.toDp() + EditorContentStart * 2
     }
 
     Row(modifier.background(colors.surface)) {
@@ -119,11 +162,7 @@ fun YamlEditor(
                             if (event.type == PointerEventType.Press) {
                                 val position = event.changes.first().position
                                 val line = layout?.let { result ->
-                                    lineAtY(
-                                        result,
-                                        position.y - contentOffset.y + scrollState.value,
-                                        lineStarts,
-                                    )
+                                    lineAtY(result, position.y - contentOffset.y + verticalScroll.value, lineStarts)
                                 }
                                 pinnedDiagnostic = diagnostics
                                     .firstOrNull { it.line - 1 == line }
@@ -134,11 +173,10 @@ fun YamlEditor(
                 },
         ) {
             val result = layout ?: return@Canvas
-            translate(top = contentOffset.y - scrollState.value) {
+            translate(top = contentOffset.y - verticalScroll.value) {
                 lineStarts.forEachIndexed { index, offset ->
                     val visualLine = result.getLineForOffset(offset)
-                    val number = (index + 1).toString()
-                    val measured = textMeasurer.measure(number, gutterStyle)
+                    val measured = textMeasurer.measure((index + 1).toString(), gutterStyle)
                     drawText(
                         textLayoutResult = measured,
                         topLeft = Offset(
@@ -160,89 +198,114 @@ fun YamlEditor(
             }
         }
 
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                            pointer = when (event.type) {
-                                PointerEventType.Exit -> null
-                                else -> event.changes.first().position
+        BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
+            val contentWidth = maxOf(textWidth, maxWidth)
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .horizontalScroll(horizontalScroll)
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                pointer = when (event.type) {
+                                    PointerEventType.Exit -> null
+                                    else -> event.changes.first().position
+                                }
+                            }
+                        }
+                    },
+            ) {
+                Box(Modifier.width(contentWidth).fillMaxHeight()) {
+                    Canvas(Modifier.fillMaxSize()) {
+                        val result = layout ?: return@Canvas
+                        translate(left = contentOffset.x, top = contentOffset.y - verticalScroll.value) {
+                            cursorLine?.let { index ->
+                                lineStarts.getOrNull(index)?.let { offset ->
+                                    val visualLine = result.getLineForOffset(offset)
+                                    drawRect(
+                                        color = colors.editorCurrentLine,
+                                        topLeft = Offset(-contentOffset.x, result.getLineTop(visualLine)),
+                                        size = Size(
+                                            width = size.width,
+                                            height = result.getLineBottom(visualLine) - result.getLineTop(visualLine),
+                                        ),
+                                    )
+                                }
+                            }
+                            diagnostics.forEach { diagnostic ->
+                                underlineRect(result, documentText, diagnostic)?.let { rect ->
+                                    drawWavyUnderline(rect, colors.severityColor(diagnostic))
+                                }
                             }
                         }
                     }
-                },
-        ) {
-            Canvas(Modifier.fillMaxSize()) {
-                val result = layout ?: return@Canvas
-                translate(left = contentOffset.x, top = contentOffset.y - scrollState.value) {
-                    cursorLine?.let { index ->
-                        lineStarts.getOrNull(index)?.let { offset ->
-                            val visualLine = result.getLineForOffset(offset)
-                            drawRect(
-                                color = colors.editorCurrentLine,
-                                topLeft = Offset(-contentOffset.x, result.getLineTop(visualLine)),
-                                size = Size(
-                                    width = size.width,
-                                    height = result.getLineBottom(visualLine) - result.getLineTop(visualLine),
-                                ),
-                            )
+
+                    BasicTextField(
+                        state = state,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(start = EditorContentStart, top = EditorContentTop, end = EditorContentStart)
+                            .onPreviewKeyEvent { event -> insertIndentOnTab(state, event.key, event.type) },
+                        textStyle = textStyle,
+                        lineLimits = TextFieldLineLimits.MultiLine(),
+                        cursorBrush = SolidColor(colors.accent),
+                        outputTransformation = highlighting,
+                        scrollState = verticalScroll,
+                        onTextLayout = { getResult -> layout = getResult() },
+                    )
+
+                    val hovered = layout?.let { result ->
+                        pointer?.let { position ->
+                            diagnostics.firstOrNull { diagnostic ->
+                                underlineRect(result, documentText, diagnostic)
+                                    ?.translate(contentOffset.x, contentOffset.y - verticalScroll.value)
+                                    ?.inflate(HOVER_TOLERANCE)
+                                    ?.contains(position + Offset(horizontalScroll.value.toFloat(), 0f)) == true
+                            }
                         }
                     }
-                    diagnostics.forEach { diagnostic ->
-                        underlineRect(result, lineStarts, documentText, diagnostic)?.let { rect ->
-                            drawWavyUnderline(rect, colors.severityColor(diagnostic))
-                        }
+                    val shown = hovered ?: pinnedDiagnostic
+                    if (shown != null) {
+                        DiagnosticTooltip(
+                            diagnostic = shown,
+                            anchor = layout?.let { result ->
+                                underlineRect(result, documentText, shown)
+                                    ?.translate(contentOffset.x, contentOffset.y - verticalScroll.value)
+                            },
+                        )
                     }
                 }
-            }
-
-            BasicTextField(
-                state = state,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = EditorContentStart, top = EditorContentTop, end = EditorContentStart),
-                textStyle = textStyle,
-                lineLimits = TextFieldLineLimits.MultiLine(),
-                cursorBrush = SolidColor(colors.accent),
-                outputTransformation = highlighting,
-                scrollState = scrollState,
-                onTextLayout = { getResult -> layout = getResult() },
-            )
-
-            val hovered = layout?.let { result ->
-                pointer?.let { position ->
-                    diagnostics.firstOrNull { diagnostic ->
-                        underlineRect(result, lineStarts, documentText, diagnostic)
-                            ?.translate(contentOffset.x, contentOffset.y - scrollState.value)
-                            ?.inflate(HOVER_TOLERANCE)
-                            ?.contains(position) == true
-                    }
-                }
-            }
-            val shown = hovered ?: pinnedDiagnostic
-            if (shown != null) {
-                DiagnosticTooltip(
-                    diagnostic = shown,
-                    anchor = layout?.let { result ->
-                        underlineRect(result, lineStarts, documentText, shown)
-                            ?.translate(contentOffset.x, contentOffset.y - scrollState.value)
-                    },
-                )
             }
         }
     }
+
+    val jumpMargin = with(density) { JUMP_MARGIN.toPx() }
+    LaunchedEffect(jumpToLine, layout) {
+        val line = jumpToLine ?: return@LaunchedEffect
+        val result = layout ?: return@LaunchedEffect
+        val offset = lineStarts.getOrNull(line - 1) ?: return@LaunchedEffect
+        state.edit { selection = TextRange(offset) }
+        val top = result.getLineTop(result.getLineForOffset(offset))
+        verticalScroll.animateScrollTo((top - jumpMargin).coerceAtLeast(0f).roundToInt())
+        onJumpHandled()
+    }
 }
 
-/** The width the gutter takes; enough for four digits plus the marker. */
-private val GutterWidth = 52.dp
-
-/** How far the text is inset from the left edge and the top of its column. */
-private val EditorContentStart = 8.dp
-private val EditorContentTop = 4.dp
+/** Tab is an indent, not a way out of the field: YAML is indented with spaces. */
+private fun insertIndentOnTab(
+    state: TextFieldState,
+    key: Key,
+    type: KeyEventType,
+): Boolean {
+    if (type != KeyEventType.KeyDown || key != Key.Tab) return false
+    state.edit {
+        val at = selection.min
+        replace(selection.min, selection.max, INDENT)
+        selection = TextRange(at + INDENT.length)
+    }
+    return true
+}
 
 @Composable
 private fun DiagnosticTooltip(diagnostic: EditorDiagnostic, anchor: Rect?) {
@@ -291,54 +354,27 @@ private fun MCUHomeColors.severityColor(diagnostic: EditorDiagnostic): Color = w
     DiagnosticSeverity.Info -> info
 }
 
-private fun lineStartOffsets(text: String): List<Int> {
-    val starts = mutableListOf(0)
-    text.forEachIndexed { index, char -> if (char == '\n') starts += index + 1 }
-    return starts
-}
-
-private fun lineIndexOf(lineStarts: List<Int>, offset: Int): Int? {
-    if (lineStarts.isEmpty()) return null
-    val index = lineStarts.indexOfLast { it <= offset }
-    return index.takeIf { it >= 0 }
-}
-
 private fun lineAtY(
     result: TextLayoutResult,
     y: Float,
     lineStarts: List<Int>,
 ): Int? {
     val visualLine = result.getLineForVerticalPosition(y)
-    val offset = result.getLineStart(visualLine)
-    return lineIndexOf(lineStarts, offset)
+    return lineIndexOf(lineStarts, result.getLineStart(visualLine))
 }
 
-/**
- * How far outside its underline a diagnostic still reacts to the
- * pointer, in pixels — a line of squiggle is too thin to hit exactly.
- */
-private const val HOVER_TOLERANCE = 6f
-
 /** The stretch of a line a diagnostic underlines: its content, without the indent. */
-@Suppress("ReturnCount")
 private fun underlineRect(
     result: TextLayoutResult,
-    lineStarts: List<Int>,
     text: String,
     diagnostic: EditorDiagnostic,
 ): Rect? {
-    val lineStart = lineStarts.getOrNull(diagnostic.line - 1) ?: return null
-    val lineEnd = lineStarts.getOrNull(diagnostic.line)?.minus(1) ?: text.length
-    if (lineEnd <= lineStart) return null
-    var start = lineStart
-    while (start < lineEnd && text[start] == ' ') start++
-    if (start >= lineEnd) return null
-
-    val visualLine = result.getLineForOffset(start)
+    val range = contentRangeOfLine(text, diagnostic.line) ?: return null
+    val visualLine = result.getLineForOffset(range.first)
     return Rect(
-        left = result.getHorizontalPosition(start, usePrimaryDirection = true),
+        left = result.getHorizontalPosition(range.first, usePrimaryDirection = true),
         top = result.getLineTop(visualLine),
-        right = result.getHorizontalPosition(lineEnd, usePrimaryDirection = true),
+        right = result.getHorizontalPosition(range.last + 1, usePrimaryDirection = true),
         bottom = result.getLineBottom(visualLine),
     )
 }

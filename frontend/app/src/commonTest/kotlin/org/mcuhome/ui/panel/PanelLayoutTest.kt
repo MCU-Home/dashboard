@@ -21,24 +21,31 @@ class PanelLayoutTest {
     }
 
     @Test
+    fun the_dock_button_of_a_panel_at_the_bottom_points_at_the_right_edge() {
+        assertEquals(PanelDock.Right, layout.otherDock)
+        assertEquals(PanelDock.Bottom, layout.dockToggled().otherDock)
+    }
+
+    @Test
     fun docking_at_the_right_reports_the_right_width_as_its_size() {
-        val right = layout.dockedTo(PanelDock.Right)
+        val right = layout.dockToggled()
         assertEquals(PanelDock.Right, right.dock)
         assertEquals(right.rightWidth, right.size)
     }
 
     @Test
-    fun pressing_the_dock_button_of_the_edge_it_is_already_on_restores_it() {
+    fun the_dock_button_moves_the_panel_without_opening_or_closing_it() {
         val minimized = layout.minimized()
         assertTrue(minimized.minimized)
-        assertFalse(minimized.dockedTo(PanelDock.Bottom).minimized)
+        val moved = minimized.dockToggled()
+        assertEquals(PanelDock.Right, moved.dock)
+        assertTrue(moved.minimized)
+        assertFalse(layout.dockToggled().minimized)
     }
 
     @Test
-    fun moving_a_minimized_panel_to_the_other_edge_opens_it_there() {
-        val moved = layout.minimized().dockedTo(PanelDock.Right)
-        assertEquals(PanelDock.Right, moved.dock)
-        assertFalse(moved.minimized)
+    fun the_dock_button_is_its_own_way_back() {
+        assertEquals(layout, layout.dockToggled().dockToggled())
     }
 
     @Test
@@ -54,7 +61,7 @@ class PanelLayoutTest {
         assertEquals(layout.bottomHeight + 60.dp, resized.bottomHeight)
         assertEquals(layout.rightWidth, resized.rightWidth)
 
-        val right = layout.dockedTo(PanelDock.Right).resized(40.dp)
+        val right = layout.dockToggled().resized(40.dp)
         assertEquals(layout.rightWidth + 40.dp, right.rightWidth)
         assertEquals(layout.bottomHeight, right.bottomHeight)
     }
@@ -63,7 +70,7 @@ class PanelLayoutTest {
     fun a_drag_beyond_the_limits_stops_at_them() {
         assertEquals(140.dp, layout.resized((-2000).dp).bottomHeight)
         assertEquals(700.dp, layout.resized(2000.dp).bottomHeight)
-        val right = layout.dockedTo(PanelDock.Right)
+        val right = layout.dockToggled()
         assertEquals(280.dp, right.resized((-2000).dp).rightWidth)
         assertEquals(820.dp, right.resized(2000.dp).rightWidth)
     }
@@ -72,5 +79,12 @@ class PanelLayoutTest {
     fun restoring_and_minimizing_are_the_two_directions_of_one_switch() {
         assertTrue(layout.minimized().minimized)
         assertFalse(layout.minimized().restored().minimized)
+    }
+
+    @Test
+    fun minimizing_keeps_the_tab_that_was_open() {
+        val minimized = layout.showing(PanelTab.Diagnostics).minimized()
+        assertEquals(PanelTab.Diagnostics, minimized.tab)
+        assertEquals(PanelTab.Diagnostics, minimized.restored().tab)
     }
 }

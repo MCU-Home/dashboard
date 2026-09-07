@@ -22,13 +22,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.api.BuildState
 import org.mcuhome.ui.api.DeviceSummary
-import org.mcuhome.ui.api.NetworkTransport
 import org.mcuhome.ui.component.Pill
 import org.mcuhome.ui.component.PillTone
 import org.mcuhome.ui.component.SurfaceCard
 import org.mcuhome.ui.component.TableHeaderCell
 import org.mcuhome.ui.component.TableHeaderRow
 import org.mcuhome.ui.component.handCursor
+import org.mcuhome.ui.component.transportLabel
 import org.mcuhome.ui.theme.MCUHomeTheme
 import org.mcuhome.ui.time.formatTimestamp
 
@@ -213,11 +213,7 @@ private fun BuildCell(
 }
 
 private fun networkLabel(device: DeviceSummary): String {
-    val transport = when (device.network.transport) {
-        NetworkTransport.Thread -> "Thread"
-        NetworkTransport.WiFi -> "Wi-Fi"
-        NetworkTransport.Ethernet -> "Ethernet"
-    }
+    val transport = transportLabel(device.network.transport)
     val role = device.network.threadRole?.name?.uppercase()
     return listOfNotNull(transport, role).joinToString(" · ")
 }

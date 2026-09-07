@@ -67,11 +67,16 @@ fun DiagnosticsTab(
  * One finding: where it is, what it is about, and the fix the validator
  * suggested. The place is written the way an editor writes it, so it can
  * be recognised in the gutter beside the text.
+ *
+ * [onJumpToLine] is null where the finding is about a *different* file
+ * than the one on screen — the findings of a shared fragment's users
+ * point into their own configurations, and a line number that leads
+ * nowhere is worse than none.
  */
 @Composable
 fun DiagnosticNotice(
     diagnostic: Diagnostic,
-    onJumpToLine: (Int) -> Unit,
+    onJumpToLine: ((Int) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val place = diagnostic.line?.let { line -> "${diagnostic.file?.substringAfterLast('/').orEmpty()}:$line" }
@@ -82,8 +87,14 @@ fun DiagnosticNotice(
         message = listOfNotNull(diagnostic.message, diagnostic.hint).joinToString(" "),
         icon = diagnostic.icon(),
         modifier = modifier,
-        onClick = diagnostic.line?.let { line -> { onJumpToLine(line) } },
+        onClick = jumpTo(diagnostic.line, onJumpToLine),
     )
+}
+
+/** The click a finding carries: only when there is a line and somewhere to go. */
+private fun jumpTo(line: Int?, onJumpToLine: ((Int) -> Unit)?): (() -> Unit)? {
+    if (line == null || onJumpToLine == null) return null
+    return { onJumpToLine(line) }
 }
 
 private fun Diagnostic.tone(): PillTone = when (severity) {

@@ -34,7 +34,6 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -55,14 +54,12 @@ import org.mcuhome.ui.api.DiagnosticSeverity
 import org.mcuhome.ui.api.FlashMode
 import org.mcuhome.ui.api.LocalMcuHomeApi
 import org.mcuhome.ui.component.ErrorNotice
-import org.mcuhome.ui.component.ModalCard
 import org.mcuhome.ui.component.NotAvailableNotice
-import org.mcuhome.ui.component.Notice
-import org.mcuhome.ui.component.PillTone
-import org.mcuhome.ui.component.PrimaryButton
 import org.mcuhome.ui.component.SecondaryButton
 import org.mcuhome.ui.download.LocalFileDownloader
 import org.mcuhome.ui.editor.EditorDocument
+import org.mcuhome.ui.editor.SaveConflictNotice
+import org.mcuhome.ui.editor.UnsavedChangesDialog
 import org.mcuhome.ui.editor.YamlEditor
 import org.mcuhome.ui.editor.editorDiagnostics
 import org.mcuhome.ui.panel.BuildRun
@@ -442,7 +439,7 @@ private fun DeviceDialogs(
             },
         )
 
-        is DeviceDialog.Leave -> LeaveDialog(
+        is DeviceDialog.Leave -> UnsavedChangesDialog(
             onStay = onDismiss,
             onLeave = {
                 onDismiss()
@@ -486,22 +483,11 @@ private fun DeviceNotices(
             }
         }
         if (conflict) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Notice(
-                    tone = PillTone.Warning,
-                    title = "This file changed somewhere else while it was open here",
-                    message = "Reload takes the other version and drops what was typed here; " +
-                        "overwrite keeps this text and writes it over the other one.",
-                    modifier = Modifier.weight(1f),
-                )
-                Row(
-                    Modifier.padding(start = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    SecondaryButton(text = "Reload", onClick = actions.onReload)
-                    PrimaryButton(text = "Overwrite", onClick = actions.onOverwrite)
-                }
-            }
+            SaveConflictNotice(
+                onReload = actions.onReload,
+                onOverwrite = actions.onOverwrite,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -519,34 +505,6 @@ private fun LoadingOrError(error: ApiError?, modifier: Modifier = Modifier) {
                 fontFamily = MCUHomeTheme.typography.body,
                 fontSize = 14.sp,
             )
-        }
-    }
-}
-
-@Composable
-private fun LeaveDialog(onStay: () -> Unit, onLeave: () -> Unit) {
-    ModalCard(onDismissRequest = onStay, modifier = Modifier.width(440.dp), onSubmit = onStay) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = "Leave without saving?",
-                color = MCUHomeTheme.colors.ink,
-                fontFamily = MCUHomeTheme.typography.heading,
-                fontWeight = FontWeight.Bold,
-                fontSize = 17.sp,
-            )
-            Text(
-                text = "The configuration has changes that were never written. Leaving the page throws them away.",
-                color = MCUHomeTheme.colors.muted,
-                fontFamily = MCUHomeTheme.typography.body,
-                fontSize = 13.sp,
-            )
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SecondaryButton(text = "Discard and leave", onClick = onLeave, danger = true)
-                    PrimaryButton(text = "Stay", onClick = onStay)
-                }
-            }
         }
     }
 }

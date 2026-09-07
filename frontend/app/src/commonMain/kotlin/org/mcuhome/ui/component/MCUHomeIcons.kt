@@ -329,6 +329,40 @@ object MCUHomeIcons {
         }
     }
 
+    /** Changing a value that is already there: a secret, an option. */
+    val pencil: ImageVector by lazy {
+        icon("pencil") {
+            moveTo(4.5f, 19.5f)
+            lineTo(4.5f, 15.5f)
+            lineTo(15.5f, 4.5f)
+            lineTo(19.5f, 8.5f)
+            lineTo(8.5f, 19.5f)
+            close()
+            moveTo(13.5f, 6.5f)
+            lineTo(17.5f, 10.5f)
+        }
+    }
+
+    /** Removing something for good: a secret, a file. */
+    val trash: ImageVector by lazy {
+        icon("trash") {
+            moveTo(4.5f, 6.5f)
+            lineTo(19.5f, 6.5f)
+            moveTo(9.5f, 6.5f)
+            lineTo(9.5f, 4.5f)
+            lineTo(14.5f, 4.5f)
+            lineTo(14.5f, 6.5f)
+            moveTo(6.5f, 6.5f)
+            lineTo(7.5f, 20.5f)
+            lineTo(16.5f, 20.5f)
+            lineTo(17.5f, 6.5f)
+            moveTo(10.5f, 10f)
+            lineTo(10.5f, 17f)
+            moveTo(13.5f, 10f)
+            lineTo(13.5f, 17f)
+        }
+    }
+
     /**
      * Builds one icon on the shared 24 by 24 viewport, as a single
      * round-capped, round-joined stroke so the same geometry stays

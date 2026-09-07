@@ -8,21 +8,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -34,6 +29,8 @@ import org.mcuhome.ui.api.Diagnostic
 import org.mcuhome.ui.api.DiagnosticSeverity
 import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
+import org.mcuhome.ui.component.SideRail
+import org.mcuhome.ui.component.leftBorder
 import org.mcuhome.ui.panel.BuildRun
 import org.mcuhome.ui.theme.MCUHomeTheme
 
@@ -72,15 +69,7 @@ fun DeviceStatusRail(
     actions: DeviceRailActions,
     modifier: Modifier = Modifier,
 ) {
-    val colors = MCUHomeTheme.colors
-    Column(
-        modifier = modifier
-            .width(RailWidth)
-            .fillMaxHeight()
-            .background(colors.surface)
-            .leftBorder()
-            .verticalScroll(rememberScrollState()),
-    ) {
+    SideRail(width = RailWidth, modifier = modifier) {
         ConfigSection(detail, actions.onCollapse)
         BuildSection(detail, build, nowEpochMillis)
         ArtifactsSection(detail.artifacts, actions.onDownload)
@@ -194,20 +183,5 @@ private fun StripIcon(
                     .background(dot),
             )
         }
-    }
-}
-
-/** The line that separates the rail from the editor beside it. */
-@Composable
-private fun Modifier.leftBorder(): Modifier {
-    val colors = MCUHomeTheme.colors
-    return drawBehind {
-        val stroke = 1.dp.toPx()
-        drawLine(
-            color = colors.border,
-            start = Offset(stroke / 2f, 0f),
-            end = Offset(stroke / 2f, size.height),
-            strokeWidth = stroke,
-        )
     }
 }

@@ -27,11 +27,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.api.BoardInfo
-import org.mcuhome.ui.api.NetworkTransport
 import org.mcuhome.ui.component.Pill
 import org.mcuhome.ui.component.PillTone
 import org.mcuhome.ui.component.ThinVerticalScrollbar
 import org.mcuhome.ui.component.handCursor
+import org.mcuhome.ui.component.transportLabel
 import org.mcuhome.ui.theme.MCUHomeTheme
 
 private val ListShape = RoundedCornerShape(8.dp)
@@ -149,12 +149,6 @@ private fun BoardRow(
 
 /** What a board is, in one line: its name and the networks it can join. */
 fun boardDescription(board: BoardInfo): String {
-    val transports = board.transports.joinToString(", ") {
-        when (it) {
-            NetworkTransport.Thread -> "Thread"
-            NetworkTransport.WiFi -> "Wi-Fi"
-            NetworkTransport.Ethernet -> "Ethernet"
-        }
-    }
+    val transports = board.transports.joinToString(", ") { transportLabel(it) }
     return listOf(board.displayName, transports).filter { it.isNotEmpty() }.joinToString(" · ")
 }

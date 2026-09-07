@@ -3,13 +3,7 @@
 
 package org.mcuhome.ui.device
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.Text
@@ -20,12 +14,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.mcuhome.ui.api.ApiError
@@ -34,12 +25,9 @@ import org.mcuhome.ui.api.DeviceSummary
 import org.mcuhome.ui.api.LocalMcuHomeApi
 import org.mcuhome.ui.component.ErrorNotice
 import org.mcuhome.ui.component.MCUHomeTextField
-import org.mcuhome.ui.component.ModalCard
-import org.mcuhome.ui.component.PrimaryButton
-import org.mcuhome.ui.component.SecondaryButton
+import org.mcuhome.ui.component.PromptActions
+import org.mcuhome.ui.component.PromptCard
 import org.mcuhome.ui.theme.MCUHomeTheme
-
-private val PromptWidth = 440.dp
 
 /** Giving a device a new name: the same rule the New device dialog applies. */
 @Composable
@@ -125,42 +113,5 @@ fun DeleteDeviceDialog(
         )
         error?.let { ErrorNotice(it, Modifier.fillMaxWidth()) }
         PromptActions(confirm = "Delete", enabled = true, onDismiss = onDismiss, onConfirm = { delete() })
-    }
-}
-
-@Composable
-private fun PromptCard(
-    title: String,
-    onDismiss: () -> Unit,
-    onSubmit: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    ModalCard(onDismissRequest = onDismiss, modifier = Modifier.width(PromptWidth), onSubmit = onSubmit) {
-        Column(Modifier.padding(all = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = title,
-                color = MCUHomeTheme.colors.ink,
-                fontFamily = MCUHomeTheme.typography.heading,
-                fontWeight = FontWeight.Bold,
-                fontSize = 17.sp,
-            )
-            content()
-        }
-    }
-}
-
-@Composable
-private fun PromptActions(
-    confirm: String,
-    enabled: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SecondaryButton(text = "Cancel", onClick = onDismiss)
-            PrimaryButton(text = confirm, onClick = onConfirm, enabled = enabled)
-        }
     }
 }

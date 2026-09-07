@@ -151,7 +151,10 @@ password is a deliberate act with a request behind it.
 
 The four scopes match the four places a project keeps secrets:
 `secrets/main.yaml`, `secrets/devices/<device>.yaml`,
-`secrets/build-server/<server>.yaml` and `secrets/firmware/`.
+`secrets/build-server/<server>.yaml` and `secrets/firmware/`. Two of them
+name something, so `secret/scopes` reports which devices and which build
+servers have a file of their own — a name it does not report has no
+secrets file, and asking for its list answers `not_found`.
 
 Matter pairing is the deliberate exception: the passcode travels in the
 clear, because the manual pairing code and the QR payload beside it are

@@ -18,12 +18,14 @@ the tree.
 The front end is Kotlin / Compose Multiplatform, built for the web platform
 first. What exists so far is the application shell — the top bar, the
 navigation tied to the browser's address bar and history, the theme built
-from the brand tokens — the devices screen with its filters, its sortable
-table and the New device dialog, and the jobs chip that keeps a running
-build reachable from every screen; the remaining screens are still
-placeholders. It talks to an in-memory mock of the API described in
-[`docs/api.md`](docs/api.md), so screens can be built before the back end
-exists. The back end — a Python
+from the brand tokens — the jobs chip that keeps a running build reachable
+from every screen, and the four screens the interface is made of: the
+devices table with its filters and the New device dialog, a device's own
+page with the YAML editor, its status rail and the output panel, the shared
+configuration files with their users, the secrets of all four scopes, and
+the project's options, file, boards and doctor report. It talks to an
+in-memory mock of the API described in [`docs/api.md`](docs/api.md), so
+screens can be built before the back end exists. The back end — a Python
 service on top of
 [mcuhome-workbench](https://github.com/mcu-home/mcuhome-workbench), talking
 to the front end only through that API over HTTP and WebSocket — is still

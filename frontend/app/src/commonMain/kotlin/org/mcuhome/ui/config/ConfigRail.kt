@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.mcuhome.ui.api.ConfigStatus
 import org.mcuhome.ui.api.ConfigUsersReport
@@ -23,6 +24,9 @@ import org.mcuhome.ui.time.formatTimestamp
 
 /** The width the rail of the shared-configuration screen shares with the device page. */
 val ConfigRailWidth = 260.dp
+
+/** What the rail is given on a tablet, where the editor beside it needs the difference. */
+val NarrowConfigRailWidth = 210.dp
 
 /**
  * What is known about the open fragment: who pulls it in and how those
@@ -41,8 +45,9 @@ fun ConfigStatusRail(
     report: ConfigUsersReport?,
     nowEpochMillis: Long,
     modifier: Modifier = Modifier,
+    width: Dp = ConfigRailWidth,
 ) {
-    SideRail(width = ConfigRailWidth, modifier = modifier) {
+    SideRail(width = width, modifier = modifier) {
         RailSection(title = "Used by") {
             if (file.summary.usedByDevices.isEmpty()) {
                 RailValue("No device includes this file.")

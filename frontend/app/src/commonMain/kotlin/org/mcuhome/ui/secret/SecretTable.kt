@@ -53,6 +53,10 @@ data class SecretRowActions(
  * The keys of one secrets file: what each is called, the dots that stand
  * in for its value, and where the value is actually used.
  *
+ * [withUsedBy] is false where the window has no room for the third
+ * column. Where a secret is used is the column that can be spared: the
+ * key and its value are what the screen is for.
+ *
  * The value column carries what the server sent — dots — until a reveal
  * request answers for exactly that key. Nothing here can unmask anything
  * on its own.
@@ -65,6 +69,7 @@ fun SecretTable(
     onSort: () -> Unit,
     actions: SecretRowActions,
     modifier: Modifier = Modifier,
+    withUsedBy: Boolean = true,
 ) {
     SurfaceCard(modifier) {
         TableHeaderRow {
@@ -75,7 +80,7 @@ fun SecretTable(
                 modifier = Modifier.weight(KEY_COLUMN_WEIGHT),
             )
             HeaderLabel("Value", Modifier.weight(VALUE_COLUMN_WEIGHT))
-            HeaderLabel("Used by", Modifier.weight(USED_BY_COLUMN_WEIGHT))
+            if (withUsedBy) HeaderLabel("Used by", Modifier.weight(USED_BY_COLUMN_WEIGHT))
             Box(Modifier.width(ActionColumnWidth))
         }
         if (entries.isEmpty()) {
@@ -93,6 +98,7 @@ fun SecretTable(
                 revealed = revealed.revealed(entry.key),
                 actions = actions,
                 last = index == entries.lastIndex,
+                withUsedBy = withUsedBy,
             )
         }
     }
@@ -115,6 +121,7 @@ private fun SecretRow(
     revealed: String?,
     actions: SecretRowActions,
     last: Boolean,
+    withUsedBy: Boolean,
 ) {
     val colors = MCUHomeTheme.colors
     Row(
@@ -137,16 +144,18 @@ private fun SecretRow(
             revealed = revealed,
             modifier = Modifier.weight(VALUE_COLUMN_WEIGHT),
         )
-        Column(Modifier.weight(USED_BY_COLUMN_WEIGHT)) {
-            if (entry.unused) {
-                Pill(text = "unused", tone = PillTone.Neutral)
-            } else {
-                Text(
-                    text = usedByLabel(entry),
-                    color = colors.muted,
-                    fontFamily = MCUHomeTheme.typography.body,
-                    fontSize = 13.sp,
-                )
+        if (withUsedBy) {
+            Column(Modifier.weight(USED_BY_COLUMN_WEIGHT)) {
+                if (entry.unused) {
+                    Pill(text = "unused", tone = PillTone.Neutral)
+                } else {
+                    Text(
+                        text = usedByLabel(entry),
+                        color = colors.muted,
+                        fontFamily = MCUHomeTheme.typography.body,
+                        fontSize = 13.sp,
+                    )
+                }
             }
         }
         Row(

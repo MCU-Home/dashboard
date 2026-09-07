@@ -41,6 +41,7 @@ import org.mcuhome.ui.component.PrimaryButton
 import org.mcuhome.ui.component.SegmentedControl
 import org.mcuhome.ui.component.ThinVerticalScrollbar
 import org.mcuhome.ui.project.PublicKeyCard
+import org.mcuhome.ui.shell.LocalWindowSize
 import org.mcuhome.ui.theme.MCUHomeTheme
 
 /** Which overlay the screen has open; only ever one at a time. */
@@ -64,6 +65,7 @@ private sealed interface SecretDialogState {
 @Composable
 fun SecretsPage(modifier: Modifier = Modifier) {
     val api = LocalMcuHomeApi.current
+    val window = LocalWindowSize.current
     val coroutineScope = rememberCoroutineScope()
     val scroll = rememberScrollState()
 
@@ -121,7 +123,10 @@ fun SecretsPage(modifier: Modifier = Modifier) {
     val rows = remember(entries, ascending) { sortedSecrets(entries, ascending) }
 
     Column(
-        modifier = modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp),
+        modifier = modifier.fillMaxSize().padding(
+            horizontal = if (window.expanded) 32.dp else 16.dp,
+            vertical = if (window.expanded) 24.dp else 16.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         PageHeading(title = "Secrets") {
@@ -182,6 +187,7 @@ fun SecretsPage(modifier: Modifier = Modifier) {
                             onDelete = { entry -> dialog = SecretDialogState.Delete(entry) },
                         ),
                         modifier = Modifier.fillMaxWidth(),
+                        withUsedBy = !window.compact,
                     )
                 }
             }

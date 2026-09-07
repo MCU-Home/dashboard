@@ -54,11 +54,15 @@ import org.mcuhome.ui.editor.SaveConflictNotice
 import org.mcuhome.ui.editor.UnsavedChangesDialog
 import org.mcuhome.ui.editor.YamlEditor
 import org.mcuhome.ui.shell.LocalNavigationGuard
+import org.mcuhome.ui.shell.LocalWindowSize
 import org.mcuhome.ui.theme.MCUHomeTheme
 import org.mcuhome.ui.time.rememberNowEpochMillis
 
 /** The width of the file list on the left, as the design draws it. */
 private val ConfigListWidth = 280.dp
+
+/** What that list is given where the window has less to spare. */
+private val NarrowConfigListWidth = 240.dp
 
 /** The sentence under the file list: what these files are and how a device gets one. */
 private const val CONFIG_LIST_NOTE =
@@ -81,8 +85,10 @@ fun ConfigsPage(
     fileName: String?,
     onOpenConfig: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onCloseConfig: () -> Unit = {},
 ) {
     val api = LocalMcuHomeApi.current
+    val window = LocalWindowSize.current
     val scope = rememberCoroutineScope()
     val guard = LocalNavigationGuard.current
     val now by rememberNowEpochMillis()
@@ -118,7 +124,11 @@ fun ConfigsPage(
         }
     }
 
-    LaunchedEffect(files, fileName) {
+    // A phone shows the list or the file, never both, so it starts on
+    // the list; every other window opens the first file straight away,
+    // because there is a column for the list beside it either way.
+    LaunchedEffect(files, fileName, window.compact) {
+        if (window.compact && fileName == null) return@LaunchedEffect
         val opened = openedConfigFile(files, fileName) ?: return@LaunchedEffect
         if (opened != fileName) onOpenConfig(opened)
     }
@@ -187,88 +197,108 @@ fun ConfigsPage(
                 wanted
             },
     ) {
-        SideList(
-            title = "Shared configs",
-            width = ConfigListWidth,
-            footer = CONFIG_LIST_NOTE,
-            action = {
-                MCUHomeIconButton(
-                    icon = MCUHomeIcons.plus,
-                    contentDescription = "New shared configuration",
-                    onClick = { creating = true },
-                    bordered = true,
-                )
-            },
-        ) {
-            files.forEach { summary ->
-                SideListItem(
-                    label = summary.fileName,
-                    onClick = { onOpenConfig(summary.fileName) },
-                    icon = MCUHomeIcons.file,
-                    trailing = usedByLabel(summary.usedByDevices.size),
-                    selected = summary.fileName == fileName,
-                )
+        val listOnly = window.compact && fileName == null
+        if (!window.compact || listOnly) {
+            SideList(
+                title = "Shared configs",
+                width = when {
+                    listOnly -> window.width
+                    window.expanded -> ConfigListWidth
+                    else -> NarrowConfigListWidth
+                },
+                footer = CONFIG_LIST_NOTE,
+                action = {
+                    MCUHomeIconButton(
+                        icon = MCUHomeIcons.plus,
+                        contentDescription = "New shared configuration",
+                        onClick = { creating = true },
+                        bordered = true,
+                    )
+                },
+            ) {
+                files.forEach { summary ->
+                    SideListItem(
+                        label = summary.fileName,
+                        onClick = { onOpenConfig(summary.fileName) },
+                        icon = MCUHomeIcons.file,
+                        // How many devices use a file is worth a column of
+                        // its own only where the name has room beside it.
+                        trailing = if (window.medium) null else usedByLabel(summary.usedByDevices.size),
+                        selected = summary.fileName == fileName,
+                    )
+                }
             }
         }
 
         val file = open
-        Column(Modifier.weight(1f).fillMaxSize()) {
-            if (file == null) {
-                Box(Modifier.fillMaxSize().padding(24.dp)) {
-                    val failure = error
-                    if (failure != null) {
-                        ErrorNotice(failure, Modifier.fillMaxWidth())
-                    } else {
-                        Placeholder(files.isEmpty())
+        if (!listOnly) {
+            Column(Modifier.weight(1f).fillMaxSize()) {
+                if (file == null) {
+                    Box(Modifier.fillMaxSize().padding(24.dp)) {
+                        val failure = error
+                        if (failure != null) {
+                            ErrorNotice(failure, Modifier.fillMaxWidth())
+                        } else {
+                            Placeholder(files.isEmpty())
+                        }
                     }
-                }
-            } else {
-                ConfigHeader(
-                    fileName = file.summary.fileName,
-                    dirty = document?.dirty == true,
-                    saving = document?.saving == true,
-                    validating = validating,
-                    actions = ConfigHeaderActions(
-                        onValidateUsers = {
-                            validating = true
-                            call {
-                                try {
-                                    report = api.config.validateUsers(file.summary.fileName)
-                                    userStatus = api.device.list().associate { it.name to it.config }
-                                } finally {
-                                    validating = false
+                } else {
+                    ConfigHeader(
+                        fileName = file.summary.fileName,
+                        dirty = document?.dirty == true,
+                        saving = document?.saving == true,
+                        validating = validating,
+                        actions = ConfigHeaderActions(
+                            onValidateUsers = {
+                                validating = true
+                                call {
+                                    try {
+                                        report = api.config.validateUsers(file.summary.fileName)
+                                        userStatus = api.device.list().associate { it.name to it.config }
+                                    } finally {
+                                        validating = false
+                                    }
                                 }
-                            }
-                        },
-                        onSave = { save() },
-                    ),
-                )
-                ConfigNotices(
-                    error = error,
-                    report = report,
-                    conflict = document?.conflict != null,
-                    actions = ConfigNoticeActions(
-                        onDismissError = { error = null },
-                        onReload = {
-                            val current = document
-                            val conflict = current?.conflict
-                            if (conflict != null) {
-                                text.setTextAndPlaceCursorAtEnd(conflict.currentText)
-                                document = current.reloaded()
-                            }
-                        },
-                        onOverwrite = {
-                            document = document?.overwriting()
-                            save()
-                        },
-                    ),
-                )
-                YamlEditor(state = text, diagnostics = emptyList(), modifier = Modifier.weight(1f).fillMaxWidth())
+                            },
+                            onSave = { save() },
+                        ),
+                        onBack = if (window.compact) onCloseConfig else null,
+                    )
+                    ConfigNotices(
+                        error = error,
+                        report = report,
+                        conflict = document?.conflict != null,
+                        actions = ConfigNoticeActions(
+                            onDismissError = { error = null },
+                            onReload = {
+                                val current = document
+                                val conflict = current?.conflict
+                                if (conflict != null) {
+                                    text.setTextAndPlaceCursorAtEnd(conflict.currentText)
+                                    document = current.reloaded()
+                                }
+                            },
+                            onOverwrite = {
+                                document = document?.overwriting()
+                                save()
+                            },
+                        ),
+                    )
+                    YamlEditor(state = text, diagnostics = emptyList(), modifier = Modifier.weight(1f).fillMaxWidth())
+                }
             }
-        }
 
-        if (file != null) {
-            ConfigStatusRail(file = file, userStatus = userStatus, report = report, nowEpochMillis = now)
+            // A phone has no column to put the rail in; what it says about
+            // the file is what the list's own entry for it already says.
+            if (file != null && !window.compact) {
+                ConfigStatusRail(
+                    file = file,
+                    userStatus = userStatus,
+                    report = report,
+                    nowEpochMillis = now,
+                    width = if (window.expanded) ConfigRailWidth else NarrowConfigRailWidth,
+                )
+            }
         }
     }
 

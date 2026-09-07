@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -128,6 +129,11 @@ fun SideListItem(
             fontFamily = MCUHomeTheme.typography.body,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             fontSize = 13.sp,
+            // A file name that does not fit is shortened rather than
+            // wrapped: the row has one line, and a second one would be
+            // cut off by its own height.
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         if (trailing != null) {
@@ -136,6 +142,7 @@ fun SideListItem(
                 color = colors.muted,
                 fontFamily = MCUHomeTheme.typography.body,
                 fontSize = 12.sp,
+                maxLines = 1,
             )
         }
     }

@@ -225,12 +225,20 @@ private fun BuildFooter(run: BuildRun, onCancel: () -> Unit) {
             .background(colors.backgroundAlt)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        FooterText("started ${formatTimeOfDaySeconds(snapshot.startedAtEpochMillis)}")
-        FooterText(method)
-        snapshot.parallelJobs?.let { FooterText("jobs $it") }
-        Box(Modifier.weight(1f))
+        // What the build is scrolls; how to stop it does not. On a phone
+        // the three facts are wider than the row, and a Cancel that is
+        // pushed off the edge is a Cancel that is not there.
+        Row(
+            modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            FooterText("started ${formatTimeOfDaySeconds(snapshot.startedAtEpochMillis)}")
+            FooterText(method)
+            snapshot.parallelJobs?.let { FooterText("jobs $it") }
+        }
+        Box(Modifier.size(12.dp))
         if (run.running) {
             TextAction(text = "Cancel", onClick = onCancel)
         } else {
@@ -240,6 +248,7 @@ private fun BuildFooter(run: BuildRun, onCancel: () -> Unit) {
                 fontFamily = MCUHomeTheme.typography.body,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
             )
         }
     }
@@ -252,6 +261,7 @@ private fun FooterText(text: String) {
         color = MCUHomeTheme.colors.muted,
         fontFamily = MCUHomeTheme.typography.body,
         fontSize = 12.sp,
+        maxLines = 1,
     )
 }
 

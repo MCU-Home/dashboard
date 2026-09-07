@@ -47,6 +47,7 @@ import org.mcuhome.ui.component.ThinVerticalScrollbar
 import org.mcuhome.ui.editor.EditorDocument
 import org.mcuhome.ui.editor.UnsavedChangesDialog
 import org.mcuhome.ui.shell.LocalNavigationGuard
+import org.mcuhome.ui.shell.LocalWindowSize
 import org.mcuhome.ui.theme.MCUHomeTheme
 
 /**
@@ -61,6 +62,7 @@ import org.mcuhome.ui.theme.MCUHomeTheme
 @Composable
 fun ProjectPage(modifier: Modifier = Modifier) {
     val api = LocalMcuHomeApi.current
+    val window = LocalWindowSize.current
     val coroutineScope = rememberCoroutineScope()
     val guard = LocalNavigationGuard.current
     val scroll = rememberScrollState()
@@ -151,7 +153,10 @@ fun ProjectPage(modifier: Modifier = Modifier) {
     }
 
     Column(
-        modifier = modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp),
+        modifier = modifier.fillMaxSize().padding(
+            horizontal = if (window.expanded) 32.dp else 16.dp,
+            vertical = if (window.expanded) 24.dp else 16.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         PageHeading(

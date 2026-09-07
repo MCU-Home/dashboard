@@ -16,14 +16,17 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
 import org.mcuhome.ui.component.Pill
 import org.mcuhome.ui.component.PillTone
 import org.mcuhome.ui.component.PrimaryButton
 import org.mcuhome.ui.component.SecondaryButton
 import org.mcuhome.ui.component.bottomBorder
+import org.mcuhome.ui.shell.LocalWindowSize
 import org.mcuhome.ui.theme.MCUHomeTheme
 
 /** The height the header bar of an editing screen shares with the device page. */
@@ -50,33 +53,58 @@ fun ConfigHeader(
     validating: Boolean,
     actions: ConfigHeaderActions,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
 ) {
     val colors = MCUHomeTheme.colors
+    val window = LocalWindowSize.current
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(ConfigHeaderHeight)
             .background(colors.surface)
             .bottomBorder()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = if (onBack == null) 20.dp else 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(text = "Configs", color = colors.muted, fontFamily = MCUHomeTheme.typography.body, fontSize = 14.sp)
-        Text(text = "/", color = colors.muted, fontFamily = MCUHomeTheme.typography.body, fontSize = 14.sp)
+        // Where the list is a screen of its own rather than a column
+        // beside this one, the trail back to it is a button.
+        if (onBack != null) {
+            MCUHomeIconButton(
+                icon = MCUHomeIcons.chevronLeft,
+                contentDescription = "Back to the shared configurations",
+                onClick = onBack,
+                tint = colors.ink,
+                size = 40.dp,
+            )
+        } else if (window.expanded) {
+            // The trail is dropped where the list beside the editor
+            // already says where the file is and the width is needed for
+            // the name itself.
+            Text(text = "Configs", color = colors.muted, fontFamily = MCUHomeTheme.typography.body, fontSize = 14.sp)
+            Text(text = "/", color = colors.muted, fontFamily = MCUHomeTheme.typography.body, fontSize = 14.sp)
+        }
         Text(
             text = fileName,
             color = colors.ink,
             fontFamily = MCUHomeTheme.typography.body,
             fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp,
+            // The name gives way before the actions do: a bar whose Save
+            // button is off the edge is a bar that cannot save.
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
         if (dirty) {
             Pill(text = if (saving) "saving…" else "unsaved changes", tone = PillTone.Accent, dot = true)
         }
-        Box(Modifier.weight(1f))
         SecondaryButton(
-            text = if (validating) "Validating…" else "Validate users",
+            text = when {
+                validating -> "Validating…"
+                window.expanded -> "Validate users"
+                else -> "Validate"
+            },
             onClick = actions.onValidateUsers,
             icon = MCUHomeIcons.check,
             enabled = !validating,

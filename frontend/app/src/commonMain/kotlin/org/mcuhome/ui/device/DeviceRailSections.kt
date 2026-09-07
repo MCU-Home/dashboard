@@ -36,17 +36,23 @@ fun ConfigSection(
     detail: DeviceDetail,
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
+    collapsible: Boolean = true,
 ) {
     RailSection(
         title = "Config",
         modifier = modifier,
         action = {
-            Tooltip(text = "Collapse") {
-                MCUHomeIconButton(
-                    icon = MCUHomeIcons.collapseRight,
-                    contentDescription = "Collapse the status rail",
-                    onClick = onCollapse,
-                )
+            // A rail that came up as a sheet is closed by touching the
+            // page above it; there is no column beside the editor for a
+            // collapse button to collapse.
+            if (collapsible) {
+                Tooltip(text = "Collapse") {
+                    MCUHomeIconButton(
+                        icon = MCUHomeIcons.collapseRight,
+                        contentDescription = "Collapse the status rail",
+                        onClick = onCollapse,
+                    )
+                }
             }
         },
     ) {

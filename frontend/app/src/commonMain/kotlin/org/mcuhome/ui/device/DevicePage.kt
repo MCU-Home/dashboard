@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -61,6 +62,7 @@ import org.mcuhome.ui.editor.EditorDocument
 import org.mcuhome.ui.editor.SaveConflictNotice
 import org.mcuhome.ui.editor.UnsavedChangesDialog
 import org.mcuhome.ui.editor.YamlEditor
+import org.mcuhome.ui.editor.YamlToolbar
 import org.mcuhome.ui.editor.editorDiagnostics
 import org.mcuhome.ui.panel.BuildRun
 import org.mcuhome.ui.panel.LocalPanelSession
@@ -69,9 +71,12 @@ import org.mcuhome.ui.panel.OutputPanel
 import org.mcuhome.ui.panel.OutputPanelActions
 import org.mcuhome.ui.panel.OutputPanelData
 import org.mcuhome.ui.panel.PanelMinimizedBar
+import org.mcuhome.ui.panel.PanelMinimizedPhoneBar
 import org.mcuhome.ui.panel.PanelMinimizedStrip
 import org.mcuhome.ui.panel.PanelTab
+import org.mcuhome.ui.shell.LocalKeyboardInset
 import org.mcuhome.ui.shell.LocalNavigationGuard
+import org.mcuhome.ui.shell.LocalWindowSize
 import org.mcuhome.ui.theme.MCUHomeTheme
 import org.mcuhome.ui.time.rememberNowEpochMillis
 
@@ -118,12 +123,17 @@ fun DevicePage(
     onOpenDevices: () -> Unit,
     onOpenDevice: (String) -> Unit,
     modifier: Modifier = Modifier,
+    jobsChip: @Composable () -> Unit = {},
 ) {
     val api = LocalMcuHomeApi.current
     val scope = rememberCoroutineScope()
     val downloader = LocalFileDownloader.current
     val session = LocalPanelSession.current
+    val railSession = LocalRailSession.current
     val guard = LocalNavigationGuard.current
+    val window = LocalWindowSize.current
+    val keyboardInset = LocalKeyboardInset.current
+    val focusManager = LocalFocusManager.current
     val now by rememberNowEpochMillis()
 
     val text = remember(name) { TextFieldState() }
@@ -135,8 +145,9 @@ fun DevicePage(
     var model by remember(name) { mutableStateOf<ModelState>(ModelState.Loading) }
     var logNotAvailable by remember(name) { mutableStateOf<Availability.NotAvailable?>(null) }
     var jumpToLine by remember(name) { mutableStateOf<Int?>(null) }
-    var railCollapsed by remember { mutableStateOf(false) }
     var railSection by remember { mutableStateOf<DeviceRailSection?>(null) }
+    var railSheet by remember(name) { mutableStateOf(false) }
+    var editorFocused by remember(name) { mutableStateOf(false) }
     var dialog by remember(name) { mutableStateOf<DeviceDialog?>(null) }
     var error by remember(name) { mutableStateOf<ApiError?>(null) }
     var notAvailable by remember(name) { mutableStateOf<Availability.NotAvailable?>(null) }
@@ -257,10 +268,80 @@ fun DevicePage(
     val live = open.copy(summary = open.summary.copy(config = statusOf(diagnostics)))
     val layout = session.layout
     val dirty = document?.dirty == true
+    val editing = editingMode(window, editorFocused)
+
+    val headerActions = DeviceHeaderActions(
+        onOpenDevices = onOpenDevices,
+        onSave = { save() },
+        onValidate = { call { diagnostics = api.device.validate(name).diagnostics } },
+        onBuild = { method ->
+            buildMethod = method
+            call { buildId = api.build.start(name, method).buildId }
+        },
+        onSign = { call { buildId = api.build.sign(name).buildId } },
+        onFlash = { mode -> dialog = DeviceDialog.Flash(mode) },
+        onPairing = { dialog = DeviceDialog.Pairing },
+        onFirstTimeSetup = { call { notAvailable = api.setup.start(name) as? Availability.NotAvailable } },
+        onClean = { call { api.device.clean(name) } },
+        onRename = { dialog = DeviceDialog.Rename },
+        onDelete = { dialog = DeviceDialog.Delete },
+        onResolvedModel = { session.layout = layout.showing(PanelTab.Model) },
+    )
+    val panelData = OutputPanelData(
+        build = build,
+        diagnostics = diagnostics,
+        artifacts = live.artifacts,
+        model = model,
+        logNotAvailable = logNotAvailable,
+    )
+    val panelActions = OutputPanelActions(
+        // Minimizing or restoring by hand is the user answering the
+        // question the window size answers by default; from then on the
+        // window stops answering it.
+        onLayout = { updated ->
+            if (updated.minimized != session.layout.minimized) session.minimizedChosen = true
+            session.layout = updated
+        },
+        onJumpToLine = { line -> jumpToLine = line },
+        onCancelBuild = { call { buildId?.let { api.build.cancel(it) } } },
+        onDownload = { artifact -> download(artifact) },
+    )
+    val railActions = DeviceRailActions(
+        onCollapse = { railSession.collapsed = true },
+        onExpand = { if (window.compact) railSheet = true else railSession.collapsed = false },
+        onOpenSection = { section ->
+            if (window.compact) railSheet = true else railSession.collapsed = false
+            railSection = section
+        },
+        onDownload = { artifact -> download(artifact) },
+        onShowPairing = { dialog = DeviceDialog.Pairing },
+        onJumpToLine = { line -> jumpToLine = line },
+    )
+    val editorSlot: @Composable () -> Unit = {
+        YamlEditor(
+            state = text,
+            diagnostics = editorDiagnostics(diagnostics),
+            modifier = Modifier.fillMaxSize(),
+            jumpToLine = jumpToLine,
+            onJumpHandled = { jumpToLine = null },
+            onFocusChanged = { focused -> editorFocused = focused },
+        )
+    }
+
+    LaunchedEffect(window.sizeClass, window.landscape) {
+        if (!session.minimizedChosen) {
+            session.layout = session.layout.copy(minimized = defaultPanelMinimized(window))
+        }
+    }
 
     Column(
         modifier = modifier
             .fillMaxSize()
+            // What the on-screen keyboard covers is taken off the page
+            // rather than drawn under: the browsers that shrink the page
+            // themselves report nothing here, and the ones that do not
+            // report exactly the strip they hid.
+            .padding(bottom = keyboardInset)
             .onPreviewKeyEvent { event ->
                 val save = event.type == KeyEventType.KeyDown &&
                     event.key == Key.S &&
@@ -269,117 +350,130 @@ fun DevicePage(
                 save
             },
     ) {
-        DeviceHeader(
-            name = name,
-            board = open.summary.board,
-            dirty = dirty,
-            saving = document?.saving == true,
-            defaultBuildMethod = buildMethod,
-            actions = DeviceHeaderActions(
-                onOpenDevices = onOpenDevices,
-                onSave = { save() },
-                onValidate = { call { diagnostics = api.device.validate(name).diagnostics } },
-                onBuild = { method ->
-                    buildMethod = method
-                    call { buildId = api.build.start(name, method).buildId }
-                },
-                onSign = { call { buildId = api.build.sign(name).buildId } },
-                onFlash = { mode -> dialog = DeviceDialog.Flash(mode) },
-                onPairing = { dialog = DeviceDialog.Pairing },
-                onFirstTimeSetup = { call { notAvailable = api.setup.start(name) as? Availability.NotAvailable } },
-                onClean = { call { api.device.clean(name) } },
-                onRename = { dialog = DeviceDialog.Rename },
-                onDelete = { dialog = DeviceDialog.Delete },
-                onResolvedModel = { session.layout = layout.showing(PanelTab.Model) },
-            ),
+        DeviceScreenHeader(
+            detail = live,
+            build = build,
+            state = DeviceHeaderState(editing = editing, dirty = dirty, saving = document?.saving == true),
+            actions = headerActions,
+            buildMethod = buildMethod,
+            jobsChip = jobsChip,
         )
 
-        DeviceNotices(
-            error = error,
-            notAvailable = notAvailable,
-            conflict = document?.conflict != null,
-            actions = DeviceNoticeActions(
-                onDismissError = { error = null },
-                onDismissNotAvailable = { notAvailable = null },
-                onReload = {
-                    val current = document
-                    val conflict = current?.conflict
-                    if (conflict != null) {
-                        text.setTextAndPlaceCursorAtEnd(conflict.currentText)
-                        document = current.reloaded()
-                    }
-                },
-                onOverwrite = {
-                    document = document?.overwriting()
-                    save()
-                },
-            ),
-        )
+        if (!editing) {
+            DeviceNotices(
+                error = error,
+                notAvailable = notAvailable,
+                conflict = document?.conflict != null,
+                actions = DeviceNoticeActions(
+                    onDismissError = { error = null },
+                    onDismissNotAvailable = { notAvailable = null },
+                    onReload = {
+                        val current = document
+                        val conflict = current?.conflict
+                        if (conflict != null) {
+                            text.setTextAndPlaceCursorAtEnd(conflict.currentText)
+                            document = current.reloaded()
+                        }
+                    },
+                    onOverwrite = {
+                        document = document?.overwriting()
+                        save()
+                    },
+                ),
+            )
+        }
+
+        if (window.compact && !editing && !window.landscape) {
+            DeviceStatusStrip(live, diagnostics, build, onOpenRail = { railSheet = true })
+        }
 
         BoxWithConstraints(Modifier.weight(1f)) {
             val narrow = maxWidth < RAIL_COLLAPSE_WIDTH
-            LaunchedEffect(narrow) { railCollapsed = narrow }
-            val railActions = DeviceRailActions(
-                onCollapse = { railCollapsed = true },
-                onExpand = { railCollapsed = false },
-                onOpenSection = { section ->
-                    railCollapsed = false
-                    railSection = section
-                },
-                onDownload = { artifact -> download(artifact) },
-                onShowPairing = { dialog = DeviceDialog.Pairing },
-                onJumpToLine = { line -> jumpToLine = line },
-            )
-            val panelData = OutputPanelData(
-                build = build,
-                diagnostics = diagnostics,
-                artifacts = live.artifacts,
-                model = model,
-                logNotAvailable = logNotAvailable,
-            )
-            val panelActions = OutputPanelActions(
-                onLayout = { updated -> session.layout = updated },
-                onJumpToLine = { line -> jumpToLine = line },
-                onCancelBuild = { call { buildId?.let { api.build.cancel(it) } } },
-                onDownload = { artifact -> download(artifact) },
-            )
-            DeviceBody(
-                layout = layout,
-                // The drag reads the session rather than the `layout`
-                // value this composition was drawn with: a drag delivers
-                // its pixels faster than the tree recomposes, and each of
-                // them has to build on the size the one before it left.
-                onResize = { delta -> session.layout = session.layout.resized(delta) },
-                slots = DeviceBodySlots(
-                    editor = {
-                        YamlEditor(
-                            state = text,
-                            diagnostics = editorDiagnostics(diagnostics),
-                            modifier = Modifier.fillMaxSize(),
-                            jumpToLine = jumpToLine,
-                            onJumpHandled = { jumpToLine = null },
+            val railCollapsed = railSession.collapsed ?: defaultRailCollapsed(window, narrow)
+            val railSlot: @Composable () -> Unit = {
+                if (railCollapsed) {
+                    CollapsedStatusRail(live, diagnostics, build, railActions)
+                } else {
+                    DeviceStatusRail(
+                        detail = live,
+                        diagnostics = diagnostics,
+                        build = build,
+                        nowEpochMillis = now,
+                        actions = railActions,
+                        scrollTo = railSection,
+                        onScrolled = { railSection = null },
+                    )
+                }
+            }
+
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f)) {
+                    if (window.compact) {
+                        CompactDeviceBody(
+                            landscape = window.landscape,
+                            slots = CompactDeviceBodySlots(
+                                editor = editorSlot,
+                                // The editing mode leaves the editor and
+                                // the keys above the keyboard, and takes
+                                // everything else off the screen — the
+                                // icon strip beside it included.
+                                rail = {
+                                    if (!editing) CollapsedStatusRail(live, diagnostics, build, railActions)
+                                },
+                                minimizedBar = {
+                                    if (!editing && layout.minimized) {
+                                        PanelMinimizedPhoneBar(layout, panelData, panelActions)
+                                    }
+                                },
+                            ),
                         )
-                    },
-                    rail = {
-                        if (railCollapsed) {
-                            CollapsedStatusRail(live, diagnostics, build, railActions)
-                        } else {
-                            DeviceStatusRail(
-                                detail = live,
-                                diagnostics = diagnostics,
-                                build = build,
-                                nowEpochMillis = now,
-                                actions = railActions,
-                                scrollTo = railSection,
-                                onScrolled = { railSection = null },
-                            )
-                        }
-                    },
-                    panel = { OutputPanel(layout, panelData, panelActions, Modifier.fillMaxSize()) },
-                    minimizedBar = { PanelMinimizedBar(layout, panelData, panelActions) },
-                    minimizedStrip = { PanelMinimizedStrip(layout, panelData, panelActions) },
-                ),
-            )
+                    } else {
+                        DeviceBody(
+                            layout = layout,
+                            // The drag reads the session rather than the
+                            // `layout` value this composition was drawn
+                            // with: a drag delivers its pixels faster than
+                            // the tree recomposes, and each of them has to
+                            // build on the size the one before it left.
+                            onResize = { delta -> session.layout = session.layout.resized(delta) },
+                            slots = DeviceBodySlots(
+                                editor = editorSlot,
+                                rail = railSlot,
+                                panel = { OutputPanel(layout, panelData, panelActions, Modifier.fillMaxSize()) },
+                                minimizedBar = { PanelMinimizedBar(layout, panelData, panelActions) },
+                                minimizedStrip = { PanelMinimizedStrip(layout, panelData, panelActions) },
+                            ),
+                        )
+                    }
+                }
+                if (window.compact && !editing && !window.landscape) {
+                    DeviceActionBar(headerActions, defaultBuildMethod = buildMethod)
+                }
+            }
+
+            if (window.compact && !editing && !layout.minimized) {
+                PanelSheet(layout, panelData, panelActions)
+            }
+            if (window.compact && railSheet && !editing) {
+                RailSheet(onDismiss = { railSheet = false }) {
+                    DeviceStatusRail(
+                        detail = live,
+                        diagnostics = diagnostics,
+                        build = build,
+                        nowEpochMillis = now,
+                        actions = railActions,
+                        width = maxWidth,
+                        bordered = false,
+                        collapsible = false,
+                        scrollTo = railSection,
+                        onScrolled = { railSection = null },
+                    )
+                }
+            }
+        }
+
+        if (editing) {
+            YamlToolbar(state = text, onDone = { focusManager.clearFocus() })
         }
     }
 

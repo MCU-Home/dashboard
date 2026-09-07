@@ -25,10 +25,12 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.mcuhome.ui.api.BuildMethod
 import org.mcuhome.ui.api.FlashMode
+import org.mcuhome.ui.component.IconButtonSize
 import org.mcuhome.ui.component.MCUHomeIconButton
 import org.mcuhome.ui.component.MCUHomeIcons
 import org.mcuhome.ui.component.MCUHomeMenuItem
@@ -137,7 +139,6 @@ private fun Breadcrumb(
 private fun DeviceActions(actions: DeviceHeaderActions, defaultBuildMethod: BuildMethod) {
     var buildMenu by remember { mutableStateOf(false) }
     var flashMenu by remember { mutableStateOf(false) }
-    var moreMenu by remember { mutableStateOf(false) }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         SecondaryButton(text = "Validate", onClick = actions.onValidate, icon = MCUHomeIcons.check)
         Box {
@@ -191,51 +192,102 @@ private fun DeviceActions(actions: DeviceHeaderActions, defaultBuildMethod: Buil
             }
         }
         SecondaryButton(text = "Pairing", onClick = actions.onPairing, icon = MCUHomeIcons.qr)
-        Box {
-            MCUHomeIconButton(
-                icon = MCUHomeIcons.dots,
-                contentDescription = "More actions",
-                onClick = { moreMenu = true },
-                bordered = true,
-            )
-            DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
+        DeviceMoreButton(actions)
+    }
+}
+
+/**
+ * The "…" button and everything behind it.
+ *
+ * [extended] adds the actions that have a button of their own in a
+ * desktop window and no room for one in a narrower bar — signing, Matter
+ * pairing, and the second choice of the two split buttons. A phone
+ * therefore reaches every action of the design, from one place, without
+ * a bar it cannot fit.
+ */
+@Composable
+fun DeviceMoreButton(
+    actions: DeviceHeaderActions,
+    modifier: Modifier = Modifier,
+    extended: Boolean = false,
+    size: Dp = IconButtonSize,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        MCUHomeIconButton(
+            icon = MCUHomeIcons.dots,
+            contentDescription = "More actions",
+            onClick = { open = true },
+            bordered = true,
+            size = size,
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (extended) {
                 MCUHomeMenuItem(
-                    label = "Run first-time setup…",
+                    label = "Sign the last build",
                     onClick = {
-                        moreMenu = false
-                        actions.onFirstTimeSetup()
+                        open = false
+                        actions.onSign()
                     },
                 )
                 MCUHomeMenuItem(
-                    label = "Show resolved model",
+                    label = "Matter pairing…",
                     onClick = {
-                        moreMenu = false
-                        actions.onResolvedModel()
+                        open = false
+                        actions.onPairing()
                     },
                 )
                 MCUHomeMenuItem(
-                    label = "Clean build output",
+                    label = "Build on the build server",
                     onClick = {
-                        moreMenu = false
-                        actions.onClean()
+                        open = false
+                        actions.onBuild(BuildMethod.Remote)
                     },
                 )
                 MCUHomeMenuItem(
-                    label = "Rename…",
+                    label = "Flash over the air…",
                     onClick = {
-                        moreMenu = false
-                        actions.onRename()
-                    },
-                )
-                MCUHomeMenuItem(
-                    label = "Delete…",
-                    danger = true,
-                    onClick = {
-                        moreMenu = false
-                        actions.onDelete()
+                        open = false
+                        actions.onFlash(FlashMode.Ota)
                     },
                 )
             }
+            MCUHomeMenuItem(
+                label = "Run first-time setup…",
+                onClick = {
+                    open = false
+                    actions.onFirstTimeSetup()
+                },
+            )
+            MCUHomeMenuItem(
+                label = "Show resolved model",
+                onClick = {
+                    open = false
+                    actions.onResolvedModel()
+                },
+            )
+            MCUHomeMenuItem(
+                label = "Clean build output",
+                onClick = {
+                    open = false
+                    actions.onClean()
+                },
+            )
+            MCUHomeMenuItem(
+                label = "Rename…",
+                onClick = {
+                    open = false
+                    actions.onRename()
+                },
+            )
+            MCUHomeMenuItem(
+                label = "Delete…",
+                danger = true,
+                onClick = {
+                    open = false
+                    actions.onDelete()
+                },
+            )
         }
     }
 }

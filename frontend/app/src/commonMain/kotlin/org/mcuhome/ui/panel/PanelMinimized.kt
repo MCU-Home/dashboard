@@ -296,3 +296,87 @@ private fun ColumnScope.RunningBuildStrip(data: OutputPanelData) {
         )
     }
 }
+
+/**
+ * The minimized panel on a phone: one line saying what the build is
+ * doing, how many diagnostics are waiting, and that there is more behind
+ * it.
+ *
+ * The bar of a desktop window carries all five tabs; a phone's width is
+ * gone after two of them. What is left is the state itself, and the whole
+ * bar is the button that brings the panel back — a 36 px line is a poor
+ * target, a 36 px line across the screen is a good one.
+ */
+@Composable
+fun PanelMinimizedPhoneBar(
+    layout: PanelLayout,
+    data: OutputPanelData,
+    actions: OutputPanelActions,
+    modifier: Modifier = Modifier,
+) {
+    DarkSchemeContent {
+        val colors = MCUHomeTheme.colors
+        val stage = data.build.snapshot?.stages?.firstOrNull { it.state == StageState.Running }
+        val count = data.diagnostics.size
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(MinimizedBarHeight)
+                .background(colors.background)
+                .handCursor().clickable { actions.onLayout(layout.restored()) }
+                .padding(start = 10.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = tabIcon(layout.tab),
+                contentDescription = null,
+                tint = colors.muted,
+                modifier = Modifier.size(14.dp),
+            )
+            Text(
+                text = stage?.let { stageLabel(it.stage, it.progress, it.durationMillis) } ?: layout.tab.label,
+                color = if (stage != null) colors.accent else colors.muted,
+                fontFamily = MCUHomeTheme.typography.body,
+                fontSize = 12.5.sp,
+                maxLines = 1,
+            )
+            if (stage != null) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(colors.backgroundAlt),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(data.build.progressFraction())
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(colors.accent),
+                    )
+                }
+            } else {
+                Box(Modifier.weight(1f))
+            }
+            if (count > 0) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(colors.warningTintBorder)
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                ) {
+                    Text(
+                        text = count.toString(),
+                        color = colors.background,
+                        fontFamily = MCUHomeTheme.typography.body,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+            PanelRestoreButton(layout, actions)
+        }
+    }
+}

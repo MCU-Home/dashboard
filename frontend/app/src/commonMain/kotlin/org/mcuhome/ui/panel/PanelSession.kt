@@ -21,6 +21,18 @@ import androidx.compose.runtime.staticCompositionLocalOf
  */
 class PanelSession {
     var layout: PanelLayout by mutableStateOf(PanelLayout())
+
+    /**
+     * Whether the user has minimized or restored the panel themselves.
+     *
+     * Which state the panel starts in depends on the window: open below
+     * the editor on a desktop or a tablet held upright, out of the way on
+     * a tablet turned sideways or on a phone, where the editor needs the
+     * height more than the output does. That is a default, not a rule —
+     * once the user has answered the question, the window stops answering
+     * it for them.
+     */
+    var minimizedChosen: Boolean = false
 }
 
 val LocalPanelSession = staticCompositionLocalOf { PanelSession() }

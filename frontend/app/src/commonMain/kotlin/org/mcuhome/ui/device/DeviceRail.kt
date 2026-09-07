@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -81,6 +82,11 @@ data class DeviceRailActions(
  * is about the file next to it, and it collapses to an icon strip when
  * the window has no room for the words.
  *
+ * [width] and [bordered] are what changes when the rail is not a column
+ * beside the editor at all: on a phone it comes up as a sheet across the
+ * whole screen, where a line down its left edge would be a line down the
+ * middle of nothing.
+ *
  * [scrollTo] is the block an icon of the collapsed strip asked for: the
  * rail scrolls it into view once it knows where it sits, and reports back
  * through [onScrolled] so the request is not repeated on every
@@ -94,6 +100,9 @@ fun DeviceStatusRail(
     nowEpochMillis: Long,
     actions: DeviceRailActions,
     modifier: Modifier = Modifier,
+    width: Dp = RailWidth,
+    bordered: Boolean = true,
+    collapsible: Boolean = true,
     scrollTo: DeviceRailSection? = null,
     onScrolled: () -> Unit = {},
 ) {
@@ -112,8 +121,13 @@ fun DeviceStatusRail(
         }
         onScrolled()
     }
-    SideRail(width = RailWidth, modifier = modifier, scroll = scroll) {
-        ConfigSection(detail, actions.onCollapse, Modifier.railSectionTop(DeviceRailSection.Config, tops))
+    SideRail(width = width, modifier = modifier, scroll = scroll, bordered = bordered) {
+        ConfigSection(
+            detail = detail,
+            onCollapse = actions.onCollapse,
+            modifier = Modifier.railSectionTop(DeviceRailSection.Config, tops),
+            collapsible = collapsible,
+        )
         BuildSection(detail, build, nowEpochMillis, Modifier.railSectionTop(DeviceRailSection.Build, tops))
         ArtifactsSection(
             artifacts = detail.artifacts,

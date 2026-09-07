@@ -44,6 +44,9 @@ private val PanelHeaderHeight = 44.dp
  * It is drawn in the dark scheme whatever scheme the window is in — the
  * design's one deliberate exception, and the reason build output and a
  * device log read like the terminal they come from.
+ *
+ * [withDockToggle] is false where the panel has only one place to be: a
+ * phone shows it as a sheet over the page and nowhere else.
  */
 @Composable
 fun OutputPanel(
@@ -51,11 +54,12 @@ fun OutputPanel(
     data: OutputPanelData,
     actions: OutputPanelActions,
     modifier: Modifier = Modifier,
+    withDockToggle: Boolean = true,
 ) {
     DarkSchemeContent {
         val colors = MCUHomeTheme.colors
         Column(modifier.background(colors.background)) {
-            PanelHeader(layout, data, actions)
+            PanelHeader(layout, data, actions, withDockToggle)
             Box(Modifier.fillMaxSize()) {
                 when (layout.tab) {
                     PanelTab.Build -> BuildTab(data.build, actions.onCancelBuild)
@@ -74,6 +78,7 @@ private fun PanelHeader(
     layout: PanelLayout,
     data: OutputPanelData,
     actions: OutputPanelActions,
+    withDockToggle: Boolean,
 ) {
     val colors = MCUHomeTheme.colors
     Row(
@@ -108,15 +113,25 @@ private fun PanelHeader(
                 )
             }
         }
-        DockControls(layout, actions)
+        DockControls(layout, actions, withDockToggle)
     }
 }
 
-/** The dock toggle and the minimize button, in the panel's corner. */
+/**
+ * The dock toggle and the minimize button, in the panel's corner.
+ *
+ * A phone has one place the panel can be — over the page, from the
+ * bottom — so the toggle that moves it between two edges is left out
+ * there rather than offered and refused.
+ */
 @Composable
-private fun DockControls(layout: PanelLayout, actions: OutputPanelActions) {
+private fun DockControls(
+    layout: PanelLayout,
+    actions: OutputPanelActions,
+    withDockToggle: Boolean,
+) {
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-        PanelDockToggle(layout, actions)
+        if (withDockToggle) PanelDockToggle(layout, actions)
         PanelMinimizeButton(layout, actions)
     }
 }

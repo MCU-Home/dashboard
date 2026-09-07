@@ -36,3 +36,15 @@ enum class Destination(val route: String, val label: String) {
 @Serializable
 @SerialName("devices")
 data class DeviceRoute(val name: String)
+
+/**
+ * One shared configuration file, below the Configs entry in the address
+ * bar: `configs/wifi-common.yaml`.
+ *
+ * The open file is part of the address for the same reason a device is:
+ * a link to a configuration is a link to *that* configuration, and
+ * reloading the page comes back to it.
+ */
+@Serializable
+@SerialName("configs")
+data class ConfigRoute(val file: String)

@@ -25,15 +25,18 @@ import org.mcuhome.ui.api.ConnectionState
 import org.mcuhome.ui.api.LocalMcuHomeApi
 import org.mcuhome.ui.api.McuHomeApi
 import org.mcuhome.ui.api.ServerInfo
+import org.mcuhome.ui.config.ConfigsPage
 import org.mcuhome.ui.device.DevicePage
 import org.mcuhome.ui.device.DevicesPage
 import org.mcuhome.ui.download.FileDownloader
 import org.mcuhome.ui.download.LocalFileDownloader
 import org.mcuhome.ui.job.JobsChip
 import org.mcuhome.ui.job.rememberJobList
-import org.mcuhome.ui.page.PlaceholderPage
 import org.mcuhome.ui.panel.LocalPanelSession
 import org.mcuhome.ui.panel.PanelSession
+import org.mcuhome.ui.project.ProjectPage
+import org.mcuhome.ui.secret.SecretsPage
+import org.mcuhome.ui.shell.ConfigRoute
 import org.mcuhome.ui.shell.Destination
 import org.mcuhome.ui.shell.DeviceRoute
 import org.mcuhome.ui.shell.LocalNavigationGuard
@@ -93,6 +96,14 @@ private fun AppContent(onNavHostReady: suspend (NavHostController) -> Unit) {
         val openDevice: (String) -> Unit = { name ->
             guard.navigate { navController.navigate(DeviceRoute(name)) }
         }
+        val openConfig: (String) -> Unit = { file ->
+            guard.navigate {
+                navController.navigate(ConfigRoute(file)) {
+                    popUpTo(Destination.start.route) { inclusive = false }
+                    launchSingleTop = true
+                }
+            }
+        }
         val openDevices: () -> Unit = {
             guard.navigate {
                 navController.navigate(Destination.Devices.route) {
@@ -136,13 +147,16 @@ private fun AppContent(onNavHostReady: suspend (NavHostController) -> Unit) {
                     )
                 }
                 composable(Destination.Configs.route) {
-                    PlaceholderPage("Configs", "The shared configuration files of this project and their users.")
+                    ConfigsPage(fileName = null, onOpenConfig = openConfig)
+                }
+                composable<ConfigRoute> { entry ->
+                    ConfigsPage(fileName = entry.toRoute<ConfigRoute>().file, onOpenConfig = openConfig)
                 }
                 composable(Destination.Secrets.route) {
-                    PlaceholderPage("Secrets", "The four secret scopes: project, devices, build server, firmware key.")
+                    SecretsPage()
                 }
                 composable(Destination.Project.route) {
-                    PlaceholderPage("Project", "Project options, the project file, boards and the doctor report.")
+                    ProjectPage()
                 }
             }
         }

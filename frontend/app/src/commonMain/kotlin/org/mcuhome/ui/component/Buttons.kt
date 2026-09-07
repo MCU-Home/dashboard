@@ -85,25 +85,99 @@ fun SecondaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     danger: Boolean = false,
+    icon: ImageVector? = null,
+    enabled: Boolean = true,
 ) {
     val colors = MCUHomeTheme.colors
-    Box(
+    val content = when {
+        !enabled -> colors.muted
+        danger -> colors.error
+        else -> colors.ink
+    }
+    Row(
         modifier = modifier
             .height(ControlHeight)
             .clip(ButtonShape)
             .background(colors.surface)
             .border(width = 1.dp, color = colors.border, shape = ButtonShape)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp),
-        contentAlignment = Alignment.Center,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        if (icon != null) {
+            Icon(imageVector = icon, contentDescription = null, tint = content, modifier = Modifier.size(15.dp))
+        }
         Text(
             text = text,
-            color = if (danger) colors.error else colors.ink,
+            color = content,
             fontFamily = MCUHomeTheme.typography.body,
             fontWeight = FontWeight.SemiBold,
             fontSize = 13.sp,
         )
+    }
+}
+
+/**
+ * A button with a menu attached: pressing it does the obvious thing,
+ * pressing the chevron says which one.
+ *
+ * The device page's Build and Flash both work that way — a build has a
+ * method and a flash has a mode, but a user who does not care should not
+ * have to answer the question every time.
+ */
+@Composable
+fun SplitButton(
+    text: String,
+    onClick: () -> Unit,
+    onOpenMenu: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    primary: Boolean = false,
+) {
+    val colors = MCUHomeTheme.colors
+    val content = if (primary) colors.surface else colors.ink
+    Row(
+        modifier = modifier
+            .height(ControlHeight)
+            .clip(ButtonShape)
+            .background(if (primary) colors.accent else colors.surface)
+            .then(if (primary) Modifier else Modifier.border(1.dp, colors.border, ButtonShape)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier
+                .clickable(onClick = onClick)
+                .padding(start = 14.dp, end = 8.dp)
+                .height(ControlHeight),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (icon != null) {
+                Icon(imageVector = icon, contentDescription = null, tint = content, modifier = Modifier.size(15.dp))
+            }
+            Text(
+                text = text,
+                color = content,
+                fontFamily = MCUHomeTheme.typography.body,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .height(ControlHeight)
+                .clickable(onClick = onOpenMenu)
+                .padding(end = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = MCUHomeIcons.chevronDown,
+                contentDescription = "More options",
+                tint = content,
+                modifier = Modifier.size(14.dp),
+            )
+        }
     }
 }
 

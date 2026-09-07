@@ -45,6 +45,7 @@ kotlin {
             implementation(libs.compose.components.resources)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.qrose)
             // Navigation appears in the signature of `App`, so the entry
             // point of every platform needs it on its own classpath.
             api(libs.navigation.compose)

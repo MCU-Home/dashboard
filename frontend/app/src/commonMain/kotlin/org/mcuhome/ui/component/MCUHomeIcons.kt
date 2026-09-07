@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
  * The interface's complete icon set, drawn as vector paths rather than
  * taken from an icon font or emoji. A font would pull in glyphs the
  * interface never uses and would tie every icon's weight and alignment to
- * whatever the font happens to ship; drawing the nine shapes the interface
+ * whatever the font happens to ship; drawing the shapes the interface
  * actually needs keeps them consistent with each other and with the rest
  * of the theme, which tints them through `Icon`'s `tint` parameter.
  */
@@ -115,6 +115,217 @@ object MCUHomeIcons {
             lineTo(18f, 18f)
             moveTo(18f, 6f)
             lineTo(6f, 18f)
+        }
+    }
+
+    /** An informational notice. */
+    val infoCircle: ImageVector by lazy {
+        icon("infoCircle") {
+            moveTo(3f, 12f)
+            arcTo(9f, 9f, 0f, true, true, 21f, 12f)
+            arcTo(9f, 9f, 0f, true, true, 3f, 12f)
+            moveTo(12f, 11f)
+            lineTo(12f, 16.5f)
+            moveTo(12f, 7.5f)
+            lineTo(12f, 7.6f)
+        }
+    }
+
+    /** The Build action, and the Build tab of the output panel. */
+    val hammer: ImageVector by lazy {
+        icon("hammer") {
+            moveTo(12.5f, 4f)
+            lineTo(19.5f, 11f)
+            lineTo(17f, 13.5f)
+            lineTo(10f, 6.5f)
+            close()
+            moveTo(11.2f, 9.3f)
+            lineTo(4.5f, 16f)
+            lineTo(7.5f, 19f)
+            lineTo(14.2f, 12.3f)
+        }
+    }
+
+    /** Signing an image, and the "signed" row of the device rail. */
+    val key: ImageVector by lazy {
+        icon("key") {
+            moveTo(10.5f, 9.5f)
+            arcTo(4f, 4f, 0f, true, true, 10.5f, 9.6f)
+            moveTo(13.5f, 12.5f)
+            lineTo(20f, 19f)
+            moveTo(17.5f, 16.5f)
+            lineTo(15.5f, 18.5f)
+        }
+    }
+
+    /** Flashing an image onto a board. */
+    val bolt: ImageVector by lazy {
+        icon("bolt") {
+            moveTo(13f, 3f)
+            lineTo(6f, 13.5f)
+            lineTo(11.5f, 13.5f)
+            lineTo(10.5f, 21f)
+            lineTo(17.5f, 10.5f)
+            lineTo(12f, 10.5f)
+            close()
+        }
+    }
+
+    /** Matter pairing: the commissioning code as a shape. */
+    val qr: ImageVector by lazy {
+        icon("qr") {
+            moveTo(4f, 4f)
+            lineTo(10f, 4f)
+            lineTo(10f, 10f)
+            lineTo(4f, 10f)
+            close()
+            moveTo(14f, 4f)
+            lineTo(20f, 4f)
+            lineTo(20f, 10f)
+            lineTo(14f, 10f)
+            close()
+            moveTo(4f, 14f)
+            lineTo(10f, 14f)
+            lineTo(10f, 20f)
+            lineTo(4f, 20f)
+            close()
+            moveTo(14f, 14f)
+            lineTo(16f, 14f)
+            moveTo(19f, 14f)
+            lineTo(20f, 14f)
+            moveTo(14f, 17f)
+            lineTo(14f, 20f)
+            moveTo(17.5f, 17.5f)
+            lineTo(20f, 17.5f)
+            moveTo(17.5f, 20f)
+            lineTo(17.5f, 20.1f)
+        }
+    }
+
+    /** Fetching an artifact. */
+    val download: ImageVector by lazy {
+        icon("download") {
+            moveTo(12f, 4f)
+            lineTo(12f, 15f)
+            moveTo(7.5f, 10.5f)
+            lineTo(12f, 15f)
+            lineTo(16.5f, 10.5f)
+            moveTo(4.5f, 19.5f)
+            lineTo(19.5f, 19.5f)
+        }
+    }
+
+    /** Copying a pairing code to the clipboard. */
+    val copy: ImageVector by lazy {
+        icon("copy") {
+            moveTo(9f, 8.5f)
+            lineTo(19.5f, 8.5f)
+            lineTo(19.5f, 19.5f)
+            lineTo(9f, 19.5f)
+            close()
+            moveTo(5.5f, 15.5f)
+            lineTo(4.5f, 15.5f)
+            lineTo(4.5f, 4.5f)
+            lineTo(15f, 4.5f)
+            lineTo(15f, 5.5f)
+        }
+    }
+
+    /** Revealing a masked value. */
+    val eye: ImageVector by lazy {
+        icon("eye") {
+            moveTo(2.5f, 12f)
+            curveTo(6f, 6.5f, 18f, 6.5f, 21.5f, 12f)
+            curveTo(18f, 17.5f, 6f, 17.5f, 2.5f, 12f)
+            close()
+            moveTo(9.5f, 12f)
+            arcTo(2.5f, 2.5f, 0f, true, true, 9.5f, 12.1f)
+        }
+    }
+
+    /** Hiding a value that was revealed. */
+    val eyeOff: ImageVector by lazy {
+        icon("eyeOff") {
+            moveTo(2.5f, 12f)
+            curveTo(6f, 6.5f, 18f, 6.5f, 21.5f, 12f)
+            curveTo(18f, 17.5f, 6f, 17.5f, 2.5f, 12f)
+            close()
+            moveTo(9.5f, 12f)
+            arcTo(2.5f, 2.5f, 0f, true, true, 9.5f, 12.1f)
+            moveTo(4f, 20f)
+            lineTo(20f, 4f)
+        }
+    }
+
+    /** A warning: the Diagnostics list and the collapsed rail's marker. */
+    val warningTriangle: ImageVector by lazy {
+        icon("warningTriangle") {
+            moveTo(12f, 3.5f)
+            lineTo(21.5f, 20f)
+            lineTo(2.5f, 20f)
+            close()
+            moveTo(12f, 10f)
+            lineTo(12f, 14.5f)
+            moveTo(12f, 17f)
+            lineTo(12f, 17.1f)
+        }
+    }
+
+    /** Docking the output panel below the editor. */
+    val dockBottom: ImageVector by lazy {
+        icon("dockBottom") {
+            moveTo(3.5f, 4.5f)
+            lineTo(20.5f, 4.5f)
+            lineTo(20.5f, 19.5f)
+            lineTo(3.5f, 19.5f)
+            close()
+            moveTo(3.5f, 14f)
+            lineTo(20.5f, 14f)
+        }
+    }
+
+    /** Docking the output panel beside the rail. */
+    val dockRight: ImageVector by lazy {
+        icon("dockRight") {
+            moveTo(3.5f, 4.5f)
+            lineTo(20.5f, 4.5f)
+            lineTo(20.5f, 19.5f)
+            lineTo(3.5f, 19.5f)
+            close()
+            moveTo(14f, 4.5f)
+            lineTo(14f, 19.5f)
+        }
+    }
+
+    /** Minimizing the output panel. */
+    val minus: ImageVector by lazy {
+        icon("minus") {
+            moveTo(5f, 12f)
+            lineTo(19f, 12f)
+        }
+    }
+
+    /** Collapsing the status rail. */
+    val chevronLeft: ImageVector by lazy {
+        icon("chevronLeft") {
+            moveTo(14.5f, 5.5f)
+            lineTo(8f, 12f)
+            lineTo(14.5f, 18.5f)
+        }
+    }
+
+    /** The resolved model: a file the interface only reads. */
+    val file: ImageVector by lazy {
+        icon("file") {
+            moveTo(6f, 3.5f)
+            lineTo(14f, 3.5f)
+            lineTo(18f, 7.5f)
+            lineTo(18f, 20.5f)
+            lineTo(6f, 20.5f)
+            close()
+            moveTo(14f, 3.5f)
+            lineTo(14f, 7.5f)
+            lineTo(18f, 7.5f)
         }
     }
 

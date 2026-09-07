@@ -15,6 +15,9 @@ compose-material3 = "1.12.0-alpha03"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 navigation = "2.9.2"
+# The QR encoder behind the Matter pairing dialog. Multiplatform, MIT,
+# published for wasmJs; the version below is its newest stable release.
+qrose = "1.1.2"
 # The linters. The ktlint Gradle plugin and the ktlint engine it runs are
 # versioned separately: the plugin ships a default engine version, and
 # this pins the engine explicitly so an updated plugin cannot change the
@@ -33,6 +36,7 @@ kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-c
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigation" }
+qrose = { module = "io.github.alexzhirkevich:qrose", version.ref = "qrose" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

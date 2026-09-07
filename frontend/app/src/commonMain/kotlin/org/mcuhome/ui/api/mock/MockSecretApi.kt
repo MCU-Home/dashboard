@@ -18,12 +18,16 @@ import org.mcuhome.ui.api.SecretScopeIndex
  * hands out a value takes one key and returns one string.
  */
 internal class MockSecretApi(private val context: MockContext) : SecretApi {
-    override suspend fun scopes(): SecretScopeIndex = SecretScopeIndex(
-        devices = context.state.value.devices.map { it.name },
-        buildServers = context.state.value.secrets.keys
-            .filterIsInstance<SecretScope.BuildServer>()
-            .map { it.server },
-    )
+    override suspend fun scopes(): SecretScopeIndex {
+        val secrets = context.state.value.secrets
+        return SecretScopeIndex(
+            // Only the devices that have a file of their own: a scope the
+            // interface offers has to have something behind it, and a
+            // device without commissioning credentials has no secrets yet.
+            devices = context.state.value.devices.map { it.name }.filter { SecretScope.Device(it) in secrets },
+            buildServers = secrets.keys.filterIsInstance<SecretScope.BuildServer>().map { it.server },
+        )
+    }
 
     override suspend fun list(scope: SecretScope): SecretList {
         val state = context.state.value
